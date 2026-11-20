@@ -57,7 +57,8 @@ public:
     // (id from addEntry) instead of adding a duplicate. False if evicted.
     bool setUrlById(quint64 id, const QString &url, const QString &deleteUrl);
     // Point the entry at a just-saved file (capture-card Save) so path-keyed
-    // lookups (Delete, upload URL) find it. False if the entry is gone.
+    // lookups (Delete, upload URL) find it; empty detaches the file and keeps
+    // the entry. False if the entry is gone.
     bool setFilePathById(quint64 id, const QString &filePath);
     // Runtime id of the entry holding this capture file, 0 when untracked.
     // Lets a caller that only knows the path (editing from history) address the
@@ -106,6 +107,15 @@ signals:
     // AppContext plays the fixed trash sound cue on it.
     void entryTrashed();
 
+public:
+    // Drop entries whose capture file vanished on disk. Entries whose whole
+    // parent directory is absent (unmounted volume) are kept, not pruned.
+    // With dirFilter non-null only entries living in one of those directories
+    // are stat()ed: the directory watcher knows exactly which dirs changed,
+    // so a capture save no longer triggers an existence sweep over all 500
+    // entries. Public for the smoke test.
+    void pruneMissing(const QSet<QString> *dirFilter = nullptr);
+
 private:
     struct Entry {
         // Runtime-only identity (not persisted): fresh ids are assigned on
@@ -142,13 +152,6 @@ private:
     QString dataDir() const;
     void removeRow(int row, bool trashFile);
     void rebuildWatches();   // watch the parent directories of all capture files
-    // Drop entries whose capture file vanished on disk. Entries whose whole
-    // parent directory is absent (unmounted volume) are kept, not pruned.
-    // With dirFilter non-null only entries living in one of those directories
-    // are stat()ed — the directory watcher knows exactly which dirs changed,
-    // so a capture save no longer triggers an existence sweep over all 500
-    // entries.
-    void pruneMissing(const QSet<QString> *dirFilter = nullptr);
 
     QVector<Entry> m_entries;
     // DimensionsRole reads the image header (QImageReader::size(), no decode) and

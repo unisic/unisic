@@ -94,6 +94,10 @@ jobs:
           # several mutually exclusive providers, so it cannot be a Depends);
           # skipping it here would have tested a set of packages nobody gets.
           apt-get install -y ./dist/*.deb
+          # ONNX Runtime is a Recommends (PaddleOCR, the default OCR engine):
+          # Debian 13 has it, so an install without it here means the name rotted.
+          ldconfig -p | grep 'libonnxruntime\.so\.1' \
+            || { echo "ONNX Runtime was not installed with the package"; exit 1; }
           for tool in ffmpeg ffprobe wl-copy curl zip grim pw-record pw-dump pw-play; do
             command -v "$tool" >/dev/null || { echo "missing packaged runtime helper: $tool"; exit 1; }
           done

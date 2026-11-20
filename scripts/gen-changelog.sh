@@ -49,4 +49,7 @@ done < <(git log ${range} --no-merges --pretty=format:'%h%x09%s')
   if [[ -n "$prev" ]]; then
     echo "**Full changelog:** https://github.com/${repo}/compare/${prev}...v${version}"
   fi
+  # SignPath Foundation asks every download page to link the policy.
+  echo
+  echo "[Code signing policy](https://github.com/${repo}#code-signing-policy) · [Privacy policy](https://github.com/${repo}/blob/HEAD/PRIVACY.md)"
 }

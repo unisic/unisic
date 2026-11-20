@@ -85,6 +85,10 @@ public:
     // for daemon-authoritative display in the settings UI.
     static QString portableFromKeys(const QList<int> &keys);
 
+    // Portable string -> flat combined-int list (each chord of a multi-key
+    // string becomes one ALTERNATE key of the action).
+    static QList<int> keysFor(const QString &keySequence);
+
     // "unisic/" (or "unisic-dev/" in dev builds) — for matching keyOwner()
     // results against our own component.
     static QString componentPrefix()
@@ -103,10 +107,6 @@ private slots:
                            qlonglong timestamp);
     void onYourShortcutsChanged(const QStringList &actionId, const QList<int> &newKeys);
     void onYourShortcutsListChanged(const QDBusMessage &msg);
-
-    // Portable string -> flat combined-int list (each chord of a multi-key
-    // string becomes one ALTERNATE key of the action).
-    static QList<int> keysFor(const QString &keySequence);
 
 private:
     QStringList fullActionId(const QString &actionId, const QString &friendlyName) const;

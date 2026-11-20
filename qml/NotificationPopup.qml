@@ -194,7 +194,8 @@ Window {
         if (id === "copy") return notif.kind === "image" || notif.filePath !== ""
         if (id === "link") return notif.url !== ""
         if (id === "qr") return notif.url !== ""
-        if (id === "folder") return true
+        // A recording moved to the trash after its upload has no folder left.
+        if (id === "folder") return notif.kind === "image" || notif.filePath !== ""
         if (id === "upload") return notif.url === "" && !notif.uploading
         if (id === "ocr") return notif.kind === "image"
         if (id === "trim") return notif.filePath !== ""

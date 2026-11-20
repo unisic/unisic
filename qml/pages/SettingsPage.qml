@@ -8,10 +8,20 @@ import "../components"
 Item {
     objectName: "settingsPage"  // the smoke test drives panes through it
     id: page
-    // paneArea is already inset by spacingXL on both sides, so don't subtract it
-    // again here (that left the cards mis-centered with a big right-hand gap).
-    readonly property int cardWidth: Math.min(paneArea.width, 694)
+    // The full pane, like every other page's grid: a fixed cap left a wide or
+    // maximised window half empty to the right of the cards. paneArea is
+    // already inset by the page margin, so the cards end flush with Export.
+    readonly property int cardWidth: paneArea.width
     property int tab: 0
+    // The Capture page's card language: the tiles' hairline, warming on hover
+    // where a card is clickable (a search result, a disclosure).
+    readonly property color cardBorder: Theme.alpha(Theme.accent, 0.10)
+    readonly property color cardBorderHover: Theme.alpha(Theme.accent, 0.32)
+    // Capture's rule for the default 1060x700 window: tighter top margin and
+    // gaps under 760 px, the mock's sizes once the window has the room.
+    readonly property bool compact: height < 760
+    readonly property int pageMargin: 40
+    readonly property int sectionGap: compact ? 18 : 24
 
     // A text field is left by Enter or by a press anywhere outside it, not
     // only by Escape or a blank spot. A switch, slider or button consumes its
@@ -216,10 +226,18 @@ Item {
         if (detail && detail.length > 0)
             t += "\n\n" + detail
         if (reason && reason.length > 0)
-            t += "\n\n⚠ " + qsTr("Greyed out: ") + reason
+            t += "\n\n⚠ " + qsTr("Grayed out: ") + reason
         helpDialog.title = label
         helpDialog.text = t
         helpDialog.open()
+    }
+    UConfirmDialog {
+        id: bgDeleteConfirm
+        title: qsTr("Delete the background removal files?")
+        text: qsTr("The model and any ONNX Runtime that Unisic downloaded are removed. Remove background needs them downloaded again.")
+        confirmText: qsTr("Delete")
+        destructive: true
+        onAccepted: App.backgroundRemover.deleteDownloads()
     }
     UConfirmDialog {
         id: helpDialog
@@ -287,10 +305,10 @@ Item {
         return t
     }
     readonly property var tabIcons: {
-        var t = ["configure", "camera-photo", "media-record", "edit",
-                 "document-save", "bell", "fill-color", "keyboard"]
+        var t = ["line-sliders", "line-camera", "line-record", "line-pencil",
+                 "line-save", "line-bell", "line-palette", "line-keyboard"]
         if (App.devBuild)
-            t.push("terminal")
+            t.push("line-terminal")
         return t
     }
 
@@ -423,13 +441,16 @@ Item {
         // Just jumped to from search: accent border + tinted surface until the
         // highlight timer clears it.
         readonly property bool searchHit: page.highlightRow === settingRow
+        // Something on this row is broken right now (a hotkey another owner
+        // holds): danger frame and tint until it is resolved.
+        property bool problem: false
 
         width: parent ? parent.width : 0
         implicitHeight: inner.implicitHeight + 2 * Theme.spacingM
         radius: Theme.radiusM
-        color: searchHit ? Theme.surfaceHi : Theme.surface
+        color: searchHit ? Theme.surfaceHi : problem ? Theme.alpha(Theme.danger, 0.08) : Theme.surface
         border.width: 1
-        border.color: searchHit ? Theme.accent : Theme.divider
+        border.color: searchHit ? Theme.accent : problem ? Theme.danger : page.cardBorder
         Behavior on border.color { ColorAnimation { duration: Theme.animMed } }
         Behavior on color { ColorAnimation { duration: Theme.animMed } }
         // The greying is per-part, not on the whole row: an unavailable row still
@@ -480,7 +501,9 @@ Item {
                             elide: Text.ElideRight
                             // Briefly tinted when this row was just jumped to from search.
                             color: settingRow.searchHit ? Theme.accent : Theme.textPrimary
-                            font.pixelSize: Theme.fontM
+                            // The Inspector row's label (InspectorRow.qml).
+                            font.pixelSize: 13
+                            font.weight: Font.Medium
                             opacity: settingRow.available ? 1.0 : 0.5
                         }
                         Rectangle {
@@ -533,7 +556,7 @@ Item {
                         text: settingRow.detail
                         wrapMode: Text.WordWrap
                         color: (!settingRow.available && settingRow.hint !== "")
-                               ? Theme.danger : Theme.textTertiary
+                               ? Theme.danger : Theme.textSecondary
                         font.pixelSize: Theme.fontS
                     }
                 }
@@ -577,17 +600,60 @@ Item {
     component HotkeyRow: SettingRow {
         id: hotkeyRow
         property string shortcuts: ""
+        // The hotkeyActions() id, the key into App.hotkeyConflicts.
+        property string actionId: ""
+        // Replaces the old startup toast: the row itself says who holds the key.
+        readonly property string conflictText: {
+            var c = App.hotkeyConflicts[actionId]
+            if (!c)
+                return ""
+            if (c.kind === "release")
+                return qsTr("%1 is held by the release build of Unisic. Pick another key here, or clear it in that build's settings.").arg(c.keys)
+            if (c.kind === "dev")
+                return qsTr("%1 is held by the dev build of Unisic. Pick another key here, or clear it in that build's settings.").arg(c.keys)
+            if (c.kind === "app")
+                return qsTr("%1 is taken by %2. Pick another key, or free it on the Shortcuts page of System Settings.").arg(c.keys).arg(c.owner)
+            return qsTr("%1 is taken by another application. Pick another key.").arg(c.keys)
+        }
         signal changed(string shortcuts)
-        footer: UShortcutList {
+        problem: conflictText !== ""
+        // The conflict line appears only when a check finds one (startup,
+        // an edit, a System Settings change), never as a hover response, so
+        // the reflow it causes is a state change, not motion under the pointer.
+        footer: Column {
             width: parent ? parent.width : 0
-            enabled: hotkeyRow.available
-            opacity: hotkeyRow.available ? 1.0 : 0.45
-            shortcuts: hotkeyRow.shortcuts
-            onChanged: (t) => hotkeyRow.changed(t)
-            // The kit component is app-agnostic: the host supplies the key
-            // formatter and reacts to recording start/stop (hotkey suspend).
-            formatKey: (key, mods, scan) => App.formatShortcut(key, mods, scan)
-            onCaptureStateChanged: (active) => App.setShortcutRecording(active)
+            spacing: Theme.spacingS
+            UShortcutList {
+                width: parent.width
+                enabled: hotkeyRow.available
+                opacity: hotkeyRow.available ? 1.0 : 0.45
+                shortcuts: hotkeyRow.shortcuts
+                onChanged: (t) => hotkeyRow.changed(t)
+                // The kit component is app-agnostic: the host supplies the key
+                // formatter and reacts to recording start/stop (hotkey suspend).
+                formatKey: (key, mods, scan) => App.formatShortcut(key, mods, scan)
+                onCaptureStateChanged: (active) => App.setShortcutRecording(active)
+            }
+            // The bridge hands its name to the list as accessibleName, which the
+            // list spends as the description of every chip and recorder. A
+            // Binding, because a grouped `nameBridge.name:` on this derived
+            // component lost to the base's own binding (measured over AT-SPI).
+            Binding {
+                target: hotkeyRow.nameBridge
+                property: "name"
+                value: hotkeyRow.problem ? hotkeyRow.label + ". " + hotkeyRow.conflictText
+                                         : hotkeyRow.label
+            }
+            Text {
+                visible: hotkeyRow.problem
+                width: parent.width
+                text: hotkeyRow.conflictText
+                wrapMode: Text.WordWrap
+                color: Theme.danger
+                font.pixelSize: Theme.fontS
+                // Already in the controls' description above.
+                Accessible.ignored: true
+            }
         }
     }
 
@@ -628,10 +694,11 @@ Item {
         width: parent ? parent.width : 0
         implicitHeight: discCol.implicitHeight + 2 * Theme.spacingM
         radius: Theme.radiusM
-        color: discMouse.containsMouse ? Theme.surfaceHi : Theme.surface
+        color: discMouse.containsMouse ? Theme.surfaceTop : Theme.surface
         border.width: 1
-        border.color: Theme.divider
-        Behavior on color { ColorAnimation { duration: Theme.animMed } }
+        border.color: discMouse.containsMouse ? page.cardBorderHover : page.cardBorder
+        Behavior on color { ColorAnimation { duration: Theme.animFast } }
+        Behavior on border.color { ColorAnimation { duration: Theme.animFast } }
 
         Column {
             id: discCol
@@ -646,14 +713,15 @@ Item {
                 text: disc.label
                 elide: Text.ElideRight
                 color: Theme.textPrimary
-                font.pixelSize: Theme.fontM
+                font.pixelSize: 13
+                font.weight: Font.Medium
             }
             Text {
                 width: parent.width
                 visible: disc.summary !== ""
                 text: disc.summary
                 wrapMode: Text.WordWrap
-                color: Theme.textTertiary
+                color: Theme.textSecondary
                 font.pixelSize: Theme.fontS
             }
         }
@@ -686,13 +754,14 @@ Item {
         UFocusRing { inset: 1 }
     }
 
-    component SectionTitle: Text {
-        color: Theme.textPrimary
-        font.pixelSize: Theme.fontL
-        font.weight: Font.Bold
-        // A little air between the header and the first card below it (the
-        // section Column packs its children tight at spacingS).
-        bottomPadding: Theme.spacingXS
+    // A group heading in the Capture page's language (SectionLabel). Kept as
+    // its own name so the 34 headings below did not each need an edit.
+    component SectionTitle: SectionLabel {
+        Accessible.role: Accessible.Heading
+        Accessible.name: text
+        // Capture keeps 12 px between a label and its tiles; the section
+        // Column packs its children at spacingS, so the rest is padding.
+        bottomPadding: 12 - Theme.spacingS
     }
 
     // A scrollable settings pane: give it cards as default content.
@@ -761,7 +830,9 @@ Item {
         }
     }
 
-    // One entry in the category rail: icon + label, accent-tinted when active.
+    // One entry in the category rail: icon + label. The active one takes the
+    // main rail's and the segmented controls' selected fill (Theme.secondary),
+    // hover the raised surface, as everywhere in the Capture page's language.
     component NavItem: Rectangle {
         id: nav
         property string iconName: ""
@@ -770,28 +841,20 @@ Item {
         signal clicked()
         function _activate() { nav.clicked() }
         width: parent ? parent.width : 180
-        height: 38
-        radius: Theme.radiusM
-        color: active ? Theme.alpha(Theme.accent, 0.18)
-             : navMouse.containsMouse ? Theme.alpha(Theme.accent, 0.10)
+        height: 36
+        radius: Theme.radiusS
+        color: active ? Theme.secondary
+             : navMouse.containsMouse ? Theme.surfaceTop
              : "transparent"
         Behavior on color { ColorAnimation { duration: Theme.animFast } }
-        Rectangle {
-            anchors.left: parent.left
-            anchors.leftMargin: 4
-            anchors.verticalCenter: parent.verticalCenter
-            width: 3; height: 18; radius: 1.5
-            color: Theme.accent
-            visible: nav.active
-        }
         Row {
             anchors.left: parent.left
-            anchors.leftMargin: 14
+            anchors.leftMargin: 12
             anchors.verticalCenter: parent.verticalCenter
             spacing: 10
             UIcon {
                 name: nav.iconName
-                size: 18
+                size: 16
                 color: nav.active ? Theme.accent : Theme.textSecondary
                 anchors.verticalCenter: parent.verticalCenter
             }
@@ -799,14 +862,16 @@ Item {
                 // The rail Flickable clips, so without a width an over-long
                 // label is cut mid-glyph instead of elided: German
                 // "Benachrichtigungen" lands within a pixel of the old 180 px
-                // rail in DemiBold. 14 left margin + 18 icon + 10 spacing, and
+                // rail in DemiBold. 12 left margin + 16 icon + 10 spacing, and
                 // 10 px of breathing room before the clip edge.
-                width: Math.max(0, nav.width - 52)
+                width: Math.max(0, nav.width - 48)
                 elide: Text.ElideRight
                 text: nav.label
                 color: nav.active ? Theme.textPrimary : Theme.textSecondary
-                font.pixelSize: Theme.fontM
-                font.weight: nav.active ? Font.DemiBold : Font.Normal
+                font.pixelSize: 13
+                // The kit SidebarItem's weights; the label has a fixed width,
+                // so the bolder active weight cannot move anything.
+                font.weight: nav.active ? Font.DemiBold : Font.Medium
                 anchors.verticalCenter: parent.verticalCenter
             }
         }
@@ -840,28 +905,79 @@ Item {
     // Basic-styled Qt Quick dialog here, which looked out of place.
 
     // ---------------- header ----------------
+    // The History page's header: title and a line under it on the left, the
+    // search and the page's commands on the right, bottom-aligned. Nothing
+    // between the two blocks can grow into the other: the title column ends
+    // at the actions, and the search field is the one elastic control.
     Item {
         id: header
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.margins: Theme.spacingXL
-        anchors.bottomMargin: 0
-        height: 44
-        Text {
+        anchors.topMargin: page.compact ? 20 : 28
+        anchors.leftMargin: page.pageMargin
+        anchors.rightMargin: page.pageMargin
+        height: Math.max(titleCol.height, headerActions.height)
+
+        Column {
+            id: titleCol
             anchors.left: parent.left
-            anchors.verticalCenter: parent.verticalCenter
-            text: qsTr("Settings")
-            color: Theme.textPrimary
-            font.pixelSize: Theme.fontTitle
-            font.weight: Font.Bold
+            anchors.right: headerActions.left
+            anchors.rightMargin: 24
+            anchors.bottom: parent.bottom
+            spacing: 6
+            PageTitle {
+                id: titleText
+                width: parent.width
+                text: qsTr("Settings")
+            }
+            Text {
+                width: parent.width
+                wrapMode: Text.WordWrap
+                text: qsTr("Browse by category, or search every option at once.")
+                color: Theme.textSecondary
+                font.pixelSize: 13
+            }
         }
+
         Row {
+            id: headerActions
             anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: Theme.spacingS
-            UButton { compact: true; variant: "tonal"; iconName: "folder-open"; text: qsTr("Import"); onClicked: App.importSettingsDialog() }
-            UButton { compact: true; variant: "tonal"; iconName: "document-save"; text: qsTr("Export"); onClicked: App.exportSettingsDialog() }
+            anchors.bottom: parent.bottom
+            spacing: 8
+
+            // Settings search: type to list matching rows across ALL
+            // categories; click a result to jump to its pane (label flashes
+            // accent for a moment). First in the row, so Tab reaches it before
+            // Import and Export, as it did above the rail.
+            UTextField {
+                id: searchField
+                // 240 when the window can afford it, never below 150: the
+                // placeholder elides itself, a narrower box stops being usable.
+                width: Math.max(150, Math.min(240, header.width - titleText.implicitWidth - 24
+                                              - importButton.width - exportButton.width
+                                              - 2 * headerActions.spacing))
+                height: 36
+                anchors.verticalCenter: parent.verticalCenter
+                iconName: "magnify"
+                placeholder: qsTr("Search settings…")
+                text: page.searchQuery
+                onEdited: (t) => page.searchQuery = t
+            }
+            HeaderButton {
+                id: importButton
+                anchors.verticalCenter: parent.verticalCenter
+                iconName: "folder-open"
+                text: qsTr("Import")
+                onActivated: App.importSettingsDialog()
+            }
+            HeaderButton {
+                id: exportButton
+                anchors.verticalCenter: parent.verticalCenter
+                iconName: "document-save"
+                text: qsTr("Export")
+                onActivated: App.exportSettingsDialog()
+            }
         }
     }
 
@@ -871,11 +987,11 @@ Item {
         id: persistWarn
         visible: !App.settings.persistent
         anchors.top: header.bottom
-        anchors.topMargin: Theme.spacingM
+        anchors.topMargin: visible ? page.sectionGap : 0
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.leftMargin: Theme.spacingXL
-        anchors.rightMargin: Theme.spacingXL
+        anchors.leftMargin: page.pageMargin
+        anchors.rightMargin: page.pageMargin
         height: visible ? warnText.implicitHeight + 2 * Theme.spacingM : 0
         radius: Theme.radiusM
         color: Theme.alpha(Theme.danger, 0.15)
@@ -898,34 +1014,18 @@ Item {
     }
 
     // ---------------- category rail ----------------
-    // Settings search: type to list matching rows across ALL categories; click
-    // a result to jump to its pane (label flashes accent for a moment). Sits
-    // on top of the rail so "find a setting" and "browse categories" are the
-    // same place.
-    UTextField {
-        id: searchField
-        anchors.top: persistWarn.bottom
-        anchors.topMargin: persistWarn.visible ? Theme.spacingM : 0
-        anchors.left: parent.left
-        anchors.leftMargin: Theme.spacingXL
-        width: navRail.width
-        placeholder: qsTr("Search settings…")
-        text: page.searchQuery
-        onEdited: (t) => page.searchQuery = t
-    }
-
     Flickable {
         id: navRail
-        anchors.top: searchField.bottom
-        anchors.topMargin: Theme.spacingM
+        anchors.top: persistWarn.bottom
+        anchors.topMargin: page.sectionGap
         anchors.left: parent.left
-        anchors.leftMargin: Theme.spacingXL
+        anchors.leftMargin: page.pageMargin
         anchors.bottom: parent.bottom
         anchors.bottomMargin: Theme.spacingL
         // 200, not 180: the longest category name in the shipped languages is
         // German "Benachrichtigungen" at 138 px in DemiBold, which left the old
-        // rail exactly zero margin. The panes give the 20 px up without
-        // reflowing - their cards are capped at 694 px anyway.
+        // rail exactly zero margin. The panes give the 20 px up: their cards
+        // fill whatever width is left.
         width: 200
         clip: true
         contentWidth: width
@@ -937,9 +1037,7 @@ Item {
         MiddleScroll { flickable: navRail }
         // The rail scrolls like every other pane instead of falling back to
         // Flickable's own wheel physics, which needed a spin per row here.
-        // 120, not the 220 default: a rail row is 40 px with its spacing, so a
-        // notch is three rows - a pane-sized step would jump most of the list.
-        WheelBoost { flickable: navRail; stepPx: 120 }
+        WheelBoost { flickable: navRail }
         Column {
             id: navCol
             width: parent.width
@@ -962,11 +1060,11 @@ Item {
     // ---------------- panes ----------------
     Item {
         id: paneArea
-        anchors.top: searchField.top
+        anchors.top: navRail.top
         anchors.left: navRail.right
-        anchors.leftMargin: Theme.spacingL
+        anchors.leftMargin: 24
         anchors.right: parent.right
-        anchors.rightMargin: Theme.spacingXL
+        anchors.rightMargin: page.pageMargin
         anchors.bottom: parent.bottom
         anchors.bottomMargin: Theme.spacingL
         clip: true
@@ -1009,9 +1107,11 @@ Item {
                         width: page.cardWidth
                         height: 46
                         radius: Theme.radiusM
-                        color: resMouse.containsMouse ? Theme.surfaceHi : Theme.surface
+                        color: resMouse.containsMouse ? Theme.surfaceTop : Theme.surface
                         border.width: 1
-                        border.color: Theme.divider
+                        border.color: resMouse.containsMouse ? page.cardBorderHover : page.cardBorder
+                        Behavior on color { ColorAnimation { duration: Theme.animFast } }
+                        Behavior on border.color { ColorAnimation { duration: Theme.animFast } }
                         Text {
                             anchors.left: parent.left
                             anchors.leftMargin: Theme.spacingM
@@ -1021,23 +1121,31 @@ Item {
                             text: modelData.label
                             elide: Text.ElideRight
                             color: Theme.textPrimary
-                            font.pixelSize: Theme.fontM
+                            font.pixelSize: 13
+                            font.weight: Font.Medium
                         }
-                        Rectangle {
+                        // Where the row lives, as the rail names it: the
+                        // category's icon and name, quiet, so the result's own
+                        // label is what reads first.
+                        Row {
                             id: tabChip
                             anchors.right: parent.right
                             anchors.rightMargin: Theme.spacingM
                             anchors.verticalCenter: parent.verticalCenter
-                            width: chipText.implicitWidth + 16
-                            height: 22
-                            radius: 11
-                            color: Theme.alpha(Theme.accent, 0.18)
+                            spacing: 6
+                            UIcon {
+                                anchors.verticalCenter: parent.verticalCenter
+                                name: page.tabIcons[modelData.tab] !== undefined ? page.tabIcons[modelData.tab] : ""
+                                size: 14
+                                color: Theme.textSecondary
+                            }
                             Text {
                                 id: chipText
-                                anchors.centerIn: parent
+                                anchors.verticalCenter: parent.verticalCenter
                                 text: page.tabNames[modelData.tab] !== undefined ? page.tabNames[modelData.tab] : ""
-                                color: Theme.accent
+                                color: Theme.textSecondary
                                 font.pixelSize: Theme.fontS
+                                Accessible.ignored: true
                             }
                         }
                         MouseArea {
@@ -1095,6 +1203,60 @@ Item {
                     Qt.callLater(page.rebuildSearch)
             }
             sourceComponent: ScrollPane {
+            // Support banner, the first thing Settings shows. Accent-framed so
+            // it reads apart from the option cards below it. It names itself
+            // a row so settings search still finds it.
+            Rectangle {
+                id: supportBanner
+                readonly property bool isSettingRow: true
+                readonly property string label: qsTr("Support Unisic")
+                readonly property string help: qsTr("Unisic is free and open source. A donation helps fund its development.")
+                width: page.cardWidth
+                height: Math.max(supportText.implicitHeight, donateButton.height) + 2 * Theme.spacingL
+                radius: Theme.radiusM
+                color: Theme.alpha(Theme.accent, 0.12)
+                border.width: 1
+                border.color: Theme.alpha(Theme.accent, 0.45)
+                Accessible.role: Accessible.Grouping
+                Accessible.name: label
+                Accessible.description: help
+                Column {
+                    id: supportText
+                    anchors.left: parent.left
+                    anchors.right: donateButton.left
+                    anchors.margins: Theme.spacingL
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: Theme.spacingXS
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: supportBanner.label
+                        Accessible.ignored: true
+                        color: Theme.textPrimary
+                        // A Capture tile's title.
+                        font.pixelSize: 15
+                        font.weight: Font.DemiBold
+                    }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: supportBanner.help
+                        Accessible.ignored: true
+                        color: Theme.textSecondary
+                        font.pixelSize: Theme.fontS
+                    }
+                }
+                UButton {
+                    id: donateButton
+                    anchors.right: parent.right
+                    anchors.rightMargin: Theme.spacingL
+                    anchors.verticalCenter: parent.verticalCenter
+                    iconName: "heart"
+                    text: qsTr("Donate on Ko-fi")
+                    onClicked: Qt.openUrlExternally("https://ko-fi.com/unisic")
+                }
+            }
+
             SettingsGroup {
                 width: page.cardWidth
                 Column {
@@ -1107,22 +1269,55 @@ Item {
                         helpDetail: qsTr("“System” follows your desktop locale. Changing the language applies immediately to the interface; a few system dialogs may only switch after a restart.")
                         UComboBox {
                             width: 180
-                            property var ids: ["system", "en", "pl", "es", "it", "fr", "ru", "de"]
+                            property var ids: ["system", "en", "pl", "es", "it", "fr", "ru", "de", "zh_CN"]
                             // Native names on purpose — every user recognises
                             // their own language regardless of the current UI.
-                            model: [qsTr("System"), "English", "Polski", "Español", "Italiano", "Français", "Русский", "Deutsch"]
+                            model: [qsTr("System"), "English", "Polski", "Español", "Italiano", "Français", "Русский", "Deutsch", "简体中文"]
                             currentIndex: Math.max(0, ids.indexOf(App.settings.uiLanguage))
                             onActivated: (i) => App.settings.uiLanguage = ids[i]
                         }
                     }
                     SettingRow {
+                        id: ocrEngineRow
+                        // Only where there is a choice: Windows OCR on Windows,
+                        // PaddleOCR on Linux. App.ocrEngines is CONSTANT, so
+                        // this is settled per platform at load and never
+                        // toggles under the pointer.
+                        visible: App.ocrEngines.length > 1
+                        readonly property bool win: App.ocrEngines.indexOf("windows") >= 0
+                        readonly property var ids: App.ocrEngines
+                        label: qsTr("OCR engine")
+                        // Only the text changes when the answer lands, so the
+                        // row keeps its place; the combo shows the engine that
+                        // actually runs (OcrEngines::effective()).
+                        help: win && !App.windowsOcrUsable
+                              ? qsTr("No OCR language is installed in Windows. Tesseract reads the text instead.")
+                              : !win && App.settings.ocrEngine === "paddle" && App.ocrEffectiveEngine !== "paddle"
+                                ? qsTr("PaddleOCR cannot run: ONNX Runtime or its model is missing. Tesseract reads the text instead.")
+                                : qsTr("Which recognizer reads the text in your captures.")
+                        Component.onCompleted: if (App.ocrEngines.length > 1) App.checkOcrEngines()
+                        helpDetail: win
+                                    ? qsTr("Windows OCR is built into Windows and reads the languages installed for your Windows account. Tesseract uses its own language packs and the language settings below. When no Windows OCR language is installed, Unisic recognizes with Tesseract instead.")
+                                    : qsTr("PaddleOCR makes far fewer mistakes on screenshots and needs no language packs, but it reads only Latin-script languages and Chinese. Tesseract uses its own language packs and the language settings below, and reads the scripts PaddleOCR cannot, such as Cyrillic, Korean or Arabic.")
+                        UComboBox {
+                            width: 180
+                            // Product names, the same in every language.
+                            readonly property var names: ({ windows: "Windows OCR", tesseract: "Tesseract", paddle: "PaddleOCR" })
+                            model: ocrEngineRow.ids.map((id) => names[id] || id)
+                            currentIndex: Math.max(0, ocrEngineRow.ids.indexOf(App.ocrEffectiveEngine))
+                            onActivated: (i) => App.settings.ocrEngine = ocrEngineRow.ids[i]
+                        }
+                    }
+                    // The language rows below only steer Tesseract.
+                    SettingRow {
+                        available: App.ocrEffectiveEngine === "tesseract"
                         label: qsTr("Detect languages automatically")
                         help: qsTr("Detects the script and recognizes with the matching language pack.")
                         helpDetail: qsTr("No need to know Tesseract language codes. With the OSD data installed (the “osd” Tesseract pack), Unisic detects the script of each capture - Latin, Arabic, Hebrew, Chinese/Japanese/Korean, Devanagari, and so on - and recognizes with just that script's installed packs, which is faster and more accurate than loading them all. Without the OSD pack it falls back to loading every installed pack. Install the packs for the scripts you use.")
                         USwitch { checked: App.settings.ocrAutoLanguage; onToggled: (c) => App.settings.ocrAutoLanguage = c }
                     }
                     SettingRow {
-                        available: !App.settings.ocrAutoLanguage
+                        available: App.ocrEffectiveEngine === "tesseract" && !App.settings.ocrAutoLanguage
                         label: qsTr("OCR languages")
                         help: qsTr("Tesseract language spec used when recognizing text.")
                         helpDetail: qsTr("Combine languages with “+”, e.g. “pol+eng”; each needs its Tesseract langpack installed. OCR also scans QR and bar codes: a code found in the region copies its content instead of the surrounding text.")
@@ -1137,7 +1332,7 @@ Item {
                     // the real "OCR does nothing" trap. The language data is a
                     // separate install that no build flag can supply.
                     Text {
-                        visible: !App.ocrHasLanguages
+                        visible: !App.ocrHasLanguages && App.ocrEffectiveEngine === "tesseract"
                         width: parent.width
                         wrapMode: Text.WordWrap
                         text: qsTr("No Tesseract language pack is installed, so OCR can't recognize anything yet. Install one, e.g. “tesseract-langpack-eng”.")
@@ -1319,7 +1514,7 @@ Item {
                             text: App.buildNumber === "dev"
                                   ? qsTr("Self-update is disabled in dev builds.")
                                   : App.updater.installKind === "flatpak"
-                                    ? qsTr("Flatpak keeps this install up to date - run \"flatpak update\" or let your software centre do it.")
+                                    ? qsTr("Flatpak keeps this install up to date - run \"flatpak update\" or let your software center do it.")
                                     : App.updater.installKind === "aur"
                                     ? qsTr("Your AUR helper keeps this install up to date - run \"paru -Syu\", \"yay -Syu\" or whichever helper you use.")
                                     : App.updater.installKind === "appimage"
@@ -1513,7 +1708,7 @@ Item {
                         help: App.capDoNotDisturb
                               ? qsTr("Temporarily pauses desktop notifications during captures and recordings.")
                               : qsTr("Available on KDE Plasma; this desktop does not expose the compatible notification inhibitor.")
-                        helpDetail: qsTr("The previous notification state is restored as soon as capture stops, fails, or is cancelled. Encoding and uploads do not keep notifications paused.")
+                        helpDetail: qsTr("The previous notification state is restored as soon as capture stops, fails, or is canceled. Encoding and uploads do not keep notifications paused.")
                         USwitch {
                             checked: App.settings.doNotDisturbWhileCapturing
                             enabled: App.capDoNotDisturb || App.devBuild
@@ -1616,6 +1811,70 @@ Item {
                         help: qsTr("Opens the uploaded file's URL in your browser.")
                         helpDetail: qsTr("Runs after every successful upload, using the system default browser.")
                         USwitch { checked: App.settings.afterUploadOpenInBrowser; onToggled: (c) => App.settings.afterUploadOpenInBrowser = c }
+                    }
+                    SettingRow {
+                        label: qsTr("Shorten the link")
+                        help: qsTr("Swaps the link for a short one before it is copied or opened.")
+                        helpDetail: qsTr("Off by default because the shortener, a free public service, gets every link you upload. When it fails or takes longer than 15 seconds, the full link is used.")
+                        USwitch { checked: App.settings.afterUploadShortenUrl; onToggled: (c) => App.settings.afterUploadShortenUrl = c }
+                    }
+                    SettingRow {
+                        visible: App.settings.afterUploadShortenUrl
+                        label: qsTr("Shortener")
+                        // Tried live: is.gd refused files.catbox.moe and
+                        // litter.catbox.moe links and took Imgur, Uguu,
+                        // tmpfiles and buzzheavier ones; TinyURL took Catbox.
+                        help: App.settings.linkShortener === "tinyurl"
+                              ? qsTr("TinyURL also shortens Catbox links.")
+                              : qsTr("is.gd refuses links to catbox.moe, so Catbox and Litterbox links stay long.")
+                        helpDetail: qsTr("is.gd also refuses links to other shorteners and to addresses on its blacklist. A refused link is used in full, and a message says why.")
+                        UComboBox {
+                            width: 200
+                            model: ["is.gd", "TinyURL"]
+                            readonly property var ids: ["isgd", "tinyurl"]
+                            currentIndex: Math.max(0, ids.indexOf(App.settings.linkShortener))
+                            onActivated: (i) => App.settings.linkShortener = ids[i]
+                        }
+                    }
+                    SettingRow {
+                        label: qsTr("Move the file to the trash")
+                        help: qsTr("After a capture or recording uploads on its own, its local file goes to the trash.")
+                        helpDetail: qsTr("History keeps the entry and its link. Uploads you start by hand keep their file, and so does every capture while an after-capture program is set, because that program may still be reading it.")
+                        USwitch { checked: App.settings.afterUploadTrashFile; onToggled: (c) => App.settings.afterUploadTrashFile = c }
+                    }
+                }
+            }
+
+            SettingsGroup {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Upload from a folder") }
+                    SettingRow {
+                        id: watchFolderRow
+                        label: qsTr("Watched folder")
+                        help: qsTr("Uploads every new file that lands in this folder. Empty is off.")
+                        helpDetail: qsTr("Each file goes to the active server once it has stopped changing for a second, then the after-upload actions run. Files already in the folder, hidden files and partial downloads are left alone, and captures Unisic saves there follow \"Upload to the active server\" instead.")
+                        UTextField {
+                            width: Math.min(420, page.cardWidth - 140)
+                            placeholder: qsTr("No folder")
+                            // Set here, so the row bridge keeps off it: the
+                            // error under the card is a Text, which a screen
+                            // reader never reaches on its own.
+                            accessibleDescription: watchFolderError.visible ? watchFolderError.text : watchFolderRow.help
+                            text: App.settings.watchFolder
+                            onEdited: (t) => App.settings.watchFolder = t
+                        }
+                    }
+                    Text {
+                        id: watchFolderError
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        visible: App.settings.watchFolder.trim() !== "" && !App.watchFolderActive
+                        text: qsTr("This is not a folder, so nothing is watched.")
+                        color: Theme.danger
+                        font.pixelSize: Theme.fontS
                     }
                 }
             }
@@ -1814,8 +2073,8 @@ Item {
                     }
                     SettingRow {
                         visible: App.settings.cursorHighlight && App.settings.cursorHighlightHalo
-                        label: qsTr("Halo colour")
-                        help: qsTr("Colour of the glow drawn under the pointer.")
+                        label: qsTr("Halo color")
+                        help: qsTr("Color of the glow drawn under the pointer.")
                         Row {
                             spacing: 6
                             Repeater {
@@ -1840,6 +2099,7 @@ Item {
                         }
                     }
                     SettingRow {
+                        id: rippleRow
                         visible: App.settings.cursorHighlight
                         label: qsTr("Show a ripple on click")
                         // The reason is computed once per shown row rather than bound:
@@ -1854,11 +2114,16 @@ Item {
                         help: qsTr("Draws an expanding ring wherever you click.")
                         footer: InputFixFooter { command: App.inputAccessFixCommand() }
                         USwitch {
+                            // Named here: the fix button in the footer makes the row two
+                            // controls, and UNameBridge then names neither.
+                            accessibleName: rippleRow.label
+                            accessibleDescription: rippleRow.detail
                             checked: App.settings.cursorClickRipple
                             onToggled: (c) => App.settings.cursorClickRipple = c
                         }
                     }
                     SettingRow {
+                        id: keysRow
                         label: qsTr("Show pressed keys")
                         // Same one-shot probe and same `available` rule as the ripple
                         // row above.
@@ -1869,6 +2134,10 @@ Item {
                         helpDetail: qsTr("A screenkey-style pill at the bottom of the recording shows shortcuts and typed keys, with held modifiers and a ×N repeat counter. Works in GIF and video recordings. Key labels use the physical (US) key legend.")
                         footer: InputFixFooter { command: App.inputAccessFixCommand() }
                         USwitch {
+                            // Named here: the fix button in the footer makes the row two
+                            // controls, and UNameBridge then names neither.
+                            accessibleName: keysRow.label
+                            accessibleDescription: keysRow.detail
                             checked: App.settings.recordKeystrokes
                             onToggled: (c) => App.settings.recordKeystrokes = c
                         }
@@ -2010,6 +2279,17 @@ Item {
                     spacing: Theme.spacingS
                     SectionTitle { text: qsTr("Editor defaults") }
                     SettingRow {
+                        label: qsTr("Layout")
+                        help: qsTr("How the editor arranges its tools around the image.")
+                        helpDetail: qsTr("“Panels” puts the tools in a rail on the left and the active tool's options in a column on the right. “Floating” gives the image the whole window, with the same controls in pills over its edges. Open editors switch at once.")
+                        UComboBox {
+                            width: 220
+                            model: [qsTr("Panels"), qsTr("Floating")]
+                            currentIndex: App.settings.editorLayout === "floating" ? 1 : 0
+                            onActivated: (i) => App.settings.editorLayout = (i === 1 ? "floating" : "panels")
+                        }
+                    }
+                    SettingRow {
                         label: qsTr("Stroke color")
                         help: qsTr("Default color for new annotations.")
                         helpDetail: qsTr("Used by pen, shapes, arrows and text until you pick another color in the editor. Recent colors are remembered.")
@@ -2106,6 +2386,78 @@ Item {
                                 checked: !page.toolHidden(modelData.id)
                                 onToggled: (c) => page.setToolHidden(modelData.id, !c)
                             }
+                        }
+                    }
+                }
+            }
+
+            SettingsGroup {
+                width: page.cardWidth
+                visible: App.backgroundRemover.available
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Background removal") }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: qsTr("\"Remove background\" in the editor's More menu cuts the subject out with the BiRefNet lite model. It runs on this computer and nothing is uploaded. One run takes a few seconds and about 2 GB of memory.")
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
+                    }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: (App.backgroundRemover.runtimeFound
+                               ? App.backgroundRemover.runtimeInfo
+                               : App.backgroundRemover.canDownloadRuntime
+                                 ? (App.backgroundRemover.runtimeInfo !== ""
+                                    ? qsTr("%1; a newer one is downloaded with the model").arg(App.backgroundRemover.runtimeInfo)
+                                    : qsTr("ONNX Runtime: not installed, it is downloaded with the model"))
+                                 : App.backgroundRemover.runtimeInfo !== ""
+                                   ? App.backgroundRemover.runtimeInfo
+                                   : qsTr("ONNX Runtime: not installed - install the onnxruntime package from your distribution"))
+                              + "\n" + (App.backgroundRemover.modelInstalled
+                                        ? qsTr("Model: downloaded") : qsTr("Model: not downloaded"))
+                        color: Theme.textSecondary
+                        font.pixelSize: Theme.fontS
+                    }
+                    Text {
+                        visible: App.backgroundRemover.error !== ""
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: App.backgroundRemover.error
+                        color: Theme.danger
+                        font.pixelSize: Theme.fontS
+                    }
+                    Row {
+                        spacing: Theme.spacingM
+                        UButton {
+                            compact: true
+                            variant: "tonal"
+                            iconName: "folder-cloud"
+                            visible: App.backgroundRemover.downloading || !App.backgroundRemover.modelInstalled
+                                     || (!App.backgroundRemover.runtimeFound && App.backgroundRemover.canDownloadRuntime)
+                            enabled: !App.backgroundRemover.downloading
+                            text: App.backgroundRemover.downloading
+                                  ? qsTr("Downloading… %1%").arg(Math.round(App.backgroundRemover.progress * 100))
+                                  : qsTr("Download (%1)").arg(App.backgroundRemover.downloadSizeText)
+                            onClicked: App.backgroundRemover.download()
+                        }
+                        UButton {
+                            compact: true
+                            variant: "tonal"
+                            visible: App.backgroundRemover.downloading
+                            text: qsTr("Cancel")
+                            onClicked: App.backgroundRemover.cancelDownload()
+                        }
+                        UButton {
+                            compact: true
+                            variant: "tonal"
+                            iconName: "edit-delete"
+                            visible: App.backgroundRemover.hasDownloads && !App.backgroundRemover.downloading
+                            text: qsTr("Delete downloaded files")
+                            onClicked: bgDeleteConfirm.open()
                         }
                     }
                 }
@@ -2278,7 +2630,7 @@ Item {
                     SettingRow {
                         label: qsTr("Image format")
                         help: qsTr("File format for saved captures: PNG, JPEG, WebP or GIF.")
-                        helpDetail: qsTr("PNG is lossless and largest; JPEG and WebP are smaller with adjustable quality. GIF makes every capture a single-frame GIF, needs ffmpeg, and is limited to 256 colours - pick it for a site that takes nothing else. The format also applies to uploads and to the clipboard-encoded image where relevant.")
+                        helpDetail: qsTr("PNG is lossless and largest; JPEG and WebP are smaller with adjustable quality. GIF makes every capture a single-frame GIF, needs ffmpeg, and is limited to 256 colors - pick it for a site that takes nothing else. The format also applies to uploads and to the clipboard-encoded image where relevant.")
                         UComboBox {
                             width: 150
                             model: ["png", "jpg", "webp", "gif"]
@@ -2289,7 +2641,7 @@ Item {
                     SettingRow {
                         label: qsTr("Quality (JPEG/WebP/GIF): %1").arg(App.settings.imageQuality)
                         help: qsTr("Compression quality for lossy formats.")
-                        helpDetail: qsTr("Higher means better fidelity and larger files. PNG ignores this setting because it is always lossless. For GIF it buys palette entries instead: 64 colours below 40, 128 below 75, the full 256 above.")
+                        helpDetail: qsTr("Higher means better fidelity and larger files. PNG ignores this setting because it is always lossless. For GIF it buys palette entries instead: 64 colors below 40, 128 below 75, the full 256 above.")
                         USlider {
                             width: 200
                             from: 10; to: 100
@@ -2306,6 +2658,8 @@ Item {
                             text: qsTr("Filename template. Available tokens: %date%, %time%, %datetime%, %unix%, %rand%, %i% (counter)")
                             color: Theme.textTertiary
                             font.pixelSize: Theme.fontS
+                            width: parent.width
+                            wrapMode: Text.Wrap
                         }
                         UTextField {
                             id: templateField
@@ -2369,12 +2723,12 @@ Item {
                     SettingRow {
                         label: qsTr("Ask where to save")
                         help: qsTr("Prompts for a location for each capture instead of saving straight to the folder.")
-                        helpDetail: qsTr("Requires saving to be enabled. Cancelling the dialog skips the save - the capture still lands in history and on the clipboard. The screenshots folder above is the starting location.")
+                        helpDetail: qsTr("Requires saving to be enabled. Canceling the dialog skips the save - the capture still lands in history and on the clipboard. The screenshots folder above is the starting location.")
                         USwitch { checked: App.settings.askWhereToSave; onToggled: (c) => App.settings.askWhereToSave = c }
                     }
                     SettingRow {
                         label: qsTr("Date subfolders")
-                        help: qsTr("Organises saved screenshots and recordings into per-month subfolders (yyyy-MM).")
+                        help: qsTr("Organizes saved screenshots and recordings into per-month subfolders (yyyy-MM).")
                         helpDetail: qsTr("Keeps busy capture folders tidy. The subfolder is created under both the screenshots and the recordings folder above.")
                         USwitch { checked: App.settings.dateSubfolders; onToggled: (c) => App.settings.dateSubfolders = c }
                     }
@@ -2578,7 +2932,7 @@ Item {
                         available: App.settings.watermarkEnabled
                                    && App.settings.watermarkPattern === "single"
                         label: qsTr("Position")
-                        help: qsTr("Corner, centre edge, or middle of the image for the watermark.")
+                        help: qsTr("Corner, center edge, or middle of the image for the watermark.")
                         UComboBox {
                             width: 180
                             model: page.watermarkPosNames
@@ -3078,15 +3432,15 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Show which capture mode is running")
-                        help: qsTr("A mode indicator and a coloured screen frame on the selection overlay.")
-                        helpDetail: qsTr("The overlay looks the same whether you are taking a screenshot, measuring, reading text or starting a recording, so a mis-fired hotkey only shows itself once the shot is taken - or the recording has already started. With this on, the mode is drawn on the overlay (as a badge or a faded icon, whichever style is picked below), the screen edge and the selection handles take that mode's colour, and the overlay's own colours come from the theme (a custom theme can set modeShot, modeMeasure, modeOcr, modeGif and modeVideo). The confirm button and the hint always name the right action, with this on or off.")
+                        help: qsTr("A mode indicator and a colored screen frame on the selection overlay.")
+                        helpDetail: qsTr("The overlay looks the same whether you are taking a screenshot, measuring, reading text or starting a recording, so a mis-fired hotkey only shows itself once the shot is taken - or the recording has already started. With this on, the mode is drawn on the overlay (as a badge or a faded icon, whichever style is picked below), the screen edge and the selection handles take that mode's color, and the overlay's own colors come from the theme (a custom theme can set modeShot, modeMeasure, modeOcr, modeGif and modeVideo). The confirm button and the hint always name the right action, with this on or off.")
                         USwitch { checked: App.settings.overlayModeBadge; onToggled: (c) => App.settings.overlayModeBadge = c }
                     }
                     SettingRow {
                         label: qsTr("Mode indicator style")
                         available: App.settings.overlayModeBadge
                         help: qsTr("Name the mode in a badge at the top, or draw its icon faded in the middle.")
-                        helpDetail: qsTr("“Badge at the top” names the mode in a pill above the screen, which is unmissable but is a strip of chrome over the desktop you are about to capture. “Icon in the middle” draws that mode's icon large and faded in the centre of the screen instead, with your selection cut out of it: the part you are framing over is not drawn, and the rest keeps naming the capture. The coloured screen frame and selection handles stay in both.")
+                        helpDetail: qsTr("“Badge at the top” names the mode in a pill above the screen, which is unmissable but is a strip of chrome over the desktop you are about to capture. “Icon in the middle” draws that mode's icon large and faded in the center of the screen instead, with your selection cut out of it: the part you are framing over is not drawn, and the rest keeps naming the capture. The colored screen frame and selection handles stay in both.")
                         UComboBox {
                             width: 200
                             model: [qsTr("Badge at the top"), qsTr("Icon in the middle")]
@@ -3104,7 +3458,7 @@ Item {
                     SettingRow {
                         label: qsTr("Show a pixel loupe while selecting")
                         help: qsTr("A magnifier by the cursor shows the exact pixel you are on.")
-                        helpDetail: qsTr("A zoomed pixel grid follows the cursor with the hovered pixel highlighted, plus its position and colour - so a selection edge lands on exactly the pixel you mean. Scroll on the overlay to zoom it in and out; scroll all the way out to hide the loupe. Purely visual and never captured into the image.")
+                        helpDetail: qsTr("A zoomed pixel grid follows the cursor with the hovered pixel highlighted, plus its position and color - so a selection edge lands on exactly the pixel you mean. Scroll on the overlay to zoom it in and out; scroll all the way out to hide the loupe. Purely visual and never captured into the image.")
                         USwitch { checked: App.settings.pixelLoupe; onToggled: (c) => App.settings.pixelLoupe = c }
                     }
                 }
@@ -3481,10 +3835,35 @@ Item {
                         color: Theme.textTertiary
                         font.pixelSize: Theme.fontS
                     }
+                    // The emergency stop is fixed, so it has no row to mark: its
+                    // conflict (often Unisic's other build holding it) is this
+                    // line instead of a toast on every launch.
+                    Text {
+                        readonly property var stop: App.hotkeyConflicts["stop-recording"]
+                        visible: stop !== undefined
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        color: Theme.danger
+                        font.pixelSize: Theme.fontS
+                        Accessible.role: Accessible.StaticText
+                        Accessible.name: text
+                        // Hidden it has no text, and Qt still lists it as a
+                        // focusable unnamed label.
+                        Accessible.ignored: !visible
+                        text: !stop ? ""
+                              : stop.kind === "release"
+                              ? qsTr("The emergency stop %1 is held by the release build of Unisic and cannot be changed here. Only one Unisic build can hold it at a time.").arg(stop.keys)
+                              : stop.kind === "dev"
+                              ? qsTr("The emergency stop %1 is held by the dev build of Unisic and cannot be changed here. Only one Unisic build can hold it at a time.").arg(stop.keys)
+                              : stop.kind === "app"
+                              ? qsTr("The emergency stop %1 is taken by %2 and cannot be changed here. Free it on the Shortcuts page of System Settings.").arg(stop.keys).arg(stop.owner)
+                              : qsTr("The emergency stop %1 is taken by another application and cannot be changed here. Free it in that application.").arg(stop.keys)
+                    }
                     HotkeyRow {
                         label: qsTr("Full screen")
                         help: qsTr("Hotkey: capture all monitors at once.")
                         helpDetail: qsTr("Grabs the entire workspace silently (KWin path) or via the portal elsewhere, then runs the normal after-capture pipeline. The “Full screen captures” preference in Capture can narrow it to the screen under the cursor.")
+                        actionId: "capture-fullscreen"
                         shortcuts: App.settings.hotkeyFullScreen
                         onChanged: (t) => { App.settings.hotkeyFullScreen = t; App.applyHotkey("capture-fullscreen") }
                     }
@@ -3492,6 +3871,7 @@ Item {
                         label: qsTr("Region")
                         help: qsTr("Hotkey: capture a selected region.")
                         helpDetail: qsTr("Opens the selection overlay with annotation tools, so you can draw on the frozen screen before the capture is finalized.")
+                        actionId: "capture-region"
                         shortcuts: App.settings.hotkeyRegion
                         onChanged: (t) => { App.settings.hotkeyRegion = t; App.applyHotkey("capture-region") }
                     }
@@ -3499,6 +3879,7 @@ Item {
                         label: qsTr("Scrolling region")
                         help: qsTr("Hotkey: capture a scrolling region (long screenshot).")
                         helpDetail: qsTr("Select a region, then scroll content in the window beneath it. Unisic continuously stitches the frames together.")
+                        actionId: "capture-scroll"
                         shortcuts: App.settings.hotkeyScroll
                         onChanged: (t) => { App.settings.hotkeyScroll = t; App.applyHotkey("capture-scroll") }
                     }
@@ -3506,6 +3887,7 @@ Item {
                         label: qsTr("Window")
                         help: qsTr("Hotkey: capture a single window.")
                         helpDetail: qsTr("Uses the desktop's window picker where available, so you get exactly one window without manual cropping.")
+                        actionId: "capture-window"
                         shortcuts: App.settings.hotkeyWindow
                         onChanged: (t) => { App.settings.hotkeyWindow = t; App.applyHotkey("capture-window") }
                     }
@@ -3515,6 +3897,7 @@ Item {
                         helpDetail: App.hotkeyBackend === "win32"
                                     ? qsTr("First press opens the recording setup for a region; pressing again while recording stops and finalizes the file. Ctrl+Alt+Esc is the always-on emergency stop (Windows keeps Ctrl+Esc for the Start menu).")
                                     : qsTr("First press opens the recording setup for a region; pressing again while recording stops and finalizes the file. Ctrl+Esc is the always-on emergency stop.")
+                        actionId: "record-video"
                         shortcuts: App.settings.hotkeyRecord
                         onChanged: (t) => { App.settings.hotkeyRecord = t; App.applyHotkey("record-video") }
                     }
@@ -3522,6 +3905,7 @@ Item {
                         label: qsTr("GIF start/stop")
                         help: qsTr("Hotkey: toggle GIF recording.")
                         helpDetail: qsTr("Same flow as video recording, but the result is converted into an optimized GIF (two-pass palette) when you stop.")
+                        actionId: "record-gif"
                         shortcuts: App.settings.hotkeyGif
                         onChanged: (t) => { App.settings.hotkeyGif = t; App.applyHotkey("record-gif") }
                     }
@@ -3532,34 +3916,133 @@ Item {
                         id: advancedHotkeys
                         label: expanded ? qsTr("Hide advanced shortcuts")
                                         : qsTr("Show advanced shortcuts")
-                        summary: qsTr("OCR region, Copy last capture, Instant replay")
+                        summary: qsTr("OCR region, Copy last capture, Instant replay, more recording, Measure, Edit and Upload")
                     }
                     HotkeyRow {
-                        visible: advancedHotkeys.expanded || page.searchActive
+                        // A conflicting row shows even while collapsed: it is
+                        // the only place the conflict is reported.
+                        visible: advancedHotkeys.expanded || page.searchActive || problem
                         discloser: advancedHotkeys
                         label: qsTr("OCR region (copy text)")
                         help: qsTr("Hotkey: select a region, its text lands in the clipboard.")
                         helpDetail: qsTr("Opens the region selector and runs OCR on the crop. Nothing is saved and no notification is shown; the recognized text is simply copied. QR and bar codes are read too: a code in the region copies its content instead.")
+                        actionId: "ocr-region"
                         shortcuts: App.settings.hotkeyOcr
                         onChanged: (t) => { App.settings.hotkeyOcr = t; App.applyHotkey("ocr-region") }
                     }
                     HotkeyRow {
-                        visible: advancedHotkeys.expanded || page.searchActive
+                        visible: advancedHotkeys.expanded || page.searchActive || problem
                         discloser: advancedHotkeys
                         label: qsTr("Copy last capture")
                         help: qsTr("Hotkey: puts the most recent screenshot back on the clipboard.")
                         helpDetail: qsTr("Copies the last screenshot taken in this session, whenever you press it. A dedicated shortcut never collides with the normal Ctrl+C - this replaces the old 2-second Ctrl+C grab, which could steal an ordinary copy right after a capture.")
+                        actionId: "copy-last"
                         shortcuts: App.settings.hotkeyCopyLast
                         onChanged: (t) => { App.settings.hotkeyCopyLast = t; App.applyHotkey("copy-last") }
                     }
                     HotkeyRow {
-                        visible: advancedHotkeys.expanded || page.searchActive
+                        visible: advancedHotkeys.expanded || page.searchActive || problem
                         discloser: advancedHotkeys
                         label: qsTr("Instant replay")
                         help: qsTr("Starts the rolling replay ring; later presses save the recent segment window.")
                         helpDetail: qsTr("The first press opens the screen-sharing portal and starts the bounded encoded ring. While it is active, each press saves the latest configured duration without stopping capture.")
+                        actionId: "instant-replay"
                         shortcuts: App.settings.hotkeyInstantReplay
                         onChanged: (t) => { App.settings.hotkeyInstantReplay = t; App.applyHotkey("instant-replay") }
+                    }
+                    // The page tiles that had no hotkey. Unbound until the user
+                    // records one.
+                    HotkeyRow {
+                        visible: advancedHotkeys.expanded || page.searchActive || problem
+                        discloser: advancedHotkeys
+                        label: qsTr("Video of the full screen")
+                        help: qsTr("Hotkey: start or stop a video of the whole screen.")
+                        actionId: "record-screen"
+                        shortcuts: App.settings.hotkeyRecordScreen
+                        onChanged: (t) => { App.settings.hotkeyRecordScreen = t; App.applyHotkey("record-screen") }
+                    }
+                    HotkeyRow {
+                        visible: advancedHotkeys.expanded || page.searchActive || problem
+                        discloser: advancedHotkeys
+                        label: qsTr("GIF of the full screen")
+                        help: qsTr("Hotkey: start or stop a GIF of the whole screen.")
+                        actionId: "gif-screen"
+                        shortcuts: App.settings.hotkeyGifScreen
+                        onChanged: (t) => { App.settings.hotkeyGifScreen = t; App.applyHotkey("gif-screen") }
+                    }
+                    HotkeyRow {
+                        visible: advancedHotkeys.expanded || page.searchActive || problem
+                        discloser: advancedHotkeys
+                        label: qsTr("Video of a window")
+                        help: qsTr("Hotkey: start or stop a video of one window you pick.")
+                        available: App.capRecordWindowSource
+                        hint: qsTr("Recording one window needs the desktop's window picker, which this session does not have.")
+                        actionId: "record-window"
+                        shortcuts: App.settings.hotkeyRecordWindow
+                        onChanged: (t) => { App.settings.hotkeyRecordWindow = t; App.applyHotkey("record-window") }
+                    }
+                    HotkeyRow {
+                        visible: advancedHotkeys.expanded || page.searchActive || problem
+                        discloser: advancedHotkeys
+                        label: qsTr("Pause or resume recording")
+                        help: qsTr("Hotkey: pause the running recording, or resume it.")
+                        actionId: "pause-recording"
+                        shortcuts: App.settings.hotkeyPauseRecording
+                        onChanged: (t) => { App.settings.hotkeyPauseRecording = t; App.applyHotkey("pause-recording") }
+                    }
+                    HotkeyRow {
+                        visible: advancedHotkeys.expanded || page.searchActive || problem
+                        discloser: advancedHotkeys
+                        label: qsTr("Measure")
+                        help: qsTr("Hotkey: select a region and measure distances and angles in it.")
+                        actionId: "measure"
+                        shortcuts: App.settings.hotkeyMeasure
+                        onChanged: (t) => { App.settings.hotkeyMeasure = t; App.applyHotkey("measure") }
+                    }
+                    HotkeyRow {
+                        visible: advancedHotkeys.expanded || page.searchActive || problem
+                        discloser: advancedHotkeys
+                        label: qsTr("Edit an image")
+                        help: qsTr("Hotkey: pick an image file and open it in the editor.")
+                        actionId: "edit-image"
+                        shortcuts: App.settings.hotkeyEditImage
+                        onChanged: (t) => { App.settings.hotkeyEditImage = t; App.applyHotkey("edit-image") }
+                    }
+                    HotkeyRow {
+                        visible: advancedHotkeys.expanded || page.searchActive || problem
+                        discloser: advancedHotkeys
+                        label: qsTr("Trim a video")
+                        help: qsTr("Hotkey: pick a recording and open it in the trim window.")
+                        actionId: "trim-video"
+                        shortcuts: App.settings.hotkeyTrimVideo
+                        onChanged: (t) => { App.settings.hotkeyTrimVideo = t; App.applyHotkey("trim-video") }
+                    }
+                    HotkeyRow {
+                        visible: advancedHotkeys.expanded || page.searchActive || problem
+                        discloser: advancedHotkeys
+                        label: qsTr("Upload a file")
+                        help: qsTr("Hotkey: pick any file and upload it.")
+                        actionId: "upload-file"
+                        shortcuts: App.settings.hotkeyUploadFile
+                        onChanged: (t) => { App.settings.hotkeyUploadFile = t; App.applyHotkey("upload-file") }
+                    }
+                    HotkeyRow {
+                        visible: advancedHotkeys.expanded || page.searchActive || problem
+                        discloser: advancedHotkeys
+                        label: qsTr("Upload clipboard")
+                        help: qsTr("Hotkey: upload the copied file, image or text.")
+                        actionId: "upload-clipboard"
+                        shortcuts: App.settings.hotkeyUploadClipboard
+                        onChanged: (t) => { App.settings.hotkeyUploadClipboard = t; App.applyHotkey("upload-clipboard") }
+                    }
+                    HotkeyRow {
+                        visible: advancedHotkeys.expanded || page.searchActive || problem
+                        discloser: advancedHotkeys
+                        label: qsTr("QR code of copied text")
+                        help: qsTr("Hotkey: show the copied text as a QR code.")
+                        actionId: "qr-clipboard"
+                        shortcuts: App.settings.hotkeyQrClipboard
+                        onChanged: (t) => { App.settings.hotkeyQrClipboard = t; App.applyHotkey("qr-clipboard") }
                     }
                     UButton {
                         anchors.right: parent.right
@@ -3892,26 +4375,9 @@ Item {
                                 font.pixelSize: Theme.fontS
                                 wrapMode: Text.WrapAnywhere
                             }
-                        }
-                        // The console is a strict scroll island: the wheel over
-                        // it moves ONLY the log (fixed steps, never Flickable's
-                        // physics) and is always consumed, so the page behind
-                        // never scrolls from over the console — and scrolling
-                        // the page stops at its edge instead of dying inside
-                        // it. Wheel-only (NoButton): clicks and drags pass
-                        // through untouched.
-                        MouseArea {
-                            anchors.fill: parent
-                            acceptedButtons: Qt.NoButton
-                            Accessible.ignored: true
-                            onWheel: (w) => {
-                                const dy = w.pixelDelta.y !== 0 ? w.pixelDelta.y
-                                                                : (w.angleDelta.y / 120) * 110
-                                devLogFlick.contentY = Math.max(0, Math.min(
-                                    Math.max(0, devLogFlick.contentHeight - devLogFlick.height),
-                                    devLogFlick.contentY - dy))
-                                w.accepted = true
-                            }
+                            // A scroll island once the log overflows: the wheel
+                            // over it moves only the log, never the page behind.
+                            WheelBoost { flickable: devLogFlick }
                         }
                     }
                 }
@@ -3938,6 +4404,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Capture region"); onClicked: App.captureRegion() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Capture window"); onClicked: App.captureWindow() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Capture screen at cursor"); onClicked: App.captureScreenUnderCursor() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Capture first monitor by name"); onClicked: App.captureScreenNamed(Qt.application.screens[0].name) }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Re-capture last region"); onClicked: App.recaptureLastRegion() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Rec GIF (screen)"); onClicked: App.startGifFullScreen() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Rec GIF (region)"); onClicked: App.startGifRegion() }
@@ -3954,7 +4421,15 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Notification action order"); onClicked: App.devTestNotificationOrder() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Open editor"); onClicked: App.devTestEditor() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Editor zoom"); onClicked: App.devTestEditorZoom() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Editor layouts"); onClicked: App.devTestEditorLayouts() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Editor chrome"); onClicked: App.devTestEditorChrome() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Shape groups"); onClicked: App.devTestShapeGroups() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Shape menu"); onClicked: App.devTestShapeMenu() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Sticker library"); onClicked: App.devTestStickerLibrary() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Auto-redact review"); onClicked: App.devTestRedactReview() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Leave filename field"); onClicked: App.devTestLeaveField() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Capture page layout"); onClicked: App.devTestCapturePage() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Header search"); onClicked: App.devTestHeaderSearch() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Tool shortcuts (editor)"); onClicked: App.devTestEditor() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Tool shortcuts (overlay)"); onClicked: App.captureRegion() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Edit from history"); onClicked: App.devTestEditFromHistory() }
@@ -3966,6 +4441,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Desktop shortcuts (bind commands)"); onClicked: App.devTestDesktopShortcuts() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Upload test image"); onClicked: App.devTestUpload() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Server test upload"); onClicked: App.devTestDestinationTest() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("S3 signing"); onClicked: App.devTestS3Signing() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Settings round-trip"); onClicked: App.devTestSettingsRoundTrip() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Install channel"); onClicked: App.devTestInstallChannel() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Record page mode"); onClicked: App.devTestRecordPageMode() }
@@ -4010,6 +4486,13 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Shift snap"); onClicked: App.devTestShiftSnap() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Pen line click"); onClicked: App.devTestPenLine() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("QR preview"); onClicked: App.devTestQrPreview() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("QR of text"); onClicked: App.devTestQrText() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Share sources"); onClicked: App.devTestShareSources() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Link shortener"); onClicked: App.devTestShortenLink() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Print"); onClicked: App.devTestPrint() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Trash after upload"); onClicked: App.devTestTrashAfterUpload() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Background removal"); onClicked: App.devTestBackgroundRemoval() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Watched folder"); onClicked: App.devTestWatchFolder() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Copy diagnostics"); onClicked: App.devTestDiagnostics() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Diagnostic log"); onClicked: App.devTestDiagLog() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Log viewer"); onClicked: logViewer.open() }
@@ -4040,6 +4523,10 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Screenshot cursor"); onClicked: App.devTestCursorCapability() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Shape edit"); onClicked: App.devTestShapeEdit() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Magnifier"); onClicked: App.devTestMagnify() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Spotlight"); onClicked: App.devTestSpotlight() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Rotate and resize"); onClicked: App.devTestImageTransform() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Cut out a strip"); onClicked: App.devTestCutOut() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Stickers"); onClicked: App.devTestStickers() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Eyedropper"); onClicked: App.devTestEyedropper() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Pixel loupe"); onClicked: App.devTestPixelLoupe() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Capture on release"); onClicked: App.devTestCaptureOnRelease() }
@@ -4047,10 +4534,11 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Overlay preview"); onClicked: App.devTestOverlayPreview() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("OCR boxes"); onClicked: App.devTestOcrBoxes() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("OCR highlight + redact"); onClicked: App.devTestOcrHighlight() }
-                        UButton { compact: true; variant: "tonal"; text: qsTr("Auto-redact pattern"); onClicked: App.devTestOcrRedactPattern() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Auto-redact"); onClicked: App.devTestAutoRedact() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Style presets"); onClicked: App.devTestStylePresets() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Cursor overlay"); onClicked: App.devTestCursorOverlay() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("OCR auto language"); onClicked: App.devTestOcrAutoLang() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("OCR engine"); onClicked: App.devTestOcrEngine() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Language"); onClicked: App.devTestLanguage() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Update check"); onClicked: App.devTestUpdateCheck() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Simulate update"); onClicked: App.devTestUpdateAvailable() }

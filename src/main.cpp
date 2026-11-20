@@ -57,6 +57,7 @@ static void printHelp(FILE *stream)
         "  --scroll                     Capture a scrolling region (long screenshot)\n"
         "  --window                     Capture the active window\n"
         "  --monitor                    Capture the screen under the cursor\n"
+        "  --screen NAME                Capture the monitor named NAME (a wrong name lists them)\n"
         "  --recapture                  Capture the last selected region again\n"
         "  --measure                    Measure a selected region\n"
         "  --gif                        Record a selected region as a GIF\n"
@@ -81,6 +82,7 @@ static bool isKnownOption(const char *argument)
     const QByteArray option(argument);
     return option == "--fullscreen" || option == "--region" || option == "--scroll" || option == "--window"
            || option == "--measure" || option == "--monitor" || option == "--recapture"
+           || option == "--screen" || option.startsWith("--screen=")
            || option == "--gif" || option == "--delay" || option.startsWith("--delay=")
            || option == "--output" || option.startsWith("--output=")
            || option == "--format" || option.startsWith("--format=")
@@ -93,7 +95,7 @@ static bool optionRequiresValue(const QByteArray &option)
 {
     return option == "--delay" || option == "--output" || option == "--format"
            || option == "--export-settings" || option == "--import-settings"
-           || option == "--hotkey";
+           || option == "--hotkey" || option == "--screen";
 }
 
 static const char *optionMissingValue(int argc, char *argv[])
@@ -104,7 +106,7 @@ static const char *optionMissingValue(int argc, char *argv[])
             && (i + 1 == argc || qstrncmp(argv[i + 1], "--", 2) == 0))
             return argv[i];
         if ((option.startsWith("--delay=") || option.startsWith("--output=")
-             || option.startsWith("--format="))
+             || option.startsWith("--format=") || option.startsWith("--screen="))
             && option.endsWith('='))
             return argv[i];
     }
@@ -274,6 +276,9 @@ static QByteArray cliCommand(const QStringList &args)
     else if (args.contains(QLatin1String("--measure"))) command = "measure";
     else if (args.contains(QLatin1String("--monitor"))) command = "monitor";
     else if (args.contains(QLatin1String("--recapture"))) command = "recapture";
+    else if (const QString name = cliValue(args, QStringLiteral("--screen")); !name.isEmpty())
+        command = "screen name=" + name.toUtf8().toBase64(QByteArray::Base64UrlEncoding
+                                                           | QByteArray::OmitTrailingEquals);
     const int delay = cliDelayMs(args);
     if (!command.isEmpty()) {
         if (delay >= 0)
@@ -317,6 +322,7 @@ static bool dispatchCliCommand(const QByteArray &wireCommand, AppContext &contex
     QString outputPath;
     QString format = QStringLiteral("png");
     bool toStdout = false;
+    QString screenName;
     for (const QByteArray &part : parts) {
         if (part.startsWith("delay=")) {
             bool ok = false;
@@ -330,12 +336,16 @@ static bool dispatchCliCommand(const QByteArray &wireCommand, AppContext &contex
             format = QString::fromUtf8(part.mid(7));
         } else if (part == "stdout=1") {
             toStdout = true;
+        } else if (part.startsWith("name=")) {
+            screenName = QString::fromUtf8(QByteArray::fromBase64(
+                part.mid(5), QByteArray::Base64UrlEncoding));
         }
     }
     const bool isCapture = command == "fullscreen" || command == "region"
                            || command == "scroll"
                            || command == "window" || command == "measure"
-                           || command == "monitor" || command == "recapture";
+                           || command == "monitor" || command == "recapture"
+                           || command == "screen";
     // A capture already open owns the shared one-shot members (task, upload
     // destination, output, delay). The capture methods refuse a second one, but
     // only after this function has overwritten them and their refusal then
@@ -382,6 +392,7 @@ static bool dispatchCliCommand(const QByteArray &wireCommand, AppContext &contex
     else if (command == "window") context.captureWindow();
     else if (command == "measure") context.captureMeasure();
     else if (command == "monitor") context.captureScreenUnderCursor();
+    else if (command == "screen") context.captureScreenNamed(screenName);
     else if (command == "recapture") context.recaptureLastRegion();
     else if (command == "gif") context.startGifRegion();
     else if (command == "hotkey") context.runHotkeyAction(QString::fromUtf8(parts.value(1)));
@@ -731,15 +742,16 @@ int main(int argc, char *argv[])
                                    || args.contains(QLatin1String("--window"))
                                    || args.contains(QLatin1String("--measure"))
                                    || args.contains(QLatin1String("--monitor"))
-                                   || args.contains(QLatin1String("--recapture"));
+                                   || args.contains(QLatin1String("--recapture"))
+                                   || !cliValue(args, QStringLiteral("--screen")).isEmpty();
     if (delayMs >= 0 && !screenshotRequested) {
-        std::fputs("--delay requires --fullscreen, --region, --scroll, --window, --measure, --monitor, or --recapture\n\n", stderr);
+        std::fputs("--delay requires --fullscreen, --region, --scroll, --window, --measure, --monitor, --screen, or --recapture\n\n", stderr);
         printHelp(stderr);
         return 2;
     }
     const QString outputArg = cliValue(args, QStringLiteral("--output"));
     if (!outputArg.isEmpty() && !screenshotRequested) {
-        std::fputs("--output requires --fullscreen, --region, --scroll, --window, --measure, --monitor, or --recapture\n\n", stderr);
+        std::fputs("--output requires --fullscreen, --region, --scroll, --window, --measure, --monitor, --screen, or --recapture\n\n", stderr);
         printHelp(stderr);
         return 2;
     }
@@ -1071,6 +1083,8 @@ int main(int argc, char *argv[])
         else if (args.contains(QLatin1String("--measure"))) context.captureMeasure();
         else if (args.contains(QLatin1String("--monitor"))) context.captureScreenUnderCursor();
         else if (args.contains(QLatin1String("--recapture"))) context.recaptureLastRegion();
+        else if (const QString name = cliValue(args, QStringLiteral("--screen")); !name.isEmpty())
+            context.captureScreenNamed(name);
         else if (args.contains(QLatin1String("--gif"))) context.startGifRegion();
         else if (args.contains(QLatin1String("--hotkey")))
             context.runHotkeyAction(cliValue(args, QStringLiteral("--hotkey")));

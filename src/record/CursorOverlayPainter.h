@@ -65,11 +65,13 @@ public:
 
     void reset();
 
+    // Unisic's vector pointer, 12.3 x 18.6 units with the tip (the hotspot) at
+    // the origin. Also the editor's mouse-pointer sticker.
+    static void drawVectorPointer(QPainter &p);
+
 private:
     struct Ripple { qint64 tNs = 0; QPointF pos; };
     struct Shape { QImage image; QPoint hotspot; };
-
-    void drawVectorPointer(QPainter &p) const;
 
     Style m_style;
     QHash<int, Shape> m_shapes;

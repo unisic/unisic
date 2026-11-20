@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Effects
 import QtQuick.Window
 import Unisic
 import Unisic.Kit
@@ -102,7 +103,7 @@ Item {
                            : qsTr("%1, %2").arg(who).arg(page.kindLabel(kind))
     }
 
-    // Midnight of the day `daysAgo` days back — the boundary both date labels
+    // Midnight of the day `daysAgo` days back - the boundary both date labels
     // below compare against.
     function dayStart(daysAgo) {
         var now = new Date()
@@ -127,8 +128,8 @@ Item {
     }
 
     // Tile timestamp. A full "yyyy-MM-dd HH:mm" spent most of the tile's one
-    // meta line on a date the floating group header already gives away, and
-    // pushed the size and dimensions out of the tile — so the date shrinks as
+    // meta line on a date the date heading over the grid already gives away, and
+    // pushed the size and dimensions out of the tile - so the date shrinks as
     // it gets more recent, down to just a time for today's captures.
     function tileTime(ts) {
         if (!ts) return ""
@@ -149,13 +150,39 @@ Item {
     }
 
     // The tile's height is arithmetic over its parts, and a guessed constant for
-    // the two footer lines was ~10 px short — so the meta line was cut off by the
+    // the two footer lines was ~10 px short - so the meta line was cut off by the
     // card's clip. Measure the lines instead: this also survives a font or DPI
     // the guess was never checked against.
-    FontMetrics { id: nameMetrics; font.pixelSize: Theme.fontS }
-    FontMetrics { id: metaMetrics; font.pixelSize: Theme.fontS - 1 }
-    // tile margins (2×6) + card margins (2×8) + the Column's two 6 px gaps.
-    readonly property int tileChrome: 12 + 16 + 12
+    FontMetrics { id: nameMetrics; font.pixelSize: 11; font.family: "monospace" }
+    FontMetrics { id: metaMetrics; font.pixelSize: Theme.fontS }
+    // Card margins (2×2) + its padding (2×6) + the 8 px gap under the
+    // thumbnail + the 1 px between the two lines.
+    readonly property int tileChrome: 4 + 12 + 8 + 1
+    // Left and right of a thumbnail inside its cell: card margin + padding.
+    readonly property int tileInset: 2 + 6
+    // kind: the value written to HistoryFilterModel.kindFilter, matched
+    // against the entry's category. "Clips" is the instant-replay ring's
+    // output - a saved replay is an .mp4 like any recording, so only the
+    // history entry's origin separates them.
+    readonly property var kinds: [
+        { label: qsTr("All"),        kind: "" },
+        { label: qsTr("Images"),     kind: "image" },
+        { label: qsTr("GIFs"),       kind: "gif" },
+        { label: qsTr("Recordings"), kind: "video" },
+        { label: qsTr("Clips"),      kind: "replay" }
+    ]
+    // The kind filter's segments share one width, the widest label's, so a
+    // longer translation widens all five instead of eliding one.
+    FontMetrics { id: segMetrics; font.pixelSize: Theme.fontS; font.weight: Font.DemiBold }
+    readonly property int segWidth: {
+        var w = 0
+        for (var i = 0; i < page.kinds.length; ++i)
+            w = Math.max(w, segMetrics.advanceWidth(page.kinds[i].label))
+        return Math.ceil(w) + 28
+    }
+
+    // The default 1060x700 window: tighter top gap, as on Capture and Record.
+    readonly property bool compact: height < 760
     readonly property int nameLine: Math.ceil(nameMetrics.height)
     readonly property int metaLine: Math.ceil(metaMetrics.height)
 
@@ -181,65 +208,68 @@ Item {
 
     Column {
         anchors.fill: parent
-        anchors.margins: Theme.spacingXL
-        spacing: Theme.spacingL
+        anchors.leftMargin: 40
+        anchors.rightMargin: 40
+        anchors.topMargin: page.compact ? 20 : 28
+        spacing: page.compact ? 18 : 24
 
         // ---- title + search + clear all ----
         // Title on the left, actions on the right, and NOTHING between them
         // that can grow into the other side: at the 880 px minimum window the
-        // history body is 580 px and the two blocks measured 598-636 px in
+        // history body is narrow and the two blocks measured 598-636 px in
         // Spanish, French, Italian and Polish - the count text was drawn under
         // the search field. The search field gives width back instead (it is
-        // the only elastic control here), and the count is bounded by the
-        // actions so the worst case elides rather than overlaps.
+        // the only elastic control here), and the title column is bounded by
+        // the actions so the worst case elides rather than overlaps.
         Item {
             id: historyHeader
             width: parent.width
-            height: 40
+            height: Math.max(titleCol.height, historyActions.height)
 
-            readonly property real leftWidth:
-                titleText.implicitWidth
-                + (countText.visible ? Theme.spacingM + countText.implicitWidth : 0)
+            readonly property real leftWidth: Math.max(titleText.implicitWidth, countText.implicitWidth)
 
-            Text {
-                id: titleText
+            Column {
+                id: titleCol
                 anchors.left: parent.left
-                anchors.verticalCenter: parent.verticalCenter
-                text: qsTr("History")
-                color: Theme.textPrimary
-                font.pixelSize: Theme.fontTitle
-                font.weight: Font.Bold
-            }
-            Text {
-                id: countText
-                anchors.left: titleText.right
-                anchors.leftMargin: Theme.spacingM
                 anchors.right: historyActions.left
-                anchors.rightMargin: Theme.spacingM
-                anchors.baseline: titleText.baseline
-                elide: Text.ElideRight
-                visible: App.history.count > 0
-                text: filter.filtering ? qsTr("%1 of %2").arg(filter.count).arg(App.history.count)
-                                       : qsTr("%1 items").arg(App.history.count)
-                color: Theme.textTertiary
-                font.pixelSize: Theme.fontS
+                anchors.rightMargin: 24
+                anchors.bottom: parent.bottom
+                spacing: 6
+                PageTitle {
+                    id: titleText
+                    width: parent.width
+                    text: qsTr("History")
+                }
+                // Kept in the layout when empty (no text), so the header does
+                // not change height and shift the page when the last entry goes.
+                Text {
+                    id: countText
+                    width: parent.width
+                    elide: Text.ElideRight
+                    text: App.history.count === 0 ? ""
+                          : filter.filtering ? qsTr("%1 of %2").arg(filter.count).arg(App.history.count)
+                          : qsTr("%1 items").arg(App.history.count)
+                    color: Theme.textSecondary
+                    font.pixelSize: 13
+                }
             }
 
             Row {
                 id: historyActions
                 anchors.right: parent.right
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: Theme.spacingS
+                anchors.bottom: parent.bottom
+                spacing: 8
 
                 UTextField {
                     id: searchField
-                    // 220 when the window can afford it, never below 130 - the
+                    // 260 when the window can afford it, never below 130 - the
                     // placeholder is elided by the field itself, and a search
                     // box narrower than that stops being usable.
-                    width: Math.max(130, Math.min(220, historyHeader.width - historyHeader.leftWidth
-                                                  - Theme.spacingM - clearAllButton.width - Theme.spacingS
+                    width: Math.max(130, Math.min(260, historyHeader.width - historyHeader.leftWidth
+                                                  - 24 - clearAllButton.width - historyActions.spacing
                                                   - (clearSearchButton.visible
-                                                     ? clearSearchButton.width + Theme.spacingS : 0)))
+                                                     ? clearSearchButton.width + historyActions.spacing : 0)))
+                    height: 36
                     anchors.verticalCenter: parent.verticalCenter
                     iconName: "magnify"
                     placeholder: qsTr("Search name or link")
@@ -257,30 +287,28 @@ Item {
                     tooltip: qsTr("Clear search")
                     onClicked: { searchField.text = ""; filter.searchText = "" }
                 }
-                UButton {
+                HeaderButton {
                     id: clearAllButton
                     anchors.verticalCenter: parent.verticalCenter
                     text: qsTr("Clear all")
-                    variant: "ghost"
-                    compact: true
+                    iconName: "line-trash"
                     enabled: App.history.count > 0
-                    onClicked: clearAllConfirm.open()
+                    onActivated: clearAllConfirm.open()
                 }
             }
         }
 
-        // ---- filter chips / selection actions ----
+        // ---- filters / selection actions ----
         // One row, two states: filtering is pointless while a batch is staged,
         // and stacking both bars would cost a whole tile row of height.
         Item {
             id: filterBar
             width: parent.width
-            // Follows the chips when they wrap: seven translated chip labels
-            // measure 568 px against a 580 px body at the 880 px minimum window
-            // (Polish), so one more chip or one longer translation would have
-            // been clipped away by the page's Flickable, which has no
-            // horizontal scroll.
-            height: Math.max(32, filterFlow.visible ? filterFlow.implicitHeight : 0)
+            // Follows the filters when they wrap: at the 880 px minimum window
+            // the kind segments and the two toggles run close to the body
+            // width in the longer languages, and anything past it would be
+            // clipped away, since nothing here scrolls sideways.
+            height: Math.max(36, filterFlow.visible ? filterFlow.implicitHeight : 0)
             visible: App.history.count > 0
 
             Flow {
@@ -288,151 +316,124 @@ Item {
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
-                spacing: Theme.spacingS
+                spacing: 8
                 visible: page.selectionCount === 0
 
-                Repeater {
-                    // kind: the value written to HistoryFilterModel.kindFilter,
-                    // matched against the entry's category. "Clips" is the
-                    // instant-replay ring's output — a saved replay is an .mp4
-                    // like any recording, so only the history entry's origin
-                    // separates them.
-                    model: [
-                        { label: qsTr("All"),        kind: "" },
-                        { label: qsTr("Images"),     kind: "image" },
-                        { label: qsTr("GIFs"),       kind: "gif" },
-                        { label: qsTr("Recordings"), kind: "video" },
-                        { label: qsTr("Clips"),      kind: "replay" }
-                    ]
-                    delegate: UFilterChip {
-                        text: modelData.label
-                        checked: filter.kindFilter === modelData.kind
-                        onClicked: filter.kindFilter = modelData.kind
-                    }
+                SegmentedControl {
+                    width: 8 + page.kinds.length * page.segWidth + (page.kinds.length - 1) * 2
+                    accessibleName: qsTr("Capture type")
+                    labels: page.kinds.map(function (k) { return k.label })
+                    currentIndex: page.kinds.findIndex(function (k) { return k.kind === filter.kindFilter })
+                    onPicked: (i) => filter.kindFilter = page.kinds[i].kind
                 }
-                // Carried in a chip-tall Item: a Flow positions its children
-                // itself, so the hairline cannot centre itself with an anchor.
-                Item {
-                    width: 1; height: 28
-                    Rectangle { anchors.centerIn: parent; width: 1; height: 18; color: Theme.divider }
-                }
-                UFilterChip {
+                // A wider gap between the pick-one segments and the two
+                // independent toggles, so they do not read as one control.
+                Item { width: 4; height: 36 }
+                FilterToggle {
                     text: qsTr("Starred")
                     iconName: "star-filled"
                     checked: filter.favoritesOnly
-                    onClicked: filter.favoritesOnly = !filter.favoritesOnly
+                    onToggled: filter.favoritesOnly = !filter.favoritesOnly
                 }
-                UFilterChip {
+                FilterToggle {
                     text: qsTr("Uploaded")
                     iconName: "globe"
                     checked: filter.uploadedOnly
-                    onClicked: filter.uploadedOnly = !filter.uploadedOnly
+                    onToggled: filter.uploadedOnly = !filter.uploadedOnly
                 }
             }
 
-            Row {
+            // The selection bar takes the filters' place, as a raised strip in
+            // the header buttons' colours so it reads as a different state.
+            Rectangle {
                 anchors.left: parent.left
                 anchors.verticalCenter: parent.verticalCenter
-                spacing: Theme.spacingS
+                width: selectionRow.width + 2 * 12
+                height: 36
+                radius: 9
+                color: Theme.surface
+                border.width: 1
+                border.color: Theme.alpha(Theme.accent, 0.32)
                 visible: page.selectionCount > 0
 
-                Text {
+                Row {
+                    id: selectionRow
+                    x: 12
                     anchors.verticalCenter: parent.verticalCenter
-                    text: qsTr("%1 selected").arg(page.selectionCount)
-                    color: Theme.accent
-                    font.pixelSize: Theme.fontM
-                    font.weight: Font.DemiBold
-                }
-                Item { width: Theme.spacingS; height: 1 }
-                // Icon-only, not labelled: with seven actions the labelled row
-                // overflowed the window in longer languages (Polish), pushing
-                // Export ZIP and Delete off the right edge. Tooltips keep them
-                // discoverable while the row fits in every language.
-                UIconButton {
-                    anchors.verticalCenter: parent.verticalCenter
-                    iconName: "star-filled"; tooltip: qsTr("Star"); iconSize: 16; width: 32; height: 32
-                    onClicked: App.history.setFavoriteByIds(page.selectedIds(), true)
-                }
-                UIconButton {
-                    anchors.verticalCenter: parent.verticalCenter
-                    iconName: "star"; tooltip: qsTr("Unstar"); iconSize: 16; width: 32; height: 32
-                    onClicked: App.history.setFavoriteByIds(page.selectedIds(), false)
-                }
-                UIconButton {
-                    anchors.verticalCenter: parent.verticalCenter
-                    iconName: "content-copy"; tooltip: qsTr("Copy paths"); iconSize: 16; width: 32; height: 32
-                    onClicked: {
-                        var ids = page.selectedIds(), paths = []
-                        for (var i = 0; i < ids.length; ++i) {
-                            var e = App.history.entryById(ids[i])
-                            if (e.filePath) paths.push(e.filePath)
-                        }
-                        if (paths.length === 0) {
-                            App.showToast(qsTr("Nothing to copy: the selected captures were never saved"))
-                            return
-                        }
-                        App.copyText(paths.join("\n"))
-                        App.showToast(qsTr("Copied %1 file paths").arg(paths.length))
-                    }
-                }
-                UIconButton {
-                    anchors.verticalCenter: parent.verticalCenter
-                    iconName: "upload-cloud"; tooltip: qsTr("Upload"); iconSize: 16; width: 32; height: 32
-                    onClicked: {
-                        var ids = page.selectedIds(), n = 0
-                        for (var i = 0; i < ids.length; ++i) {
-                            var e = App.history.entryById(ids[i])
-                            if (e.filePath) { App.uploadFromHistory(e.filePath); ++n }
-                        }
-                        if (n === 0)
-                            App.showToast(qsTr("Nothing to upload: the selected captures were never saved"))
-                    }
-                }
-                UIconButton {
-                    anchors.verticalCenter: parent.verticalCenter
-                    iconName: "document-save"; tooltip: qsTr("Export ZIP"); iconSize: 16; width: 32; height: 32
-                    onClicked: App.exportEntriesToZipDialog(page.selectedIds())
-                }
-                UIconButton {
-                    anchors.verticalCenter: parent.verticalCenter
-                    iconName: "edit-delete"; tooltip: qsTr("Delete"); iconSize: 16; width: 32; height: 32
-                    onClicked: deleteSelectedConfirm.open()
-                }
-                UIconButton {
-                    anchors.verticalCenter: parent.verticalCenter
-                    iconName: "close"; tooltip: qsTr("Cancel"); iconSize: 16; width: 32; height: 32
-                    onClicked: page.clearSelection()
-                }
-            }
-        }
+                    spacing: 4
 
-        // ---- empty states ----
-        // "No captures yet" and "nothing matches your filter" are different
-        // problems and the second one needs a way out.
-        Text {
-            visible: App.history.count === 0
-            text: qsTr("Nothing here yet. Captures and recordings will appear here with thumbnails.")
-            color: Theme.textTertiary
-            font.pixelSize: Theme.fontM
-        }
-        Column {
-            visible: App.history.count > 0 && filter.count === 0
-            spacing: Theme.spacingM
-            Text {
-                text: qsTr("No capture matches the current search and filters.")
-                color: Theme.textTertiary
-                font.pixelSize: Theme.fontM
-            }
-            UButton {
-                text: qsTr("Reset filters")
-                variant: "tonal"
-                compact: true
-                onClicked: {
-                    searchField.text = ""
-                    filter.searchText = ""
-                    filter.kindFilter = ""
-                    filter.favoritesOnly = false
-                    filter.uploadedOnly = false
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: qsTr("%1 selected").arg(page.selectionCount)
+                        color: Theme.accent
+                        font.pixelSize: 13
+                        font.weight: Font.DemiBold
+                    }
+                    Item { width: 8; height: 1 }
+                    // Icon-only, not labelled: with seven actions the labelled row
+                    // overflowed the window in longer languages (Polish), pushing
+                    // Export ZIP and Delete off the right edge. Tooltips keep them
+                    // discoverable while the row fits in every language.
+                    UIconButton {
+                        anchors.verticalCenter: parent.verticalCenter
+                        iconName: "star-filled"; tooltip: qsTr("Star"); iconSize: 16; width: 30; height: 30
+                        onClicked: App.history.setFavoriteByIds(page.selectedIds(), true)
+                    }
+                    UIconButton {
+                        anchors.verticalCenter: parent.verticalCenter
+                        iconName: "star"; tooltip: qsTr("Unstar"); iconSize: 16; width: 30; height: 30
+                        onClicked: App.history.setFavoriteByIds(page.selectedIds(), false)
+                    }
+                    UIconButton {
+                        anchors.verticalCenter: parent.verticalCenter
+                        iconName: "content-copy"; tooltip: qsTr("Copy paths"); iconSize: 16; width: 30; height: 30
+                        onClicked: {
+                            var ids = page.selectedIds(), paths = []
+                            for (var i = 0; i < ids.length; ++i) {
+                                var e = App.history.entryById(ids[i])
+                                if (e.filePath) paths.push(e.filePath)
+                            }
+                            if (paths.length === 0) {
+                                App.showToast(qsTr("Nothing to copy: the selected captures were never saved"))
+                                return
+                            }
+                            App.copyText(paths.join("\n"))
+                            App.showToast(qsTr("Copied %1 file paths").arg(paths.length))
+                        }
+                    }
+                    UIconButton {
+                        anchors.verticalCenter: parent.verticalCenter
+                        iconName: "upload-cloud"; tooltip: qsTr("Upload"); iconSize: 16; width: 30; height: 30
+                        onClicked: {
+                            var ids = page.selectedIds(), n = 0
+                            for (var i = 0; i < ids.length; ++i) {
+                                var e = App.history.entryById(ids[i])
+                                if (e.filePath) { App.uploadFromHistory(e.filePath); ++n }
+                            }
+                            if (n === 0)
+                                App.showToast(qsTr("Nothing to upload: the selected captures were never saved"))
+                        }
+                    }
+                    UIconButton {
+                        anchors.verticalCenter: parent.verticalCenter
+                        iconName: "document-save"; tooltip: qsTr("Export ZIP"); iconSize: 16; width: 30; height: 30
+                        onClicked: App.exportEntriesToZipDialog(page.selectedIds())
+                    }
+                    UIconButton {
+                        anchors.verticalCenter: parent.verticalCenter
+                        iconName: "edit-delete"; tooltip: qsTr("Delete"); iconSize: 16; width: 30; height: 30
+                        onClicked: deleteSelectedConfirm.open()
+                    }
+                    Rectangle {
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: 1; height: 18
+                        color: Theme.alpha(Theme.accent, 0.18)
+                    }
+                    UIconButton {
+                        anchors.verticalCenter: parent.verticalCenter
+                        iconName: "close"; tooltip: qsTr("Cancel"); iconSize: 16; width: 30; height: 30
+                        onClicked: page.clearSelection()
+                    }
                 }
             }
         }
@@ -442,9 +443,89 @@ Item {
             width: parent.width
             height: parent.height - y
 
+            // Sticky date group of whichever row is topmost right now, as the
+            // section label over the grid. GridView has no sections, and
+            // regrouping the model into per-group rows would re-instantiate
+            // every visible tile on each star toggle - this reads the same
+            // information off the scroll position instead. The label keeps
+            // its line when empty, so the grid never shifts under it.
+            SectionLabel {
+                id: dateHeading
+                width: parent.width
+                height: Math.ceil(dateMetrics.height)
+                elide: Text.ElideRight
+                readonly property int topRow: grid.count > 0
+                    ? grid.indexAt(grid.cellWidth / 2, grid.contentY + 4) : -1
+                text: topRow >= 0 ? page.dateGroup(filter.timestampAt(topRow)) : ""
+                FontMetrics { id: dateMetrics; font: dateHeading.font }
+            }
+
+            // One corner mask for every thumbnail (they share a size), as in
+            // RecentStrip: an Image cannot round its own corners.
+            Rectangle {
+                id: thumbMask
+                width: grid.cellWidth - 2 * page.tileInset - 2
+                height: grid.thumbH - 2
+                radius: 7
+                visible: false
+                layer.enabled: true
+            }
+
+            // "No captures yet" and "nothing matches your filter" are different
+            // problems and the second one needs a way out.
+            Column {
+                anchors.horizontalCenter: parent.horizontalCenter
+                y: Math.round(parent.height * 0.28)
+                width: Math.min(parent.width, 520)
+                spacing: 14
+                // Over the grid: its click-to-deselect area fills the view
+                // and would take the Reset button's click.
+                z: 1
+                visible: App.history.count === 0 || filter.count === 0
+
+                UIcon {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    name: App.history.count === 0 ? "line-history" : "line-search"
+                    size: 32
+                    color: Theme.textTertiary
+                }
+                Text {
+                    width: parent.width
+                    horizontalAlignment: Text.AlignHCenter
+                    wrapMode: Text.WordWrap
+                    text: App.history.count === 0
+                          ? qsTr("Nothing here yet. Captures and recordings will appear here with thumbnails.")
+                          : qsTr("No capture matches the current search and filters.")
+                    color: Theme.textSecondary
+                    font.pixelSize: 13
+                }
+                UButton {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    // Only the no-match state has filters to reset.
+                    visible: App.history.count > 0
+                    text: qsTr("Reset filters")
+                    variant: "tonal"
+                    compact: true
+                    onClicked: {
+                        searchField.text = ""
+                        filter.searchText = ""
+                        filter.kindFilter = ""
+                        filter.favoritesOnly = false
+                        filter.uploadedOnly = false
+                    }
+                }
+            }
+
             GridView {
                 id: grid
-                anchors.fill: parent
+                // Wider than the column by a tile's inset on each side, so the
+                // thumbnails (not their invisible cells) line up with the
+                // header above.
+                x: -page.tileInset
+                width: parent.width + 2 * page.tileInset
+                anchors.top: dateHeading.bottom
+                anchors.topMargin: 10
+                anchors.bottom: parent.bottom
                 clip: true
                 model: filter
                 boundsBehavior: Flickable.StopAtBounds
@@ -460,30 +541,21 @@ Item {
                 // Fill the width evenly instead of leaving a ragged gutter at the
                 // right edge: derive the column count from a minimum tile width
                 // and hand the remainder back to the cells.
-                readonly property int columns: Math.max(1, Math.floor(width / 250))
+                // 220 gives four columns at the default window, the thumbnails
+                // about Recent's size on the Capture page, and still leaves
+                // the action strip room for all its buttons.
+                readonly property int columns: Math.max(1, Math.floor(width / 220))
                 cellWidth: Math.floor(width / columns)
-                cellHeight: Math.round(cellWidth * 0.56) + page.nameLine + page.metaLine + page.tileChrome
+                // A 16:10 thumbnail, as in Recent, and the two lines under it.
+                readonly property int thumbH: Math.round((cellWidth - 2 * page.tileInset) * 10 / 16)
+                cellHeight: thumbH + page.nameLine + page.metaLine + page.tileChrome
 
                 Accessible.role: Accessible.List
                 Accessible.name: qsTr("Capture history")
                 Accessible.description: qsTr("Arrow keys move, Space selects, Return opens, Delete removes")
 
                 MiddleScroll { flickable: grid }
-                WheelBoost {
-                    flickable: grid
-                    // The kit's 220 px default is written for a page of short
-                    // rows; here a row is a whole tile (213 px at the default
-                    // window, 223 px at 1920), so a notch moved exactly one
-                    // row - a quarter of the viewport maximized, a sixth at
-                    // 1440p, which is what "far too slow" felt like. A row and
-                    // a half is the floor, and once about four and a half rows
-                    // fit the viewport takes over, so the big window stops
-                    // crawling while the small one still keeps ~30% of the
-                    // previous view. WheelBoost caps a boosted notch at 90% of
-                    // the viewport by itself, so nothing here can skip a row
-                    // nobody saw.
-                    stepPx: Math.max(Math.round(grid.cellHeight * 1.5), Math.round(grid.height / 3))
-                }
+                WheelBoost { flickable: grid }
 
                 // Click past the tiles = deselect, like a file manager.
                 MouseArea {
@@ -552,22 +624,25 @@ Item {
                     Accessible.selected: tile.selected
                     Accessible.onPressAction: page.activate(kind, filePath)
 
+                    // Recent's tile on the Capture page, plus the History
+                    // controls: no card around a tile at rest, only the
+                    // bordered thumbnail and the two lines under it. The card
+                    // appears as a tint when the tile is selected and as a
+                    // ring while the grid's keyboard cursor is on it.
                     Rectangle {
                         id: card
                         anchors.fill: parent
-                        anchors.margins: 6
-                        radius: Theme.radiusL
-                        color: card.hovering || tile.selected ? Theme.surfaceHi : Theme.surface
-                        border.width: tile.selected || tile.current ? 2 : 1
-                        border.color: tile.selected ? Theme.accent
-                                    : tile.current ? Theme.alpha(Theme.accent, 0.6)
-                                    : card.hovering ? Theme.alpha(Theme.accent, 0.45) : Theme.divider
+                        anchors.margins: 2
+                        radius: 10
+                        color: tile.selected ? Theme.alpha(Theme.accent, 0.10) : "transparent"
+                        border.width: 2
+                        border.color: tile.current ? Theme.alpha(Theme.accent, 0.6) : "transparent"
                         clip: true
                         Behavior on color { ColorAnimation { duration: Theme.animFast } }
                         Behavior on border.color { ColorAnimation { duration: Theme.animFast } }
 
                         // HoverHandler (not a MouseArea): child button MouseAreas
-                        // don't steal its hover, so the action strip stays up
+                        // don't steal its hover, so the hover colour stays up
                         // while the pointer is over a button.
                         HoverHandler { id: cardHover }
 
@@ -578,27 +653,61 @@ Item {
 
                         Column {
                             anchors.fill: parent
-                            anchors.margins: 8
-                            spacing: 6
+                            anchors.margins: 6
+                            spacing: 8
 
                             Rectangle {
                                 id: thumb
                                 width: parent.width
-                                height: Math.round(grid.cellWidth * 0.56)
-                                radius: Theme.radiusM
-                                color: Theme.primary
+                                height: grid.thumbH
+                                radius: 8
+                                color: Theme.background
+                                border.width: 1
+                                border.color: Theme.alpha(Theme.accent, card.hovering ? 0.45 : 0.12)
                                 clip: true
+                                Behavior on border.color { ColorAnimation { duration: Theme.animFast } }
 
                                 Image {
+                                    id: thumbImage
                                     anchors.fill: parent
+                                    anchors.margins: 1
                                     source: tile.thumbUrl
                                     fillMode: Image.PreserveAspectCrop
                                     asynchronous: true
                                     sourceSize.width: Math.ceil(width * Screen.devicePixelRatio)
                                     sourceSize.height: Math.ceil(height * Screen.devicePixelRatio)
+                                    // Only once loaded: a layer per tile still
+                                    // waiting for its file would be an empty
+                                    // texture for nothing.
+                                    layer.enabled: status === Image.Ready
+                                    layer.effect: MultiEffect {
+                                        maskEnabled: true
+                                        maskSource: thumbMask
+                                        maskThresholdMin: 0.5
+                                        maskSpreadAtMin: 1.0
+                                    }
                                 }
-
-                                // Drag the capture file out to another app — a file
+                                UIcon {
+                                    anchors.centerIn: parent
+                                    anchors.verticalCenterOffset: -strip.height / 2
+                                    visible: thumbImage.status !== Image.Ready
+                                    name: kind === "image" ? "image" : "camera-video"
+                                    size: 24
+                                    color: Theme.textTertiary
+                                }
+                                // The selection ring sits over the picture, not
+                                // in the thumbnail's own border: widening that
+                                // border would shrink the image inside it and
+                                // reload it at the new size on every toggle.
+                                Rectangle {
+                                    anchors.fill: parent
+                                    radius: parent.radius
+                                    color: "transparent"
+                                    border.width: 2
+                                    border.color: tile.selected ? Theme.accent : "transparent"
+                                    Behavior on border.color { ColorAnimation { duration: Theme.animFast } }
+                                }
+                                // Drag the capture file out to another app - a file
                                 // manager, or a video editor like LosslessCut for
                                 // recordings. Cheap: the payload + MouseArea sit
                                 // idle until a real drag gesture crosses the
@@ -651,7 +760,7 @@ Item {
                                             page.anchorRow = index
                                         } else if (page.selectionCount > 0) {
                                             // A staged batch turns plain clicks into
-                                            // selection toggles — opening a preview
+                                            // selection toggles - opening a preview
                                             // mid-batch would be a surprise, and the
                                             // batch is one Escape away.
                                             page.toggleSelect(entryId)
@@ -662,25 +771,32 @@ Item {
                                     }
                                 }
 
-                                // Kind badge: bottom-left, clear of the persistent
-                                // action strip as well as the checkbox and star.
+                                // One tag at most, Recent's rule: the format for
+                                // a recording, the upload for a still. Beside
+                                // the checkbox, clear of the star and of the
+                                // action strip.
                                 Rectangle {
-                                    visible: kind !== "image"
-                                    anchors.bottom: parent.bottom
-                                    anchors.bottomMargin: strip.height + 4
-                                    anchors.left: parent.left
-                                    anchors.leftMargin: 6
-                                    width: kindText.implicitWidth + 14
-                                    height: 20
-                                    radius: 10
-                                    color: Theme.accent
+                                    readonly property string badge: kind === "gif" ? "GIF"
+                                        : kind === "video" ? (filePath !== "" ? filePath.split(".").pop() : kind)
+                                        : url !== "" ? qsTr("Uploaded") : ""
+                                    visible: badge !== ""
+                                    x: 6 + 22 + 6
+                                    y: 6 + Math.round((22 - height) / 2)
+                                    width: Math.min(kindText.implicitWidth + 12, thumb.width - x - 6 - 26 - 6)
+                                    height: kindText.implicitHeight + 4
+                                    radius: 4
+                                    color: Theme.alpha(Theme.mediaBase, 0.72)
                                     Text {
                                         id: kindText
                                         anchors.centerIn: parent
-                                        text: kind.toUpperCase()
-                                        color: Theme.textOnAccent
+                                        width: Math.min(implicitWidth, parent.width - 12)
+                                        elide: Text.ElideRight
+                                        text: parent.badge
+                                        color: Theme.mediaText
                                         font.pixelSize: 10
-                                        font.weight: Font.Bold
+                                        font.weight: Font.DemiBold
+                                        font.letterSpacing: 0.4
+                                        font.capitalization: Font.AllUppercase
                                         // Already spoken as part of the tile name.
                                         Accessible.ignored: true
                                     }
@@ -766,15 +882,22 @@ Item {
                                     anchors.left: parent.left
                                     anchors.right: parent.right
                                     anchors.bottom: parent.bottom
+                                    // Inside the thumbnail's 1 px border.
+                                    anchors.margins: 1
                                     height: 38
                                     clip: true
                                     enabled: page.selectionCount === 0
                                     opacity: enabled ? 1 : 0.42
                                     Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
 
+                                    // Rounded like the masked picture under it,
+                                    // or its bottom corners would stick out
+                                    // square; the top two fall in the fully
+                                    // transparent end of the gradient.
                                     Rectangle {
                                         width: parent.width
                                         height: parent.height
+                                        radius: 7
                                         gradient: Gradient {
                                             GradientStop { position: 0.0; color: Theme.alpha(Theme.mediaBase, 0.0) }
                                             GradientStop { position: 0.45; color: Theme.alpha(Theme.mediaBase, 0.65) }
@@ -845,6 +968,9 @@ Item {
                                                 id: moreMenu
                                                 activeFocusOnTab: false
                                                 iconOnly: true; iconName: "view-more"
+                                                // Unfilled like the icon buttons beside it: the
+                                                // tonal pill read as the strip's one lit control.
+                                                flat: true
                                                 tooltip: qsTr("More")
                                                 width: 30; height: 30
                                                 actions: {
@@ -869,6 +995,9 @@ Item {
                                                     if (kind === "image" && filePath !== "")
                                                         a.push({ label: qsTr("Copy text (OCR)"), iconName: "ocr",
                                                                  trigger: function() { App.ocrFile(filePath) } })
+                                                    if (kind === "image" && filePath !== "")
+                                                        a.push({ label: qsTr("Print…"), iconName: "document-print",
+                                                                 trigger: function() { App.printFromHistory(filePath) } })
                                                     // Each conversion writes a second file beside the
                                                     // original, so the tile it makes is its own. The
                                                     // format the file already is stays out of the list
@@ -908,83 +1037,52 @@ Item {
                                 }
                             }
 
-                            // Both footer lines are pinned to the height the cell
-                            // was sized for, so a taller-than-expected line can
-                            // never push the other one out of the card - and
-                            // both are already folded into the tile's
-                            // Accessible.name, so they opt out here instead of
-                            // being read a second time.
-                            Text {
+                            // Recent's two lines: the name in monospace, the
+                            // meta line under it.
+                            Column {
                                 width: parent.width
-                                height: page.nameLine
-                                verticalAlignment: Text.AlignVCenter
-                                text: url !== "" ? url
-                                     : filePath !== "" ? filePath.split("/").pop() : qsTr("(not saved)")
-                                color: url !== "" ? Theme.accent : Theme.textSecondary
-                                font.pixelSize: Theme.fontS
-                                elide: Text.ElideMiddle
-                                Accessible.ignored: true
-                            }
-                            Text {
-                                width: parent.width
-                                height: page.metaLine
-                                verticalAlignment: Text.AlignVCenter
-                                // Time, then whatever the file itself can tell us.
-                                // An unsaved capture contributes neither, so the
-                                // line collapses to the timestamp.
-                                text: {
-                                    var bits = []
-                                    if (timestamp) bits.push(page.tileTime(timestamp))
-                                    if (dimensions !== "") bits.push(dimensions)
-                                    if (fileSizeText !== "") bits.push(fileSizeText)
-                                    return bits.join(" · ")
+                                spacing: 1
+
+                                // Both footer lines are pinned to the height the cell
+                                // was sized for, so a taller-than-expected line can
+                                // never push the other one out of the card - and
+                                // both are already folded into the tile's
+                                // Accessible.name, so they opt out here instead of
+                                // being read a second time.
+                                Text {
+                                    width: parent.width
+                                    height: page.nameLine
+                                    verticalAlignment: Text.AlignVCenter
+                                    text: url !== "" ? url
+                                         : filePath !== "" ? filePath.split("/").pop() : qsTr("(not saved)")
+                                    color: url !== "" ? Theme.accent : Theme.textPrimary
+                                    font.pixelSize: 11
+                                    font.family: "monospace"
+                                    elide: Text.ElideMiddle
+                                    Accessible.ignored: true
                                 }
-                                color: Theme.textTertiary
-                                font.pixelSize: Theme.fontS - 1
-                                elide: Text.ElideRight
-                                Accessible.ignored: true
+                                Text {
+                                    width: parent.width
+                                    height: page.metaLine
+                                    verticalAlignment: Text.AlignVCenter
+                                    // Time, then whatever the file itself can tell us.
+                                    // An unsaved capture contributes neither, so the
+                                    // line collapses to the timestamp.
+                                    text: {
+                                        var bits = []
+                                        if (timestamp) bits.push(page.tileTime(timestamp))
+                                        if (dimensions !== "") bits.push(dimensions)
+                                        if (fileSizeText !== "") bits.push(fileSizeText)
+                                        return bits.join(" · ")
+                                    }
+                                    color: Theme.textSecondary
+                                    font.pixelSize: Theme.fontS
+                                    elide: Text.ElideRight
+                                    Accessible.ignored: true
+                                }
                             }
                         }
                     }
-                }
-            }
-
-            // Sticky date group of whichever row is topmost right now. GridView
-            // has no sections, and regrouping the model into per-group rows would
-            // re-instantiate every visible tile on each star toggle — this reads
-            // the same information off the scroll position instead.
-            Rectangle {
-                id: datePill
-                anchors.top: parent.top
-                anchors.topMargin: Theme.spacingS
-                // Centered on a tile, not cornered: the tiles keep their checkbox
-                // in the top-left corner and their star in the top-right one,
-                // and the pill would sit on top of whichever it shared a corner
-                // with. So over the middle tile, or the one left of centre for
-                // an even column count: there the grid's centre is the gap
-                // where two tiles' corners meet. Capped to the span between
-                // that tile's checkbox and star.
-                x: Math.floor((grid.columns - 1) / 2) * grid.cellWidth + Math.round((grid.cellWidth - width) / 2)
-                readonly property int topRow: grid.count > 0
-                    ? grid.indexAt(grid.cellWidth / 2, grid.contentY + 4) : -1
-                readonly property string label: topRow >= 0 ? page.dateGroup(filter.timestampAt(topRow)) : ""
-                visible: datePill.label !== ""
-                width: Math.min(dateText.implicitWidth + 20, grid.cellWidth - 100)
-                height: 24
-                radius: 12
-                color: Theme.alpha(Theme.backgroundDeep, 0.85)
-                border.width: 1
-                border.color: Theme.divider
-                Text {
-                    id: dateText
-                    anchors.centerIn: parent
-                    width: parent.width - 20
-                    elide: Text.ElideRight
-                    horizontalAlignment: Text.AlignHCenter
-                    text: datePill.label
-                    color: Theme.textSecondary
-                    font.pixelSize: Theme.fontS
-                    font.weight: Font.DemiBold
                 }
             }
         }

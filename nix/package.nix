@@ -1,6 +1,7 @@
 {
   lib,
   stdenv,
+  bashInteractive,
   cmake,
   ninja,
   pkg-config,
@@ -25,6 +26,7 @@
   zip,
   grim,
   xdg-desktop-portal,
+  onnxruntime,
   # Nix cannot express the distro-style "one of these desktop backends" virtual
   # dependency. KDE is the default because it is Unisic's primary target; a
   # caller packaging for another desktop can override this one argument.
@@ -70,7 +72,7 @@ let
 in
 stdenv.mkDerivation (finalAttrs: {
   pname = "unisic";
-  version = "0.8.9";
+  version = "0.8.10";
 
   # cleanSource here resolves to the flake's store copy (git-tracked files only),
   # so build/ dist/ and .git never enter the derivation. That copy carries the
@@ -186,9 +188,20 @@ stdenv.mkDerivation (finalAttrs: {
       ]
     }"
     "--set-default TESSDATA_PREFIX ${tesseractWithData}/share/tessdata"
+    # ONNX Runtime is dlopen()ed by name (src/editor/BackgroundRemover.cpp), so
+    # the linker never records it: PaddleOCR, the default OCR engine, and
+    # background removal find it only through this path.
+    "--prefix LD_LIBRARY_PATH : ${lib.makeLibraryPath [ onnxruntime ]}"
   ];
 
   doCheck = true;
+  # The completion test sources resources/completions/unisic.bash, which calls
+  # the compgen builtin. The stdenv's own bash (bashNonInteractive, first on
+  # PATH via initialPath) is built without readline and so without programmable
+  # completion: "compgen: command not found". A check input's bin/ is put
+  # ahead of initialPath, so `bash` resolves to the interactive build here.
+  # Check-only, not a runtime dependency of the package.
+  nativeCheckInputs = [ bashInteractive ];
   checkPhase = ''
     runHook preCheck
     # The build sandbox has HOME=/homeless-shelter (read-only); the settings
@@ -196,6 +209,12 @@ stdenv.mkDerivation (finalAttrs: {
     # writable HOME. offscreen: the tests use QGuiApplication with no display.
     export HOME=$(mktemp -d)
     export XDG_RUNTIME_DIR=$(mktemp -d)
+    # The sticker tests read the bundled Twemoji SVGs through QImageReader,
+    # i.e. the qsvg imageformats plugin. nixpkgs' qtbase only finds plugins in
+    # its own store path, QT_PLUGIN_PATH, and <PATH entry>/../lib/qt-6/plugins;
+    # qtsvg has no bin/ on PATH, and wrapQtAppsHook puts its plugin dir into
+    # the installed wrapper only, so without this every SVG reads as null.
+    export QT_PLUGIN_PATH=${qt6.qtsvg}/${qt6.qtbase.qtPluginPrefix}''${QT_PLUGIN_PATH:+:$QT_PLUGIN_PATH}
     QT_QPA_PLATFORM=offscreen ctest --output-on-failure
     runHook postCheck
   '';

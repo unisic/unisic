@@ -25,7 +25,7 @@ _pkgrel=1
 pkgdesc='Capture, annotate, record and share your screen on Linux Wayland (binary release)'
 arch=('x86_64')
 url='https://github.com/unisic/unisic'
-license=('GPL-3.0-or-later')
+license=('GPL-3.0-or-later' 'CC-BY-4.0' 'Unicode-3.0')
 # This list is not derived from the repacked package: it is the same list the
 # source recipe carries, and it has to be, because Unisic has no optional
 # dependencies. Every compile-time gate is a hard build requirement, so the
@@ -66,10 +66,14 @@ depends=('qt6-base' 'qt6-declarative' 'qt6-svg' 'qt6-wayland' 'qt6-multimedia'
          'qt6-multimedia-ffmpeg' 'pipewire' 'pipewire-audio' 'ffmpeg' 'grim' 'wl-clipboard' 'curl' 'zip'
          'xdg-desktop-portal' 'tesseract' 'leptonica' 'tesseract-data-eng' 'tesseract-data-pol'
          'tesseract-data-osd' 'layer-shell-qt' 'zxing-cpp' 'kguiaddons' 'libinput'
-         'hicolor-icon-theme' 'libx11' 'libxext' 'libxfixes' 'libxcb')
-# The only optdepends that survive the no-optional-dependencies rule, because
-# a portal backend is neither a feature gate nor a library this binary links:
-# it is a session component with several mutually exclusive providers. The
+         'hicolor-icon-theme' 'libx11' 'libxext' 'libxfixes' 'libxcb' 'onnxruntime')
+# ONNX Runtime is dlopen()ed, never linked: it runs PaddleOCR, the default OCR
+# engine, and background removal. 'onnxruntime' is the virtual every variant
+# provides, so a CUDA or ROCm build already installed satisfies it; on a fresh
+# install pacman offers onnxruntime-cpu first, the build Unisic uses anyway.
+# The only optdepends that survive the no-optional-dependencies rule. A portal
+# backend is neither a feature gate nor a library this binary links: it is a
+# session component with several mutually exclusive providers. The
 # virtual 'xdg-desktop-portal-impl' would state it as a hard depend, but a
 # virtual with more than one provider makes makepkg prompt for a choice, and
 # an AUR helper running --noconfirm would silently pick the first one for the

@@ -25,6 +25,11 @@ bool KWinScreenShot2::isAvailable()
     return iface && iface->isServiceRegistered(QStringLiteral("org.kde.KWin"));
 }
 
+QString KWinScreenShot2::backendName()
+{
+    return QStringLiteral("KWin ScreenShot2");
+}
+
 struct PipeImageResult {
     QImage image;
     QString error;

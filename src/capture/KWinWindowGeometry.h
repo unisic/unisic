@@ -6,7 +6,8 @@
 class QTemporaryFile;
 class QTimer;
 
-// Where the ACTIVE window is, in KWin's own coordinates.
+// Where the ACTIVE window is, in KWin's own coordinates. On Windows the
+// KWinWindowGeometry_win.cpp sibling answers from Win32 in the same space.
 //
 // Wayland tells a client nothing about anyone else's window - not the stack,
 // not the geometry - and ScreenShot2 hands back pixels with no coordinates

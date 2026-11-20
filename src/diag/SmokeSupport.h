@@ -32,9 +32,16 @@ QImage devTestImage();
 // box self-test, which is the selectable-text overlay's data source.
 QImage ocrBoxTestImage();
 
+// An IP address, an e-mail and a toolbar line with a wide gap, for the
+// Auto-redact self-test over real Tesseract geometry.
+QImage autoRedactTestImage();
+
 // zxing-cpp is already linked for QR decoding. Encoding a small preview is
 // synchronous and bounded (360 squared pixels); unlike screenshot PNG work it
 // never needs a worker or retains a full capture-sized buffer.
+// Payloads past kQrMaxBytes get a null image: version 40 at ECC level M holds
+// 2331 bytes, and a round cap leaves a margin for the 360 px canvas.
+constexpr qsizetype kQrMaxBytes = 2048;
 QImage qrPreviewImage(const QString &url);
 
 // Builds the clipboard offer that Klipper actually records in its history.

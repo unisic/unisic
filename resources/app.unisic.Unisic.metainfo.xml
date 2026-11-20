@@ -2,7 +2,7 @@
 <component type="desktop-application">
   <id>app.unisic.Unisic</id>
   <metadata_license>CC0-1.0</metadata_license>
-  <project_license>GPL-3.0-or-later</project_license>
+  <project_license>GPL-3.0-or-later AND CC-BY-4.0 AND Unicode-3.0</project_license>
   <name>Unisic</name>
   <developer id="app.unisic">
     <name>Unisic maintainers</name>
@@ -40,6 +40,7 @@
   <url type="homepage">https://unisic.app</url>
   <url type="bugtracker">https://github.com/unisic/unisic/issues</url>
   <url type="vcs-browser">https://github.com/unisic/unisic</url>
+  <url type="donation">https://ko-fi.com/unisic</url>
   <branding>
     <color type="primary" scheme_preference="light">#C8ACD6</color>
     <color type="primary" scheme_preference="dark">#17153B</color>
@@ -70,6 +71,11 @@
     <binary>unisic</binary>
   </provides>
   <releases>
+    <release version="0.8.10" date="2026-11-20">
+      <description>
+        <p>Unisic speaks Simplified Chinese, and every page has the look of the new Capture page, with a search field in the header. The editor gains stickers, a spotlight, cutting out a strip, rotate and resize, background removal on your own computer, auto-redact of sensitive text, two layouts and work on several shapes at once. Any file or the clipboard can be uploaded, a watched folder uploads new files by itself, S3 storage works as a server, links can be shortened, and a capture can be printed or moved to the trash after its upload. A taken hotkey is shown on Settings, Hotkeys instead of a message at every start, and the portable app starts on Ubuntu without libopengl0. Text recognition reads with PaddleOCR on Linux and the recognizer built into Windows on Windows. On COSMIC, recording works and the selection overlay covers every monitor.</p>
+      </description>
+    </release>
     <release version="0.8.9" date="2026-11-05">
       <description>
         <p>When an upload fails, the next server on your list takes the file (the Failure Chain), and the capture card lets you pick the server for one capture; GitHub Pages is a built-in destination. The editor is laid out like an image editor, a capture can be acted on straight from its History preview, Unisic counts your screenshots per day for unisic.app/stats, and bash and zsh complete its command line. Recordings keep sound and picture in sync on a busy computer, a scrolling capture is no longer blurred under Better Blur, and the experimental Windows build gets thumbnails in History, faster full-screen recording and a series of fixes.</p>
@@ -107,7 +113,7 @@
     </release>
     <release version="0.8.2" date="2026-07-31">
       <description>
-        <p>Adds Russian and German, both translated in full, bringing the interface to seven languages. Installing on Ubuntu works again: the installer adds Unisic's own software source first and installs the build made for that system, instead of handing every Debian-based system the same Debian 13 package. Saved server passwords are no longer readable by other accounts on the same computer, the installer the app downloads for in-app updates is checked against a published fingerprint before it runs, and a program run after each capture can no longer hang the session forever. A save name beginning with a dot no longer produces an invisible file, the extra colour themes come back when their folder has gone missing, and a history tile keeps its buttons while its own menu is open.</p>
+        <p>Adds Russian and German, both translated in full, bringing the interface to seven languages. Installing on Ubuntu works again: the installer adds Unisic's own software source first and installs the build made for that system, instead of handing every Debian-based system the same Debian 13 package. Saved server passwords are no longer readable by other accounts on the same computer, the installer the app downloads for in-app updates is checked against a published fingerprint before it runs, and a program run after each capture can no longer hang the session forever. A save name beginning with a dot no longer produces an invisible file, the extra color themes come back when their folder has gone missing, and a history tile keeps its buttons while its own menu is open.</p>
       </description>
     </release>
     <release version="0.8.1" date="2026-07-27">
@@ -162,7 +168,7 @@
     </release>
     <release version="0.6.2" date="2026-07-12">
       <description>
-        <p>The System theme now mirrors your full KDE colour scheme: cards, tooltips, hover states and the semantic positive/negative colours are read straight from the active Plasma palette, so Unisic looks native on KDE. Filled-body system icons (camera, monitor) no longer flatten to solid squares. Flatpak packaging was dropped - install through the native repositories or the AppImage.</p>
+        <p>The System theme now mirrors your full KDE color scheme: cards, tooltips, hover states and the semantic positive/negative colors are read straight from the active Plasma palette, so Unisic looks native on KDE. Filled-body system icons (camera, monitor) no longer flatten to solid squares. Flatpak packaging was dropped - install through the native repositories or the AppImage.</p>
       </description>
     </release>
     <release version="0.6.1" date="2026-07-12">

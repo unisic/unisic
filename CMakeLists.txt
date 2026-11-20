@@ -1,10 +1,10 @@
 cmake_minimum_required(VERSION 3.21)
-project(unisic VERSION 0.8.9 LANGUAGES CXX)
+project(unisic VERSION 0.8.10 LANGUAGES CXX)
 # Human-facing version. project(VERSION) only takes numeric tuples, so
 # pre-release suffixes live here (a letter suffix like "0.3b" -> the
 # workflow marks the GitHub release pre-release); this string
 # drives the binary footer, package versions and the GitHub release tag.
-set(UNISIC_VERSION_STRING "0.8.9")
+set(UNISIC_VERSION_STRING "0.8.10")
 
 include(GNUInstallDirs)
 
@@ -177,17 +177,23 @@ qt_add_executable(unisic
     src/record/RecordBorderHelper.h src/record/RecordBorderHelper.cpp
     src/record/RecordBorderController.h src/record/RecordBorderController.cpp
     src/editor/AnnotationCanvas.h src/editor/AnnotationCanvas.cpp
+    src/editor/SensitiveText.h src/editor/SensitiveText.cpp
     src/editor/EditorSession.h src/editor/EditorSession.cpp
     src/editor/ImageEffects.h src/editor/ImageEffects.cpp
     src/editor/WatermarkPreview.h src/editor/WatermarkPreview.cpp
+    src/editor/BackgroundRemover.h src/editor/BackgroundRemover.cpp
     src/overlay/OverlayController.h src/overlay/OverlayController.cpp
     src/upload/UploadManager.h src/upload/UploadManager.cpp
+    # AppContext's upload entry points that are not captures (same class).
+    src/upload/UploadSources.cpp
+    src/upload/FolderWatch.h src/upload/FolderWatch.cpp
     src/actions/ExternalActionRunner.h src/actions/ExternalActionRunner.cpp
     src/history/HistoryStore.h src/history/HistoryStore.cpp
     src/history/HistoryFilterModel.h src/history/HistoryFilterModel.cpp
     src/history/CaptureStats.h src/history/CaptureStats.cpp
     src/hotkeys/GlobalHotkeys.h src/hotkeys/GlobalHotkeys.cpp
     src/hotkeys/PortalGlobalShortcuts.h src/hotkeys/PortalGlobalShortcuts.cpp
+    src/hotkeys/PrintKeyRelay.h src/hotkeys/PrintKeyRelay.cpp
     src/hotkeys/ShortcutBinder.h src/hotkeys/ShortcutBinder.cpp
     src/update/UpdateChecker.h src/update/UpdateChecker.cpp
     src/update/StagedUpdate.h src/update/StagedUpdate.cpp
@@ -271,7 +277,9 @@ endif()
 # grabber and arrive with HAVE_X11_HOTKEYS through its PUBLIC compile definitions.
 # PipeWireGrabber is there too, under the kit's own HAVE_PIPEWIRE, likewise PUBLIC.
 
-target_sources(unisic PRIVATE src/ocr/OcrEngine.h src/ocr/OcrEngine.cpp)
+target_sources(unisic PRIVATE src/ocr/OcrEngine.h src/ocr/OcrEngine.cpp src/ocr/OcrEngines.h
+                              src/ocr/WindowsOcr.h src/ocr/WindowsOcr.cpp
+                              src/ocr/PaddleOcr.h src/ocr/PaddleOcr.cpp)
 target_link_libraries(unisic PRIVATE PkgConfig::TESSERACT ZXing::ZXing)
 target_compile_definitions(unisic PRIVATE HAVE_TESSERACT HAVE_ZXING)
 
@@ -334,6 +342,24 @@ qt_add_qml_module(unisic
         qml/components/ULogViewer.qml
         qml/components/UAppAudioPicker.qml
         qml/components/UWelcome.qml
+        qml/components/StickerPopup.qml
+        qml/components/RedactReview.qml
+        qml/components/Kbd.qml
+        qml/components/Hotkeys.js
+        qml/components/SectionLabel.qml
+        qml/components/Link.qml
+        qml/components/MiniSwitch.qml
+        qml/components/PageTitle.qml
+        qml/components/SegmentedControl.qml
+        qml/components/InspectorRow.qml
+        qml/components/Inspector.qml
+        qml/components/TileArt.qml
+        qml/components/SourceTile.qml
+        qml/components/ActionTile.qml
+        qml/components/RecentStrip.qml
+        qml/components/HeaderButton.qml
+        qml/components/FilterToggle.qml
+        qml/components/HeaderSearch.qml
         qml/components/UNotifPreview.qml
         qml/components/UOverlayPreview.qml
         qml/components/UModeGlyph.qml
@@ -345,6 +371,9 @@ qt_add_qml_module(unisic
 
 # qmltyperegistrations includes QML_ELEMENT headers by basename
 target_include_directories(unisic PRIVATE src src/capture src/editor src/upload src/history src/notify src/update src/record)
+# The ONNX Runtime C API (MIT, 1.17.3), header only: the library itself is
+# dlopen()ed by BackgroundRemover, never linked.
+target_include_directories(unisic PRIVATE third_party)
 # unisic-kit propagates its src/ include dir (capture/, record/, theme/,
 # media/ headers), Qt6::DBus and, when found, PkgConfig::PIPEWIRE +
 # HAVE_PIPEWIRE - so the app-side guards keep working unchanged.
@@ -372,6 +401,15 @@ qt_add_resources(unisic "themes" PREFIX "/" FILES ${UNISIC_THEMES})
 file(GLOB UNISIC_SOUNDS CONFIGURE_DEPENDS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} resources/sounds/*.wav)
 qt_add_resources(unisic "sounds" PREFIX "/" FILES ${UNISIC_SOUNDS})
 
+# The editor's stickers, Twemoji SVGs at :/stickers/<code points>.svg, and
+# their catalogue (names and search words from Unicode's emoji data and CLDR)
+# beside them (third_party/twemoji/README.md). CC BY 4.0 and the Unicode
+# License: both notices ship beside the binary, see the install() below.
+file(GLOB UNISIC_STICKERS CONFIGURE_DEPENDS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
+     third_party/twemoji/*.svg third_party/twemoji/*.json)
+qt_add_resources(unisic "stickers" PREFIX "/stickers" BASE third_party/twemoji
+                 FILES ${UNISIC_STICKERS})
+
 # Bundled tray-icon presets: drop .svg/.png into resources/icons/tray/ and they
 # show up in Settings > Appearance > System tray icon (re-run cmake after adding).
 file(GLOB UNISIC_TRAY_ICONS CONFIGURE_DEPENDS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
@@ -380,19 +418,19 @@ if(UNISIC_TRAY_ICONS)
     qt_add_resources(unisic "tray_icons" PREFIX "/" FILES ${UNISIC_TRAY_ICONS})
 endif()
 
-# Translations: the seven .ts files are compiled to .qm and embedded in the qrc
+# Translations: the .ts files are compiled to .qm and embedded in the qrc
 # under /i18n/, and `cmake --build build --target update_translations` refreshes
 # the source strings. Needs Qt6 LinguistTools (lupdate/lrelease).
 #
 # This is the gate with the quietest failure of them all. Without the tools the
 # build used to succeed and simply ship English, while the interface still
-# offered seven languages in its picker and the README still promised them, and
+# offered every language in its picker and the README still promised them, and
 # nothing anywhere printed more than a STATUS line. One SDK or distro change
 # was all it took.
 find_package(Qt6 QUIET COMPONENTS LinguistTools)
 if(NOT Qt6LinguistTools_FOUND)
     unisic_require_failed("Qt6 LinguistTools (lupdate/lrelease)"
-        "every translation: the build would ship English only while the language picker still offers seven"
+        "every translation: the build would ship English only while the language picker still offers the shipped languages"
         "qt6-qttools-devel" "qt6-tools-dev qt6-l10n-tools" "qt6-tools" "qt6-linguist-devel")
 endif()
 set(UNISIC_TS_FILES
@@ -402,7 +440,8 @@ set(UNISIC_TS_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/i18n/unisic_it.ts
     ${CMAKE_CURRENT_SOURCE_DIR}/i18n/unisic_fr.ts
     ${CMAKE_CURRENT_SOURCE_DIR}/i18n/unisic_ru.ts
-    ${CMAKE_CURRENT_SOURCE_DIR}/i18n/unisic_de.ts)
+    ${CMAKE_CURRENT_SOURCE_DIR}/i18n/unisic_de.ts
+    ${CMAKE_CURRENT_SOURCE_DIR}/i18n/unisic_zh_CN.ts)
 qt_add_lrelease(unisic TS_FILES ${UNISIC_TS_FILES}
                 QM_FILES_OUTPUT_VARIABLE UNISIC_QM_FILES)
 qt_add_resources(unisic "i18n" PREFIX "/i18n" BASE ${CMAKE_CURRENT_BINARY_DIR}
@@ -428,7 +467,7 @@ if(Qt6_VERSION VERSION_GREATER_EQUAL 6.7)
 else()
     qt_add_lupdate(unisic TS_FILES ${UNISIC_TS_FILES} SOURCES ${UNISIC_LUPDATE_SOURCES})
 endif()
-message(STATUS "Translations: enabled (English, Polish, Spanish, Italian, French, Russian, German)")
+message(STATUS "Translations: enabled (English, Polish, Spanish, Italian, French, Russian, German, Chinese (Simplified))")
 
 # The gate manifest CI asserts on. Every feature this build was supposed to
 # have, one NAME=ON line each, written where a packaging recipe can read it no
@@ -445,7 +484,7 @@ if(WIN32)
     set(UNISIC_ALL_FEATURES
         HAVE_TESSERACT HAVE_ZXING HAVE_TRANSLATIONS
         ${UNISIC_WINDOWS_FEATURES} ${UNISIC_KIT_FEATURES})
-    set(_unisic_expected_features 5)
+    set(_unisic_expected_features 6)
 else()
     set(UNISIC_ALL_FEATURES
         HAVE_PIPEWIRE HAVE_TESSERACT HAVE_ZXING HAVE_LIBINPUT
@@ -483,6 +522,26 @@ install(FILES packaging/obs/home_unisic.key
 # guessing from behaviour.
 install(FILES ${CMAKE_BINARY_DIR}/unisic-features.txt
     DESTINATION ${CMAKE_INSTALL_DATADIR}/unisic)
+# The stickers are Twemoji art under CC BY 4.0 and a catalogue of Unicode
+# data, compiled in; both licenses travel with every copy.
+install(FILES third_party/twemoji/LICENSE
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/unisic RENAME LICENSE.twemoji)
+install(FILES third_party/twemoji/LICENSE.unicode
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/unisic)
+# The OCR model, PP-OCRv6 tiny (PaddleOCR, Apache-2.0) as RapidOCR 3.10
+# converts it, byte for byte the unisic/unisic-models ppocr-v6-1 release.
+# PaddleOcr.cpp finds it from the binary at <bin>/../share/unisic/models, or
+# <bin>/share/unisic/models in the build tree, linked here for dev runs and
+# tests. Linux only: Windows reads with Windows.Media.Ocr.
+if(NOT WIN32)
+    install(FILES third_party/paddleocr/PP-OCRv6_det_tiny.onnx third_party/paddleocr/PP-OCRv6_rec_tiny.onnx
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/unisic/models)
+    install(FILES third_party/paddleocr/LICENSE
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/unisic RENAME LICENSE.paddleocr)
+    file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/share/unisic)
+    file(CREATE_LINK ${CMAKE_CURRENT_SOURCE_DIR}/third_party/paddleocr
+        ${CMAKE_BINARY_DIR}/share/unisic/models SYMBOLIC)
+endif()
 # Man page. Generated so the version in its header cannot drift from
 # UNISIC_VERSION_STRING, and so the date is the build's, not whenever the file
 # was last hand-edited. Debian's linters flag a binary that ships without one.
@@ -595,7 +654,13 @@ string(JOIN ", " CPACK_DEBIAN_PACKAGE_DEPENDS ${UNISIC_DEBIAN_RUNTIME_DEPENDS})
 # The portal BACKEND stays a Recommends: which one is right depends on the
 # desktop, the alternation cannot be expressed as a Depends without picking for
 # the user, and a session always has one.
-set(CPACK_DEBIAN_PACKAGE_RECOMMENDS "xdg-desktop-portal-kde | xdg-desktop-portal-gnome | xdg-desktop-portal-wlr | xdg-desktop-portal-lxqt | xdg-desktop-portal-phosh | xdg-desktop-portal-gtk | xdg-desktop-portal-xapp")
+# ONNX Runtime (docs/dev/packaging.md "Background removal") is a Recommends too:
+# it runs PaddleOCR, the default OCR engine, and Debian names the library
+# package after its minor version (Debian 13 and Ubuntu 25.10 ship 1.21,
+# Ubuntu 26.04 1.23); on a release with neither, apt skips the line and
+# Tesseract reads the text.
+# shortcut: one name per shipped minor, add the next when Debian/Ubuntu move on.
+set(CPACK_DEBIAN_PACKAGE_RECOMMENDS "xdg-desktop-portal-kde | xdg-desktop-portal-gnome | xdg-desktop-portal-wlr | xdg-desktop-portal-lxqt | xdg-desktop-portal-phosh | xdg-desktop-portal-gtk | xdg-desktop-portal-xapp, libonnxruntime1.23 | libonnxruntime1.21")
 # Direct-download debs self-register the OBS apt repo (postinst) so later
 # versions arrive natively via apt; postrm drops the entry on purge.
 set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA
@@ -604,7 +669,7 @@ set(CPACK_DEBIAN_PACKAGE_DESCRIPTION "${CPACK_PACKAGE_DESCRIPTION}")
 set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
 
 set(CPACK_RPM_PACKAGE_GROUP "Applications/Multimedia")
-set(CPACK_RPM_PACKAGE_LICENSE "GPL-3.0-or-later")
+set(CPACK_RPM_PACKAGE_LICENSE "GPL-3.0-or-later AND MIT AND CC-BY-4.0 AND Unicode-3.0")
 set(CPACK_RPM_PACKAGE_DESCRIPTION "${CPACK_PACKAGE_DESCRIPTION}")
 # The CPack rpm ships as the FEDORA release asset only: QML type
 # registration links Qt PRIVATE API symbols (Qt_6.x_PRIVATE_API), pinning
@@ -633,7 +698,10 @@ set(CPACK_RPM_PACKAGE_DESCRIPTION "${CPACK_PACKAGE_DESCRIPTION}")
 #   and autodeps can see none of it.
 #   Boolean per distro again, since the langpack names differ (Fedora
 #   tesseract-langpack-*, and its OSD data is plain "tesseract-osd").
-set(CPACK_RPM_PACKAGE_REQUIRES "/usr/bin/ffmpeg, pipewire, (pipewire-utils or pipewire-tools), wl-clipboard, xdg-desktop-portal, curl, grim, zip, (qt6-qtdeclarative or qt6-declarative-imports), (qt6-qtwayland or qt6-wayland), (qt6-qtmultimedia or qt6-multimedia-imports), (tesseract-langpack-eng or tesseract-ocr-traineddata-eng), (tesseract-langpack-pol or tesseract-ocr-traineddata-pol), (tesseract-osd or tesseract-ocr-traineddata-osd)")
+# - ONNX Runtime is dlopen()ed, so no autodep sees it either: it runs
+#   PaddleOCR, the default OCR engine, and every Fedora this rpm targets ships
+#   1.20 or newer (openSUSE names the library package libonnxruntime1).
+set(CPACK_RPM_PACKAGE_REQUIRES "/usr/bin/ffmpeg, pipewire, (pipewire-utils or pipewire-tools), wl-clipboard, xdg-desktop-portal, curl, grim, zip, (qt6-qtdeclarative or qt6-declarative-imports), (qt6-qtwayland or qt6-wayland), (qt6-qtmultimedia or qt6-multimedia-imports), (tesseract-langpack-eng or tesseract-ocr-traineddata-eng), (tesseract-langpack-pol or tesseract-ocr-traineddata-pol), (tesseract-osd or tesseract-ocr-traineddata-osd), (onnxruntime or libonnxruntime1)")
 # Direct-download rpms self-register the COPR repo (%post - dnf repo on
 # Fedora, zypp repo on openSUSE) so later versions arrive natively;
 # %postun drops the entry on erase.
@@ -686,14 +754,24 @@ if(BUILD_TESTING)
     add_test(NAME unisic_version_cli_test COMMAND unisic --version)
     set_tests_properties(unisic_version_cli_test PROPERTIES
         PASS_REGULAR_EXPRESSION "${UNISIC_VERSION_STRING}")
+    # The bash completion parses that same early --help (#133).
+    if(NOT WIN32)
+        add_test(NAME unisic_bash_completion_test
+            COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/tests/bash-completion.sh $<TARGET_FILE:unisic>
+                    ${CMAKE_CURRENT_SOURCE_DIR}/resources/completions/unisic.bash)
+    endif()
 
     qt_add_executable(unisic_annotation_canvas_test
         tests/AnnotationCanvasTest.cpp
         src/editor/AnnotationCanvas.h src/editor/AnnotationCanvas.cpp
+        src/editor/SensitiveText.h src/editor/SensitiveText.cpp
         src/editor/ImageEffects.h src/editor/ImageEffects.cpp
+        src/record/CursorOverlayPainter.h src/record/CursorOverlayPainter.cpp
     )
     target_link_libraries(unisic_annotation_canvas_test PRIVATE
-        Qt6::Core Qt6::Gui Qt6::Quick Qt6::Qml Qt6::Concurrent Qt6::Test)
+        Qt6::Core Qt6::Gui Qt6::Network Qt6::Quick Qt6::Qml Qt6::Concurrent Qt6::Test)
+    qt_add_resources(unisic_annotation_canvas_test "stickers" PREFIX "/stickers"
+                     BASE third_party/twemoji FILES ${UNISIC_STICKERS})
     target_include_directories(unisic_annotation_canvas_test PRIVATE src src/editor)
     add_test(NAME unisic_annotation_canvas_test COMMAND unisic_annotation_canvas_test)
     set_tests_properties(unisic_annotation_canvas_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
@@ -898,6 +976,47 @@ if(BUILD_TESTING)
     target_link_libraries(unisic_kwin_force_blur_test PRIVATE Qt6::Core Qt6::Gui Qt6::DBus Qt6::Test)
     target_include_directories(unisic_kwin_force_blur_test PRIVATE src)
     add_test(NAME unisic_kwin_force_blur_test COMMAND unisic_kwin_force_blur_test)
+
+    # The OCR engine choice and the word-to-glyph split; on Windows also one real
+    # Windows.Media.Ocr run, which SKIPs where no OCR language is installed.
+    qt_add_executable(unisic_ocr_engine_test
+        tests/OcrEngineTest.cpp
+        src/ocr/OcrEngines.h src/ocr/WindowsOcr.h src/ocr/OcrWord.h
+    )
+    if(WIN32)
+        target_sources(unisic_ocr_engine_test PRIVATE src/ocr/WindowsOcr_win.cpp)
+        target_link_libraries(unisic_ocr_engine_test PRIVATE ${UNISIC_WINDOWS_OCR_LIBS})
+        target_compile_definitions(unisic_ocr_engine_test PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    else()
+        target_sources(unisic_ocr_engine_test PRIVATE src/ocr/WindowsOcr.cpp)
+    endif()
+    target_link_libraries(unisic_ocr_engine_test PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+    target_include_directories(unisic_ocr_engine_test PRIVATE src)
+    add_test(NAME unisic_ocr_engine_test COMMAND unisic_ocr_engine_test)
+    # QPainter text needs a platform plugin.
+    set_tests_properties(unisic_ocr_engine_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+    # The better OCR model's pure pieces: DB boxes on a synthetic probability
+    # map, CTC decode, glyph boxes, row grouping. No runtime, no model.
+    qt_add_executable(unisic_paddle_ocr_test
+        tests/PaddleOcrTest.cpp src/ocr/PaddleOcr.h src/ocr/PaddleOcr.cpp src/ocr/OcrWord.h)
+    target_link_libraries(unisic_paddle_ocr_test PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+    target_include_directories(unisic_paddle_ocr_test PRIVATE src third_party)
+    add_test(NAME unisic_paddle_ocr_test COMMAND unisic_paddle_ocr_test)
+
+    # Developer harness, not a test and never installed: runs the better OCR
+    # model over a folder of pictures and writes the benchmark's JSON
+    # (tests/PaddleOcrBench.cpp). Built on demand: cmake --build build --target unisic_paddle_ocr_bench
+    if(NOT WIN32)
+        qt_add_executable(unisic_paddle_ocr_bench
+            tests/PaddleOcrBench.cpp src/ocr/PaddleOcr.h src/ocr/PaddleOcr.cpp
+            src/editor/BackgroundRemover.h src/editor/BackgroundRemover.cpp)
+        set_target_properties(unisic_paddle_ocr_bench PROPERTIES EXCLUDE_FROM_ALL ON)
+        target_link_libraries(unisic_paddle_ocr_bench PRIVATE
+            Qt6::Core Qt6::Gui Qt6::Network Qt6::Concurrent Qt6::Qml)
+        target_include_directories(unisic_paddle_ocr_bench PRIVATE src third_party)
+        target_compile_definitions(unisic_paddle_ocr_bench PRIVATE UNISIC_VERSION="${UNISIC_VERSION_STRING}")
+    endif()
 
     if(WIN32)
         # Windows has no session bus. A test that asks for one (the theme seed

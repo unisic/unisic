@@ -103,6 +103,8 @@ jobs:
           # Install gate: resolves the runtime Requires against Fedora repos
           # and runs the COPR %post (self-registration) in the container.
           dnf install -y ./dist/*.rpm
+          ldconfig -p | grep 'libonnxruntime\.so\.1' \
+            || { echo "ONNX Runtime was not installed with the package"; exit 1; }
           for tool in ffmpeg ffprobe wl-copy curl zip grim pw-record pw-dump pw-play; do
             command -v "$tool" >/dev/null || { echo "missing packaged runtime helper: $tool"; exit 1; }
           done

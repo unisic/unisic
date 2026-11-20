@@ -18,7 +18,9 @@
 #include "history/HistoryStore.h"
 #include "record/GifRecorder.h"
 #include "update/UpdateChecker.h"
+#include "editor/BackgroundRemover.h"
 #include "hotkeys/ShortcutBinder.h"
+#include "hotkeys/PrintKeyRelay.h"
 
 class QQmlEngine;
 class QMenu;
@@ -27,6 +29,7 @@ class QSystemTrayIcon;
 class QTranslator;
 class QDBusServiceWatcher;
 class QFileSystemWatcher;
+class FolderWatch;
 class QQuickWindow;
 class QMimeData;
 class QScreen;
@@ -61,6 +64,7 @@ class AppContext : public QObject
     Q_PROPERTY(UploadManager *uploads READ uploads CONSTANT)
     Q_PROPERTY(HistoryStore *history READ history CONSTANT)
     Q_PROPERTY(UpdateChecker *updater READ updater CONSTANT)
+    Q_PROPERTY(BackgroundRemover *backgroundRemover READ backgroundRemover CONSTANT)
     Q_PROPERTY(bool recording READ recording NOTIFY recordingChanged)
     Q_PROPERTY(bool converting READ converting NOTIFY recordingChanged)
     Q_PROPERTY(bool instantReplayActive READ instantReplayActive NOTIFY recordingChanged)
@@ -146,10 +150,23 @@ class AppContext : public QObject
     Q_PROPERTY(QColor trayContrastColor READ trayContrastColor NOTIFY trayContrastColorChanged)
     // Open post-capture editors - quit-on-close must not destroy unsaved work.
     Q_PROPERTY(int editorWindowsOpen READ editorWindowsOpen NOTIFY editorWindowsOpenChanged)
+    // Settings > Upload's watched folder is a folder that is being watched.
+    Q_PROPERTY(bool watchFolderActive READ watchFolderActive NOTIFY watchFolderActiveChanged)
     // Tesseract is a hard build requirement, but its language data is a separate
     // RUNTIME install: with no traineddata OCR can't recognize anything yet -
     // the OCR settings surface an install hint on this.
     Q_PROPERTY(bool ocrHasLanguages READ ocrHasLanguages CONSTANT)
+    // The OCR engine ids this build can run, platform default first
+    // (OcrEngines::available()). Settings shows its engine row only when there
+    // is a choice, which is decided per platform and never changes at runtime.
+    Q_PROPERTY(QStringList ocrEngines READ ocrEngines CONSTANT)
+    // Windows OCR can run: an OCR language is installed for one of the user's
+    // Windows languages. Asked once per session by checkOcrEngines() (the
+    // Settings engine row calls it), off the GUI thread; optimistic until the
+    // answer lands, false off Windows once asked.
+    Q_PROPERTY(bool windowsOcrUsable READ windowsOcrUsable NOTIFY ocrEngineStateChanged)
+    // The engine OCR actually runs (OcrEngines::effective()).
+    Q_PROPERTY(QString ocrEffectiveEngine READ ocrEffectiveEngine NOTIFY ocrEngineStateChanged)
     // ffmpeg is in PATH. Recording already reports its own absence when it
     // fails; this exists so the GIF actions can grey out with a reason BEFORE
     // the user picks one, rather than failing afterwards.
@@ -171,6 +188,12 @@ class AppContext : public QObject
     Q_PROPERTY(bool hotkeysAvailable READ hotkeysAvailable NOTIFY hotkeysAvailableChanged)
     // "kglobalaccel" | "portal" | "" - lets the UI tailor its hints.
     Q_PROPERTY(QString hotkeyBackend READ hotkeyBackend NOTIFY hotkeysAvailableChanged)
+    // actionId -> {keys, owner, kind, refused} for every action whose key another owner
+    // holds, so Settings > Hotkeys can mark the row instead of a toast on every
+    // launch. kind: "release" | "dev" (Unisic's other build owns it), "app"
+    // (another KGlobalAccel component, `owner` is "component/action"), or
+    // "unknown" (the backend only says it is taken). One entry per action.
+    Q_PROPERTY(QVariantMap hotkeyConflicts READ hotkeyConflicts NOTIFY hotkeyConflictsChanged)
     // With no hotkey backend: whether this desktop's own custom-shortcut store
     // can be written for us (COSMIC/GNOME/Cinnamon/Xfce), and its display name.
     // Lets the Hotkeys tab offer a one-click "bind these commands" install.
@@ -201,6 +224,7 @@ public:
     UploadManager *uploads() const { return m_uploads; }
     HistoryStore *history() const { return m_history; }
     UpdateChecker *updater() const { return m_updater; }
+    BackgroundRemover *backgroundRemover() const { return m_bgRemover; }
     CaptureManager *captureManager() const { return m_capture; }
     QQmlEngine *qmlEngine() const { return m_engine; }
 
@@ -296,6 +320,9 @@ public:
     // True when any `warn` dependency is missing - gates the one-shot first-run
     // system-check popup so a fully-provisioned machine never sees it.
     Q_INVOKABLE bool hasDependencyWarnings() const;
+    // Name of the screenshot backend the next capture tries first (Capture
+    // page status line). Read on demand: a KWin auth denial changes it.
+    Q_INVOKABLE QString screenshotBackend() const;
     // True when the compositor exposes wlr-layer-shell - the selection overlay
     // uses it so it can appear ABOVE a fullscreen application.
     bool layerShellAvailable() const { return m_layerShellAvailable; }
@@ -316,7 +343,21 @@ public:
     Q_INVOKABLE void devTestCardPreview();
     Q_INVOKABLE void devTestEditor();
     Q_INVOKABLE void devTestEditorZoom();
+    // Lays an editor out as panels and as floating pills and checks neither
+    // covers the fitted image or spills the text tool's options.
+    Q_INVOKABLE void devTestEditorLayouts();
+    Q_INVOKABLE void devTestEditorChrome();
+    Q_INVOKABLE void devTestShapeGroups();
+    // Right click on a shape in a real editor opens its menu (see shapeMenuCheck).
+    Q_INVOKABLE void devTestShapeMenu();
+    Q_INVOKABLE void devTestStickerLibrary();
+    // Auto-redact's findings list on a real editor (see redactReviewCheck).
+    Q_INVOKABLE void devTestRedactReview();
     Q_INVOKABLE void devTestLeaveField();
+    // The Capture page at the window's current size: tiles inside the column,
+    // Recent in whole rows that fill the page without scrolling it.
+    Q_INVOKABLE void devTestCapturePage();
+    Q_INVOKABLE void devTestHeaderSearch();
     Q_INVOKABLE void devTestHistory();
     Q_INVOKABLE void devTestFavoriteHistory();
     Q_INVOKABLE void devTestEditFromHistory();
@@ -353,6 +394,8 @@ public:
     // The server editor's "Test upload": guard + a real curl transport against
     // a scratch file:// target, plus the promise that nothing is persisted.
     Q_INVOKABLE void devTestDestinationTest();
+    // S3 signing: a curl destination with an S3 region against a local stand-in.
+    Q_INVOKABLE void devTestS3Signing();
     // Drag and drop import: the router behind the main window's DropArea.
     Q_INVOKABLE void devTestImportDrop();
     // Ctrl+V import: clipboard pixels and a copied file.
@@ -374,6 +417,10 @@ public:
     Q_INVOKABLE void devTestCustomTheme();
     Q_INVOKABLE void devTestShapeEdit();
     Q_INVOKABLE void devTestMagnify();
+    Q_INVOKABLE void devTestSpotlight();
+    Q_INVOKABLE void devTestImageTransform();
+    Q_INVOKABLE void devTestCutOut();
+    Q_INVOKABLE void devTestStickers();
     Q_INVOKABLE void devTestEyedropper();
     Q_INVOKABLE void devTestPixelLoupe();
     Q_INVOKABLE void devTestCaptureOnRelease();
@@ -381,10 +428,11 @@ public:
     Q_INVOKABLE void devTestOverlayPreview();
     Q_INVOKABLE void devTestOcrBoxes();
     Q_INVOKABLE void devTestOcrHighlight();
-    Q_INVOKABLE void devTestOcrRedactPattern();
+    Q_INVOKABLE void devTestAutoRedact();
     Q_INVOKABLE void devTestCursorOverlay();
     Q_INVOKABLE void devTestStylePresets();
     Q_INVOKABLE void devTestOcrAutoLang();
+    Q_INVOKABLE void devTestOcrEngine();
     Q_INVOKABLE void devTestClipboardPaste();
     Q_INVOKABLE void devTestCaptureDelay();
     Q_INVOKABLE void devTestCopyAs();
@@ -395,6 +443,12 @@ public:
     Q_INVOKABLE void devTestShiftSnap();
     Q_INVOKABLE void devTestPenLine();
     Q_INVOKABLE void devTestQrPreview();
+    Q_INVOKABLE void devTestQrText();
+    Q_INVOKABLE void devTestShareSources();
+    Q_INVOKABLE void devTestShortenLink();
+    Q_INVOKABLE void devTestPrint();
+    Q_INVOKABLE void devTestTrashAfterUpload();
+    Q_INVOKABLE void devTestBackgroundRemoval();
     Q_INVOKABLE void devTestDiagnostics();
     Q_INVOKABLE void devTestSystemCheck();
     Q_INVOKABLE void devTestWelcome();
@@ -434,7 +488,12 @@ public:
     QString smokeTestLog() const { return m_smokeLog; }
     bool smokeTestRunning() const { return m_smokeRunning; }
     int editorWindowsOpen() const { return m_editorWindows; }
+    bool watchFolderActive() const;
     bool ocrHasLanguages() const;
+    QStringList ocrEngines() const;
+    bool windowsOcrUsable() const { return m_windowsOcrUsable; }
+    QString ocrEffectiveEngine() const;
+    Q_INVOKABLE void checkOcrEngines();
     bool ffmpegAvailable() const;
     QString watermarkPreviewSource() const;
     bool vaapiAvailable() const { return m_vaapiAvailable; }
@@ -456,6 +515,7 @@ public:
     Q_INVOKABLE void applyLanguage();
     bool hotkeysAvailable() const;
     QString hotkeyBackend() const { return m_hotkeyBackend; }
+    QVariantMap hotkeyConflicts() const { return m_hotkeyConflicts; }
     bool desktopShortcutsAuto() const;
     QString desktopShortcutName() const;
     bool autostartEnabled() const;
@@ -495,6 +555,9 @@ public:
     Q_INVOKABLE void captureScroll();
     // Single monitor: the screen under the cursor (fallback: primary).
     Q_INVOKABLE void captureScreenUnderCursor();
+    // Single monitor picked by its QScreen name (tray submenu, `--screen`);
+    // an empty name is the screen under the cursor.
+    Q_INVOKABLE void captureScreenNamed(const QString &name);
     // Repeat the last region capture's exact rect without opening the overlay
     // (ShareX "repeat last capture"). Errors as a toast when no region is
     // stored or its screen is gone.
@@ -571,7 +634,21 @@ public:
     Q_INVOKABLE void saveInstantReplay();
 
     Q_INVOKABLE void copyText(const QString &text);
-    Q_INVOKABLE void showQr(const QString &url);
+    // A QR code of any text up to 2048 bytes: an upload link, or what was copied.
+    Q_INVOKABLE void showQr(const QString &text);
+    // Sharing what you already have (src/upload/UploadSources.cpp). Each goes
+    // through the same failure chain and after-upload actions as a capture.
+    Q_INVOKABLE void uploadAnyFile();       // file dialog, any type
+    Q_INVOKABLE void uploadPath(const QString &path);
+    Q_INVOKABLE void devTestWatchFolder();
+    Q_INVOKABLE void uploadClipboard();     // a copied file, image or text
+    Q_INVOKABLE void qrFromClipboard();     // QR code of the copied text
+    // What uploadClipboard() sends for this payload: "files", "image", "text",
+    // or "" for nothing it can upload. Pure, so the routing is checkable
+    // without touching the real clipboard.
+    static QString clipboardUploadKind(const QMimeData *mime);
+    // The name copied text is uploaded under: the filename template, .txt.
+    QString clipboardTextFileName() const;
     // Text representations of a capture. The data URI encode is asynchronous
     // because a full-resolution PNG must never stall the GUI thread.
     void copyImageAs(const QImage &img, const QString &filePath, const QString &url,
@@ -742,6 +819,8 @@ public:
     // Upload a saved capture file (history card) to the active destination and
     // write the resulting URL back onto its history entry.
     Q_INVOKABLE void uploadFromHistory(const QString &filePath);
+    // Print a saved image file (history card) through printImage.
+    Q_INVOKABLE void printFromHistory(const QString &filePath);
     void ocrImage(const QImage &img);                // OCR + copy recognized text
     // OCR the image and deliver per-word boxes on the GUI thread (editor's
     // selectable-text overlay). Empty words + a message on failure/no-OCR.
@@ -778,12 +857,15 @@ signals:
     // caller and keeps running, it is the user's app.
     void cliCaptureFinished(bool ok, const QString &error);
     void hotkeysAvailableChanged();
+    void hotkeyConflictsChanged();
     void watermarkPreviewChanged();
     void recordingAvailableChanged();
     void scrollCaptureActiveChanged();
     void trayAvailableChanged();
     void shortcutRecordingChanged();
     void editorWindowsOpenChanged();
+    void watchFolderActiveChanged();
+    void ocrEngineStateChanged();
     void smokeTestChanged();
     void patchNotesUnseenChanged();
     void autostartEnabledChanged();
@@ -793,11 +875,15 @@ signals:
     void recordingCapabilitiesChanged();
 
 private:
+    // captureScreenUnderCursor() with an empty name, captureScreenNamed() otherwise.
+    void captureOneScreen(const QString &name);
     // The paste ROUTER, split from pasteFromClipboard() so a payload can be
     // routed without going near QClipboard: pixels -> a new editor document,
     // a local file url -> openPath(), anything else (and a null payload, which
     // is what an empty clipboard hands over) -> a toast that says why.
     void pasteMimeData(const QMimeData *mime);
+    // uploadClipboard()'s sender, split off for the same reason.
+    void uploadMimeData(const QMimeData *mime);
     bool systemIsDark() const;                        // OS light/dark scheme
     QIcon recoloredTrayIcon(const QString &path) const; // bundled preset -> contrast
     // The members below up to showInFolderCheck() are defined per platform in
@@ -811,9 +897,23 @@ private:
                   std::function<void(bool, const QString &)> done);
     QString zipUnavailableReason() const; // why ZIP export cannot run, translated; "" when it can
     QString showInFolderCheck() const;    // smoke: can showInFileManager select the file?
+public:
+    // The system print dialog, then the image on one page: the xdg-desktop-
+    // portal Print portal on Linux, QPrintDialog on Windows. `title` names the
+    // print job. Defined per platform in src/platform/DesktopShell*.cpp.
+    void printImage(const QImage &img, const QString &title);
+    // Pure: where the image goes on a page whose printable area is `area`, in
+    // points. Printed at its on-screen size (96 dpi pixels), shrunk to fit when
+    // larger, never enlarged, centred.
+    static QRectF printImageRect(const QSize &image, const QRectF &area);
+    // Pure: a one-page PDF of `img` laid out on the portal's page setup (Width,
+    // Height and margins in mm, Orientation). A4 when the setup names no paper.
+    static QByteArray printPdf(const QImage &img, const QVariantMap &pageSetup);
+private:
     QIcon trayIcon() const;      // custom (Settings) if valid, else bundled default
     QIcon trayIconBadged() const;// trayIcon() + a red recording dot
     void applyTrayIcon();        // push trayIcon() to the live QSystemTrayIcon
+    void startWatchFolder();     // follows Settings::watchFolder for good
     QMenu *buildTrayMenu();      // the tray menu minus Settings::hiddenTrayItems
     struct HotkeyAction {
         QString id;
@@ -836,6 +936,15 @@ private:
     void dispatchHotkey(const QString &actionId);
     void bindPortalHotkeys();
     void bindX11Hotkeys();
+    // Record (owner non-empty or refused) or drop the conflict of one action.
+    // `refused`: the daemon would not take the key at all (an edit), so the row
+    // keeps showing it until the next push of that action or the next launch;
+    // keepRefused stops a later passive re-check from erasing that.
+    void setHotkeyConflict(const QString &actionId, const QString &keys, const QString &owner,
+                           bool refused = false, bool keepRefused = false);
+    // Owner lookups for `keys` of one action, then setHotkeyConflict.
+    void recheckHotkeyConflict(const QString &actionId, const QList<int> &keys, bool refused,
+                               bool keepRefused = false);
     void syncHotkeyFromDaemon(const QString &actionId, const QString &portable);
     void syncAllHotkeysFromDaemon();
     // Query each action's live daemon binding; with heal, re-assert stored
@@ -880,6 +989,8 @@ private:
     // History search/filter model: seeds three entries covering every filter
     // dimension, asserts each filter, then removes them again.
     QString historyFilterCheck();
+    QString trashAfterUploadCheck();
+    void backgroundRemovalCheck(std::function<void(const QString &)> done);
     // unisic.stats: counts into a scratch file (never the user's), asserts the
     // day/month/year totals, and that the real file, if any, still parses.
     QString captureStatsCheck();
@@ -914,6 +1025,11 @@ private:
     // frame count and size. Needs ffmpeg, so it reports SKIP without one -
     // which is also the state where saving a GIF falls back to PNG.
     QString staticGifCheck() const;
+    // The OCR engine choice without running a recognizer: the platform default
+    // is a runnable engine and listed first, an id this build cannot run reads
+    // as Tesseract, and a word box splits into in-order glyph slices that tile
+    // it (Windows OCR has no letter boxes). Ends with the engine in use.
+    QString ocrEngineCheck() const;
     // The conversion policy every re-encode goes through (ImageEncode::encode):
     // the three formats Qt writes come back with their own magic numbers, a
     // transparent JPEG comes back a PNG with the reason attached, and the
@@ -929,6 +1045,11 @@ private:
     // check stays offline), and neither may persist anything. Async - `done`
     // gets one summary line, shared by the smoke step and the dev button.
     void destinationTestCheck(std::function<void(const QString &)> done);
+    // An S3 destination's PUT as a local listener sees it: curl on this machine
+    // knows --aws-sigv4, the request carries the SigV4 scope, the payload hash
+    // header S3 requires and the file's Content-Type, and the link is the
+    // object's address. Async, offline.
+    void s3SigningCheck(std::function<void(const QString &)> done);
     // Layer-shell preview moved to another monitor: opens a preview, hands
     // PreviewController::hopTo() the next screen's centre and checks the
     // window now lives there and survived the hide/show. Async, SKIP on one
@@ -1056,6 +1177,12 @@ private:
     void finishOpenPreview(bool saved, const QString &tmp, const QSize &imgSize,
                            const QString &sourcePath);
     void afterUploadActions(const QString &url);
+    // "Move the file to the trash" after an automatic upload: trashes `path`,
+    // detaches it from history entry `historyId` (the link stays) and from the
+    // card. Does nothing when the setting is off or an after-capture program
+    // was handed the same file.
+    // Returns where the file went in the trash, empty when it stayed.
+    QString trashAfterUpload(const QString &path, quint64 historyId, CaptureNotification *card);
     // Everything that has to be kept off the screen while a capture or a
     // recording is running, and put back afterwards: the desktop's other
     // notifications (inhibitor) and our own main window. Paired - every capture
@@ -1151,18 +1278,23 @@ private:
     UploadManager *m_uploads;
     HistoryStore *m_history;
     UpdateChecker *m_updater = nullptr;
+    BackgroundRemover *m_bgRemover = nullptr;
     GlobalHotkeys *m_hotkeys;
     PortalGlobalShortcuts *m_portalHotkeys = nullptr;
     X11Hotkeys *m_x11hotkeys = nullptr;
     QString m_hotkeyBackend; // "kglobalaccel" | "portal" | "x11" | "win32" | ""
+    QVariantMap m_hotkeyConflicts; // see hotkeyConflicts; at most one entry per action of our component
     GifRecorder *m_recorder;
     ScrollCaptureController *m_scrollCapture = nullptr;
     OcrEngine *m_ocr = nullptr;
+    bool m_ocrEnginesChecked = false;
+    bool m_windowsOcrUsable = true;
     QTranslator *m_appTranslator = nullptr; // bundled unisic_<lang>.qm
     QTranslator *m_qtTranslator = nullptr;  // Qt's own strings for the locale
     QSystemTrayIcon *m_tray = nullptr;
     QDBusServiceWatcher *m_trayWatcher = nullptr; // at most one, reused across retries
     QFileSystemWatcher *m_trayIconsWatcher = nullptr; // watches trayIconsDir() for drops
+    FolderWatch *m_folderWatch = nullptr; // Settings > Upload > watched folder
     QTimer *m_trimTimer = nullptr;
     QTimer *m_updateRestartTimer = nullptr; // retries the idle auto-restart
     // Newest screenshot, encoded off-thread (megabytes, not a pinned 4K
@@ -1209,6 +1341,8 @@ private:
     int m_editorWindows = 0;
     bool m_converting = false;
     bool m_shortcutRecording = false;
+    // Delivers Print Screen to a listening recorder on Windows (see its header).
+    PrintKeyRelay m_printKeyRelay;
     bool m_captureInFlight = false; // re-entry guard for portal captures
     int m_nextCaptureDelayMs = -1;  // CLI-only one-shot override; -1 = settings
     CaptureTask m_nextCaptureTask;

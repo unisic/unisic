@@ -1,5 +1,19 @@
 #compdef unisic
-# zsh completion for unisic. The options are read from `unisic --help`, which
-# the binary answers before Qt starts, so this file never lists them and can
-# never fall behind the real CLI.
-_gnu_generic "$@"
+# zsh completion for unisic. The options, and which of them take a value, are
+# read from `unisic --help`, which the binary answers before Qt starts, so this
+# file never lists them and can never fall behind the real CLI. Unisic has no
+# subcommands, so an empty word lists every option, not file names.
+setopt localoptions no_bash_rematch
+local -a specs
+local line opt value desc
+for line in ${(f)"$(_call_program options ${(q)words[1]} --help)"}; do
+    [[ $line =~ '^ +(--[a-z][a-z-]*)( ([A-Z_]+))? +(.*)$' ]] || continue
+    opt=$match[1] value=$match[3] desc=${match[4]//[\[\]:]/}
+    case $value in
+        '') specs+=("${opt}[$desc]") ;;
+        PATH) specs+=("${opt}=[$desc]:path:_files") ;;
+        FORMAT) specs+=("${opt}=[$desc]:format:(png jpg webp gif)") ;;
+        *) specs+=("${opt}=[$desc]:${(L)value}: ") ;;
+    esac
+done
+_arguments $specs

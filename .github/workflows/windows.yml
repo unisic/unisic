@@ -97,7 +97,11 @@ jobs:
         run: |
           f=build-win/Testing/Temporary/LastTestsFailed.log
           names=unisic_ocr_engine_test
-          [ -f "$f" ] && names="$names $(cut -d: -f2 "$f" | grep -vx unisic_ocr_engine_test)"
+          # The msys2 shell runs with -e and pipefail: grep finding nothing
+          # must not end the step before it prints anything.
+          if [ -f "$f" ]; then
+            names="$names $(cut -d: -f2 "$f" | grep -vx unisic_ocr_engine_test || true)"
+          fi
           for name in $names; do
             [ -f "build-win/$name.exe" ] || continue
             echo "::group::$name"

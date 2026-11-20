@@ -83,10 +83,22 @@ jobs:
       # The QtTest suite the Nix job runs on Linux. On Windows it catches the
       # POSIX assumptions a Linux run cannot see (renaming over a file that is
       # still open, for one). qt_add_executable makes the test binaries GUI
-      # apps, so a failure prints nothing here: rerun the binary with
-      # `-o out.txt,txt` to read it.
+      # apps, so a failure prints nothing here: the next step reruns each
+      # failed binary with `-o out.txt,txt` and prints that file.
       - name: Test
         run: ctest --test-dir build-win --output-on-failure --timeout 120
+
+      - name: Print the failed tests' output
+        if: failure()
+        run: |
+          f=build-win/Testing/Temporary/LastTestsFailed.log
+          [ -f "$f" ] || exit 0
+          while IFS=: read -r _ name; do
+            echo "::group::$name"
+            (cd build-win && QT_QPA_PLATFORM=offscreen timeout 120 "./$name.exe" -o "$name.txt,txt") || true
+            cat "build-win/$name.txt" || true
+            echo "::endgroup::"
+          done < "$f"
 
       - name: Stage the portable bundle and pack the zip
         run: packaging/windows/deploy.sh build-win dist-win release-win

@@ -741,21 +741,21 @@ Window {
             id: capturePage
             CapturePage {
                 onOpenPage: (i) => window.currentPage = i
-                onOpenSettings: (tab) => window.openSettingsAt(tab, "")
+                onOpenSettings: (tab, query) => window.openSettingsAt(tab, query)
             }
         }
         Component {
             id: recordPage
             RecordPage {
                 onOpenPage: (i) => window.currentPage = i
-                onOpenSettings: (tab) => window.openSettingsAt(tab, "")
+                onOpenSettings: (tab, query) => window.openSettingsAt(tab, query)
             }
         }
         Component {
             id: editPage
             EditPage {
                 onOpenPage: (i) => window.currentPage = i
-                onOpenSettings: (tab) => window.openSettingsAt(tab, "")
+                onOpenSettings: (tab, query) => window.openSettingsAt(tab, query)
             }
         }
         Component { id: historyPage;      HistoryPage {} }

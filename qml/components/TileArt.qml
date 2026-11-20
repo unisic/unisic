@@ -127,6 +127,11 @@ Item {
                 required property var modelData
                 sx: modelData.x; sy: modelData.y; sw: modelData.w; sh: modelData.h
                 color: Theme.accent
+                // A narrow tile scales the art below 1, the 1.5 px dash drops
+                // under one device pixel, and an aliased GPU rectangle that
+                // covers no pixel center is not drawn: whole edges vanished.
+                // Not on the dim bands: their shared edges would show a seam.
+                antialiasing: true
             }
         }
         Repeater {
@@ -160,7 +165,7 @@ Item {
         Box { sx: 18; sy: 16; sw: 100; sh: 70; radius: 5; color: Theme.secondary; opacity: parent.rec ? 0.3 : 0.55 }
         Box { sx: 128; sy: 62; sw: 76; sh: 56; radius: 5; color: Theme.secondary; opacity: parent.rec ? 0.3 : 0.55 }
         Framed { sx: 58; sy: 34; sw: 110; sh: 78; rx: 6; stroke: 2; color: Theme.secondary; border.color: Theme.accent }
-        Box { sx: 58; sy: 49.5; sw: 110; sh: 1; color: Theme.alpha(Theme.accent, 0.4) }
+        Box { sx: 58; sy: 49.5; sw: 110; sh: 1; antialiasing: true; color: Theme.alpha(Theme.accent, 0.4) }
         Box { sx: 65.5; sy: 39.5; sw: 5; sh: 5; radius: 2.5; color: Theme.accent }
         Box { sx: 74.5; sy: 39.5; sw: 5; sh: 5; radius: 2.5; color: Theme.alpha(Theme.accent, 0.5) }
         Box { sx: 68; sy: 60; sw: 54; sh: 5; radius: 2.5; color: Theme.tertiary }

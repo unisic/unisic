@@ -1325,6 +1325,16 @@ QVector<AnnotationCanvas::Annot> AnnotationCanvas::ocrGlyphBars(const QVector<in
         // Full line-band height (a redaction bar must fully hide the text's
         // ascenders/descenders), hugging the covered glyphs horizontally.
         a.rect = QRectF(xL, band.top(), xR - xL, band.height());
+        // PaddleOCR's band is its detector box inset by half the unclip margin
+        // so neighbouring lines never overlap, and that inset cut the tails of
+        // "y" and "p" (3 px below a 24 px band); its glyph edges are CTC
+        // estimates, which left the overhang of an italic "8" showing. A bar
+        // grows by about that inset on every side: covering a little too much
+        // is safe, a visible sliver of a password is not.
+        if (type == Rect) {
+            const qreal m = band.height() / 5;
+            a.rect.adjust(-m, -m, m, m);
+        }
         a.color = color;
         a.filled = filled;
         a.fillColor = fillColor;
@@ -1482,10 +1492,11 @@ int AnnotationCanvas::autoRedact(const QStringList &kinds)
                 glyphs.append(g);
         QVector<Annot> bars = ocrGlyphBars(glyphs, Rect, bar, true, bar);
         // Geometry, not text, decides "already covered": the same address shown
-        // twice is two findings, and a bar the user deleted comes back.
+        // twice is two findings, and a bar the user deleted comes back. The
+        // centre, not an overlap: grown bars of two tight lines may touch.
         if (bars.isEmpty()
             || std::any_of(already.cbegin(), already.cend(),
-                           [&](const QRectF &r) { return r.intersects(bars.first().rect); }))
+                           [&](const QRectF &r) { return r.contains(bars.first().rect.center()); }))
             continue;
         ++group;
         ++matches;

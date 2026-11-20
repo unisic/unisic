@@ -277,7 +277,9 @@ endif()
 # grabber and arrive with HAVE_X11_HOTKEYS through its PUBLIC compile definitions.
 # PipeWireGrabber is there too, under the kit's own HAVE_PIPEWIRE, likewise PUBLIC.
 
-target_sources(unisic PRIVATE src/ocr/OcrEngine.h src/ocr/OcrEngine.cpp)
+target_sources(unisic PRIVATE src/ocr/OcrEngine.h src/ocr/OcrEngine.cpp src/ocr/OcrEngines.h
+                              src/ocr/WindowsOcr.h src/ocr/WindowsOcr.cpp
+                              src/ocr/PaddleOcr.h src/ocr/PaddleOcr.cpp)
 target_link_libraries(unisic PRIVATE PkgConfig::TESSERACT ZXing::ZXing)
 target_compile_definitions(unisic PRIVATE HAVE_TESSERACT HAVE_ZXING)
 
@@ -482,7 +484,7 @@ if(WIN32)
     set(UNISIC_ALL_FEATURES
         HAVE_TESSERACT HAVE_ZXING HAVE_TRANSLATIONS
         ${UNISIC_WINDOWS_FEATURES} ${UNISIC_KIT_FEATURES})
-    set(_unisic_expected_features 5)
+    set(_unisic_expected_features 6)
 else()
     set(UNISIC_ALL_FEATURES
         HAVE_PIPEWIRE HAVE_TESSERACT HAVE_ZXING HAVE_LIBINPUT
@@ -526,6 +528,20 @@ install(FILES third_party/twemoji/LICENSE
     DESTINATION ${CMAKE_INSTALL_DATADIR}/unisic RENAME LICENSE.twemoji)
 install(FILES third_party/twemoji/LICENSE.unicode
     DESTINATION ${CMAKE_INSTALL_DATADIR}/unisic)
+# The OCR model, PP-OCRv6 tiny (PaddleOCR, Apache-2.0) as RapidOCR 3.10
+# converts it, byte for byte the unisic/unisic-models ppocr-v6-1 release.
+# PaddleOcr.cpp finds it from the binary at <bin>/../share/unisic/models, or
+# <bin>/share/unisic/models in the build tree, linked here for dev runs and
+# tests. Linux only: Windows reads with Windows.Media.Ocr.
+if(NOT WIN32)
+    install(FILES third_party/paddleocr/PP-OCRv6_det_tiny.onnx third_party/paddleocr/PP-OCRv6_rec_tiny.onnx
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/unisic/models)
+    install(FILES third_party/paddleocr/LICENSE
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/unisic RENAME LICENSE.paddleocr)
+    file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/share/unisic)
+    file(CREATE_LINK ${CMAKE_CURRENT_SOURCE_DIR}/third_party/paddleocr
+        ${CMAKE_BINARY_DIR}/share/unisic/models SYMBOLIC)
+endif()
 # Man page. Generated so the version in its header cannot drift from
 # UNISIC_VERSION_STRING, and so the date is the build's, not whenever the file
 # was last hand-edited. Debian's linters flag a binary that ships without one.
@@ -638,10 +654,13 @@ string(JOIN ", " CPACK_DEBIAN_PACKAGE_DEPENDS ${UNISIC_DEBIAN_RUNTIME_DEPENDS})
 # The portal BACKEND stays a Recommends: which one is right depends on the
 # desktop, the alternation cannot be expressed as a Depends without picking for
 # the user, and a session always has one.
-set(CPACK_DEBIAN_PACKAGE_RECOMMENDS "xdg-desktop-portal-kde | xdg-desktop-portal-gnome | xdg-desktop-portal-wlr | xdg-desktop-portal-lxqt | xdg-desktop-portal-phosh | xdg-desktop-portal-gtk | xdg-desktop-portal-xapp")
-# ONNX Runtime, the one optional feature (docs/dev/packaging.md "Background
-# removal"), is not suggested here: it needs 1.25 or newer, Debian 13 has 1.21
-# and Ubuntu 26.04 1.23, so Settings downloads it instead.
+# ONNX Runtime (docs/dev/packaging.md "Background removal") is a Recommends too:
+# it runs PaddleOCR, the default OCR engine, and Debian names the library
+# package after its minor version (Debian 13 and Ubuntu 25.10 ship 1.21,
+# Ubuntu 26.04 1.23); on a release with neither, apt skips the line and
+# Tesseract reads the text.
+# shortcut: one name per shipped minor, add the next when Debian/Ubuntu move on.
+set(CPACK_DEBIAN_PACKAGE_RECOMMENDS "xdg-desktop-portal-kde | xdg-desktop-portal-gnome | xdg-desktop-portal-wlr | xdg-desktop-portal-lxqt | xdg-desktop-portal-phosh | xdg-desktop-portal-gtk | xdg-desktop-portal-xapp, libonnxruntime1.23 | libonnxruntime1.21")
 # Direct-download debs self-register the OBS apt repo (postinst) so later
 # versions arrive natively via apt; postrm drops the entry on purge.
 set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA
@@ -679,8 +698,10 @@ set(CPACK_RPM_PACKAGE_DESCRIPTION "${CPACK_PACKAGE_DESCRIPTION}")
 #   and autodeps can see none of it.
 #   Boolean per distro again, since the langpack names differ (Fedora
 #   tesseract-langpack-*, and its OSD data is plain "tesseract-osd").
-set(CPACK_RPM_PACKAGE_REQUIRES "/usr/bin/ffmpeg, pipewire, (pipewire-utils or pipewire-tools), wl-clipboard, xdg-desktop-portal, curl, grim, zip, (qt6-qtdeclarative or qt6-declarative-imports), (qt6-qtwayland or qt6-wayland), (qt6-qtmultimedia or qt6-multimedia-imports), (tesseract-langpack-eng or tesseract-ocr-traineddata-eng), (tesseract-langpack-pol or tesseract-ocr-traineddata-pol), (tesseract-osd or tesseract-ocr-traineddata-osd)")
-set(CPACK_RPM_PACKAGE_SUGGESTS "onnxruntime")
+# - ONNX Runtime is dlopen()ed, so no autodep sees it either: it runs
+#   PaddleOCR, the default OCR engine, and every Fedora this rpm targets ships
+#   1.20 or newer (openSUSE names the library package libonnxruntime1).
+set(CPACK_RPM_PACKAGE_REQUIRES "/usr/bin/ffmpeg, pipewire, (pipewire-utils or pipewire-tools), wl-clipboard, xdg-desktop-portal, curl, grim, zip, (qt6-qtdeclarative or qt6-declarative-imports), (qt6-qtwayland or qt6-wayland), (qt6-qtmultimedia or qt6-multimedia-imports), (tesseract-langpack-eng or tesseract-ocr-traineddata-eng), (tesseract-langpack-pol or tesseract-ocr-traineddata-pol), (tesseract-osd or tesseract-ocr-traineddata-osd), (onnxruntime or libonnxruntime1)")
 # Direct-download rpms self-register the COPR repo (%post - dnf repo on
 # Fedora, zypp repo on openSUSE) so later versions arrive natively;
 # %postun drops the entry on erase.
@@ -955,6 +976,47 @@ if(BUILD_TESTING)
     target_link_libraries(unisic_kwin_force_blur_test PRIVATE Qt6::Core Qt6::Gui Qt6::DBus Qt6::Test)
     target_include_directories(unisic_kwin_force_blur_test PRIVATE src)
     add_test(NAME unisic_kwin_force_blur_test COMMAND unisic_kwin_force_blur_test)
+
+    # The OCR engine choice and the word-to-glyph split; on Windows also one real
+    # Windows.Media.Ocr run, which SKIPs where no OCR language is installed.
+    qt_add_executable(unisic_ocr_engine_test
+        tests/OcrEngineTest.cpp
+        src/ocr/OcrEngines.h src/ocr/WindowsOcr.h src/ocr/OcrWord.h
+    )
+    if(WIN32)
+        target_sources(unisic_ocr_engine_test PRIVATE src/ocr/WindowsOcr_win.cpp)
+        target_link_libraries(unisic_ocr_engine_test PRIVATE ${UNISIC_WINDOWS_OCR_LIBS})
+        target_compile_definitions(unisic_ocr_engine_test PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    else()
+        target_sources(unisic_ocr_engine_test PRIVATE src/ocr/WindowsOcr.cpp)
+    endif()
+    target_link_libraries(unisic_ocr_engine_test PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+    target_include_directories(unisic_ocr_engine_test PRIVATE src)
+    add_test(NAME unisic_ocr_engine_test COMMAND unisic_ocr_engine_test)
+    # QPainter text needs a platform plugin.
+    set_tests_properties(unisic_ocr_engine_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+    # The better OCR model's pure pieces: DB boxes on a synthetic probability
+    # map, CTC decode, glyph boxes, row grouping. No runtime, no model.
+    qt_add_executable(unisic_paddle_ocr_test
+        tests/PaddleOcrTest.cpp src/ocr/PaddleOcr.h src/ocr/PaddleOcr.cpp src/ocr/OcrWord.h)
+    target_link_libraries(unisic_paddle_ocr_test PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+    target_include_directories(unisic_paddle_ocr_test PRIVATE src third_party)
+    add_test(NAME unisic_paddle_ocr_test COMMAND unisic_paddle_ocr_test)
+
+    # Developer harness, not a test and never installed: runs the better OCR
+    # model over a folder of pictures and writes the benchmark's JSON
+    # (tests/PaddleOcrBench.cpp). Built on demand: cmake --build build --target unisic_paddle_ocr_bench
+    if(NOT WIN32)
+        qt_add_executable(unisic_paddle_ocr_bench
+            tests/PaddleOcrBench.cpp src/ocr/PaddleOcr.h src/ocr/PaddleOcr.cpp
+            src/editor/BackgroundRemover.h src/editor/BackgroundRemover.cpp)
+        set_target_properties(unisic_paddle_ocr_bench PROPERTIES EXCLUDE_FROM_ALL ON)
+        target_link_libraries(unisic_paddle_ocr_bench PRIVATE
+            Qt6::Core Qt6::Gui Qt6::Network Qt6::Concurrent Qt6::Qml)
+        target_include_directories(unisic_paddle_ocr_bench PRIVATE src third_party)
+        target_compile_definitions(unisic_paddle_ocr_bench PRIVATE UNISIC_VERSION="${UNISIC_VERSION_STRING}")
+    endif()
 
     if(WIN32)
         # Windows has no session bus. A test that asks for one (the theme seed

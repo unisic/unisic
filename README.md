@@ -37,7 +37,7 @@ Draw on the selection before the shot is taken · polish it in the editor · rec
 - **Capture**: full screen, a region, the active window, or a scrolling page taller than the screen. Draw arrows, shapes, text, blur and numbered steps on the selection before the shot is taken.
 - **Edit**: crop, highlight, pixelate, magnifier, spotlight, stickers, rotate, resize, remove the background on your own computer, and more.
 - **Record**: a region, the full screen or a window as GIF, MP4 or WebM, with system and microphone sound.
-- **Read**: copy the text out of any region (OCR) or scan a QR code or barcode.
+- **Read**: copy the text out of any region (OCR) or scan a QR code or barcode. On Linux the text is read by PaddleOCR, shipped with Unisic, for Latin-script languages and Chinese; Tesseract covers the other scripts.
 - **Share**: upload to your own HTTP server, ShareX `.sxcu` destinations, FTP/SFTP, S3 or a built-in host, and the link is copied for you.
 - **Remember**: a history of every capture, themes and a translated interface.
 
@@ -83,7 +83,7 @@ Screenshots, the editor, OCR, history and uploads work as on Wayland. Recording 
 
 The Windows port is written entirely by AI. The author will not touch the code it takes to port Unisic to a system this poorly thought out, so everything Windows-specific, from the capture and recording paths to the installer and the CI that tests it, was written by an AI model and checked by running it, not written by hand.
 
-On Windows 11, screenshots, the editor, OCR, the tray, hotkeys and recording a GIF or video of the screen or a region (with sound) work, and so does the scrolling capture. Recording a single window and "Remove background" are not available there. Each [release](https://github.com/unisic/unisic/releases) has a setup wizard (`unisic-<version>-windows-x64-experimental-setup.exe`) and a portable zip (`Unisic-<version>-windows-x86_64-experimental.zip`, run `bin\unisic.exe`). Neither needs administrator rights, and both update themselves.
+On Windows 11, screenshots, the editor, OCR, the tray, hotkeys and recording a GIF or video of the screen or a region (with sound) work, and so does the scrolling capture. OCR uses the recognizer built into Windows, with Tesseract as the fallback. Recording a single window and "Remove background" are not available there. Each [release](https://github.com/unisic/unisic/releases) has a setup wizard (`unisic-<version>-windows-x64-experimental-setup.exe`) and a portable zip (`Unisic-<version>-windows-x86_64-experimental.zip`, run `bin\unisic.exe`). Neither needs administrator rights, and both update themselves.
 
 Windows keeps <kbd>Win</kbd> + <kbd>Shift</kbd> with digits and most letters for itself, so the defaults move:
 
@@ -113,7 +113,7 @@ cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build && ./build/unisic
 ```
 
-Every dependency is required: configure stops and names a missing package. The one exception is ONNX Runtime for background removal, loaded only when used. Package lists for Fedora, Debian/Ubuntu and Arch are in [CONTRIBUTING.md](CONTRIBUTING.md#building).
+Every dependency is required: configure stops and names a missing package. The one exception is ONNX Runtime, for PaddleOCR and background removal (Linux only), loaded only when used. Package lists for Fedora, Debian/Ubuntu and Arch are in [CONTRIBUTING.md](CONTRIBUTING.md#building).
 
 </details>
 

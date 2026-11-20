@@ -9,6 +9,7 @@
 #include <QCoreApplication>
 #include "ConfigPath.h"
 #include "hotkeys/HotkeyDefaults.h"
+#include "ocr/OcrEngines.h"
 // For kDefaultTimeoutMs: the shipped default and the runner's own fallback have
 // to be the same number, and only one of them gets to define it.
 #include "actions/ExternalActionRunner.h"
@@ -176,6 +177,7 @@ class Settings : public QObject
     Q_PROPERTY(bool muteOnFullscreen READ muteOnFullscreen WRITE setMuteOnFullscreen NOTIFY muteOnFullscreenChanged)
     Q_PROPERTY(bool ocrAutoLanguage READ ocrAutoLanguage WRITE setOcrAutoLanguage NOTIFY ocrAutoLanguageChanged)
     Q_PROPERTY(QString ocrLanguages READ ocrLanguages WRITE setOcrLanguages NOTIFY ocrLanguagesChanged)
+    Q_PROPERTY(QString ocrEngine READ ocrEngine WRITE setOcrEngine NOTIFY ocrEngineChanged)
     Q_PROPERTY(QString editorIconStyle READ editorIconStyle WRITE setEditorIconStyle NOTIFY editorIconStyleChanged)
     Q_PROPERTY(QString editorLayout READ editorLayout WRITE setEditorLayout NOTIFY editorLayoutChanged)
     Q_PROPERTY(QString editorToolIcons READ editorToolIcons WRITE setEditorToolIcons NOTIFY editorToolIconsChanged)
@@ -697,6 +699,10 @@ public:
     // turn it off to pin a specific, faster spec.
     U_SETTING(bool, ocrAutoLanguage, setOcrAutoLanguage, "ocr/autoLanguage", true)
     U_SETTING(QString, ocrLanguages, setOcrLanguages, "ocr/languages", QStringLiteral("eng"))
+    // Which recognizer OCR runs: an OcrEngines id ("windows" by default on
+    // Windows, "tesseract" everywhere else). An id this build cannot run, e.g.
+    // settings imported from Windows into Linux, reads as Tesseract.
+    U_SETTING(QString, ocrEngine, setOcrEngine, "ocr/engine", QStringLiteral(UNISIC_OCR_DEFAULT_ENGINE))
     // Editor/overlay tool icons only (never the main app chrome): "custom" =
     // bundled monochrome glyphs, "system" = freedesktop QIcon::fromTheme.
     U_SETTING(QString, editorIconStyle, setEditorIconStyle, "ui/editorIconStyle", QStringLiteral("custom"))
@@ -817,7 +823,7 @@ public:
         emit showCapturePopupChanged(); emit capturePopupPositionChanged();
         emit capturePopupDurationSecChanged(); emit capturePopupStyleChanged(); emit capturePopupMarginChanged();
         emit hiddenNotifActionsChanged(); emit notificationActionOrderChanged();
-        emit muteOnFullscreenChanged(); emit ocrLanguagesChanged();
+        emit muteOnFullscreenChanged(); emit ocrLanguagesChanged(); emit ocrEngineChanged();
         emit editorIconStyleChanged(); emit editorToolIconsChanged(); emit editorLayoutChanged();
         emit uiLanguageChanged();
         emit useSystemDecorationChanged(); emit trayIconPathChanged(); emit hiddenTrayItemsChanged();
@@ -966,6 +972,7 @@ signals:
     void muteOnFullscreenChanged();
     void ocrAutoLanguageChanged();
     void ocrLanguagesChanged();
+    void ocrEngineChanged();
     void editorIconStyleChanged();
     void editorLayoutChanged();
     void editorToolIconsChanged();

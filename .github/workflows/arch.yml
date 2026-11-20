@@ -28,7 +28,8 @@ jobs:
           pacman -Sy --noconfirm archlinux-keyring
           # Two lists in one. Everything up to `libinput` is what makepkg needs
           # to BUILD (makedepends in the PKGBUILD, every one of them a hard
-          # gate now). curl, zip and the three tesseract-data packages are
+          # gate now). curl, zip, the three tesseract-data packages and
+          # onnxruntime-cpu (the PKGBUILD's virtual 'onnxruntime') are
           # RUNTIME depends the PKGBUILD gained with the no-optional-deps rule,
           # pre-synced here so the `pacman -U` install gate at the end resolves
           # them from the local cache instead of a mid-job mirror fetch - and
@@ -43,7 +44,8 @@ jobs:
             xdg-desktop-portal xdg-desktop-portal-gtk \
             tesseract leptonica layer-shell-qt wayland zxing-cpp \
             kguiaddons libx11 libxext libxfixes libxcb libinput \
-            curl zip tesseract-data-eng tesseract-data-pol tesseract-data-osd
+            curl zip tesseract-data-eng tesseract-data-pol tesseract-data-osd \
+            onnxruntime-cpu
 
       - uses: actions/checkout@v4
         with:

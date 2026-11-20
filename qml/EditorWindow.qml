@@ -380,6 +380,11 @@ Window {
     // and opens the kinds beside the button that ran it; nothing is covered
     // until the user switches a kind on.
     function autoRedact(from) {
+        // The button that opened the list closes it again, like any flyout.
+        if (redactReview.visible && redactReview.anchor === from) {
+            redactReview.close()
+            return
+        }
         editorWindow.commitPendingText()
         editorSession.scanSensitive()
         redactReview.openFrom(from, editorWindow.floatingLayout)
@@ -430,6 +435,7 @@ Window {
         status: editorSession.statusText
         busy: canvas.ocrBusy
         onClosed: editorSession.endSensitiveScan()
+        onSelectTextRequested: { close(); editorSession.startOcrPick() }
     }
     // The review stays open over the editor, so a press outside it hands the
     // keyboard back to the editor's shortcuts (Ctrl+A, Delete, Escape).
@@ -1781,6 +1787,53 @@ Window {
                         Rectangle { y: parent.height - 1; width: parent.width; height: 1; color: editorWindow.hairline }
                     }
 
+                    // Actions on the whole picture, not on a shape. Above the
+                    // shapes list: a bar Auto-redact adds grows that list, and
+                    // its review flies out of this button, so a list above it
+                    // would push the review away under the pointer.
+                    Item {
+                        width: parent.width
+                        height: wholeColumn.height + 14 + 18
+                        Column {
+                            id: wholeColumn
+                            x: 20; y: 14
+                            width: parent.width - 2 * 20
+                            spacing: 8
+                            Text {
+                                text: qsTr("On the whole image")
+                                color: Theme.textSecondary
+                                font.pixelSize: 11
+                                font.weight: Font.DemiBold
+                                font.capitalization: Font.AllUppercase
+                                font.letterSpacing: 0.9
+                            }
+                            WholeButton {
+                                width: parent.width
+                                iconName: "line-text-scan"
+                                text: qsTr("Copy text")
+                                onClicked: editorSession.ocrCopyText()
+                            }
+                            WholeButton {
+                                id: panelRedact
+                                objectName: "editorPanelRedact"
+                                width: parent.width
+                                iconName: "line-redact"
+                                text: qsTr("Auto-redact")
+                                enabled: !canvas.ocrBusy
+                                onClicked: editorWindow.autoRedact(panelRedact)
+                            }
+                            WholeButton {
+                                width: parent.width
+                                visible: App.backgroundRemover.available
+                                iconName: "line-remove-bg"
+                                text: qsTr("Remove background")
+                                enabled: !App.backgroundRemover.busy && !canvas.ocrMode
+                                onClicked: { editorWindow.commitPendingText(); editorSession.removeBackground() }
+                            }
+                        }
+                        Rectangle { y: parent.height - 1; width: parent.width; height: 1; color: editorWindow.hairline }
+                    }
+
                     // The shapes on the image, top of the stack first. A
                     // click selects one, Ctrl or Shift adds it.
                     Item {
@@ -1876,50 +1929,6 @@ Window {
                                         UFocusRing { hostRadius: shapeRow.radius }
                                     }
                                 }
-                            }
-                        }
-                        Rectangle { y: parent.height - 1; width: parent.width; height: 1; color: editorWindow.hairline }
-                    }
-
-                    // Actions on the whole picture, not on a shape.
-                    Item {
-                        width: parent.width
-                        height: wholeColumn.height + 14 + 18
-                        Column {
-                            id: wholeColumn
-                            x: 20; y: 14
-                            width: parent.width - 2 * 20
-                            spacing: 8
-                            Text {
-                                text: qsTr("On the whole image")
-                                color: Theme.textSecondary
-                                font.pixelSize: 11
-                                font.weight: Font.DemiBold
-                                font.capitalization: Font.AllUppercase
-                                font.letterSpacing: 0.9
-                            }
-                            WholeButton {
-                                width: parent.width
-                                iconName: "line-text-scan"
-                                text: qsTr("Copy text")
-                                onClicked: editorSession.ocrCopyText()
-                            }
-                            WholeButton {
-                                id: panelRedact
-                                objectName: "editorPanelRedact"
-                                width: parent.width
-                                iconName: "line-redact"
-                                text: qsTr("Auto-redact")
-                                enabled: !canvas.ocrBusy
-                                onClicked: editorWindow.autoRedact(panelRedact)
-                            }
-                            WholeButton {
-                                width: parent.width
-                                visible: App.backgroundRemover.available
-                                iconName: "line-remove-bg"
-                                text: qsTr("Remove background")
-                                enabled: !App.backgroundRemover.busy && !canvas.ocrMode
-                                onClicked: { editorWindow.commitPendingText(); editorSession.removeBackground() }
                             }
                         }
                     }

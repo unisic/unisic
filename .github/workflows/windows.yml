@@ -59,12 +59,14 @@ jobs:
           # backs no gate: deploy.sh bundles it for GIF export and recording,
           # and with it on PATH the StillGif test runs instead of skipping.
           # libarchive writes ZIP exports; the configure stops without it.
+          # cppwinrt is the header-only C++/WinRT projection Windows OCR is
+          # written against (HAVE_WIN32_OCR); nothing of it is bundled.
           pacboy: >-
             cmake:p ninja:p gcc:p pkgconf:p
             qt6-base:p qt6-declarative:p qt6-svg:p qt6-imageformats:p
             qt6-tools:p qt6-translations:p
             tesseract-ocr:p tesseract-data-eng:p tesseract-data-pol:p
-            leptonica:p zxing-cpp:p ffmpeg:p libarchive:p
+            leptonica:p zxing-cpp:p ffmpeg:p libarchive:p cppwinrt:p
 
       - name: Configure
         run: cmake -S . -B build-win -G Ninja -DCMAKE_BUILD_TYPE=Release -DUNISIC_DEV_BUILD=OFF
@@ -81,10 +83,22 @@ jobs:
       # The QtTest suite the Nix job runs on Linux. On Windows it catches the
       # POSIX assumptions a Linux run cannot see (renaming over a file that is
       # still open, for one). qt_add_executable makes the test binaries GUI
-      # apps, so a failure prints nothing here: rerun the binary with
-      # `-o out.txt,txt` to read it.
+      # apps, so a failure prints nothing here: the next step reruns each
+      # failed binary with `-o out.txt,txt` and prints that file.
       - name: Test
         run: ctest --test-dir build-win --output-on-failure --timeout 120
+
+      - name: Print the failed tests' output
+        if: failure()
+        run: |
+          f=build-win/Testing/Temporary/LastTestsFailed.log
+          [ -f "$f" ] || exit 0
+          while IFS=: read -r _ name; do
+            echo "::group::$name"
+            (cd build-win && QT_QPA_PLATFORM=offscreen timeout 120 "./$name.exe" -o "$name.txt,txt") || true
+            cat "build-win/$name.txt" || true
+            echo "::endgroup::"
+          done < "$f"
 
       - name: Stage the portable bundle and pack the zip
         run: packaging/windows/deploy.sh build-win dist-win release-win

@@ -35,9 +35,9 @@ pkgbase = unisic-bin
 	depends = libxext
 	depends = libxfixes
 	depends = libxcb
+	depends = onnxruntime
 	optdepends = xdg-desktop-portal-kde: KDE portal backend for screenshots and screen recording
 	optdepends = xdg-desktop-portal-gtk: generic portal backend on non-KDE desktops
-	optdepends = onnxruntime-cpu: background removal in the editor without a download
 	provides = unisic=0.8.4
 	conflicts = unisic
 	noextract = unisic-0.8.4-1-x86_64.pkg.tar.zst

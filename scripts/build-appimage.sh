@@ -218,6 +218,19 @@ for lang in eng pol osd; do
     cp "$data" "$APPDIR/usr/share/tessdata/"
 done
 
+# ONNX Runtime for PaddleOCR and background removal, the pinned upstream build
+# from our unisic-models mirror (microsoft/onnxruntime answers 404)
+# (same steps as .github/workflows/appimage.yml). dlopen()ed, so linuxdeploy
+# cannot find it; BackgroundRemover::probe() looks in <bin>/../lib.
+ORT=1.31.1
+[ -s "$TOOLS/onnxruntime-$ORT.tgz" ] || curl -fL -o "$TOOLS/onnxruntime-$ORT.tgz" \
+    "https://github.com/unisic/unisic-models/releases/download/onnxruntime-$ORT/onnxruntime-linux-x64-$ORT.tgz"
+echo "8b5b171ec86280789101de7ad7c762b65054aa24790a057d7950b41c1d01a490  $TOOLS/onnxruntime-$ORT.tgz" | sha256sum -c -
+tar -xzf "$TOOLS/onnxruntime-$ORT.tgz" -C "$TOOLS"
+install -Dm755 "$TOOLS/onnxruntime-linux-x64-$ORT/lib/libonnxruntime.so.$ORT" "$APPDIR/usr/lib/libonnxruntime.so.$ORT"
+install -Dm644 "$TOOLS/onnxruntime-linux-x64-$ORT/LICENSE" "$APPDIR/usr/share/licenses/onnxruntime/LICENSE"
+install -Dm644 "$TOOLS/onnxruntime-linux-x64-$ORT/ThirdPartyNotices.txt" "$APPDIR/usr/share/licenses/onnxruntime/ThirdPartyNotices.txt"
+
 # --- 8. linuxdeploy -> AppImage ----------------------------------------------
 version_line="$(grep -m1 '^set(UNISIC_VERSION_STRING' "$SRC/CMakeLists.txt" || true)"
 if [ -n "$version_line" ]; then
@@ -315,6 +328,8 @@ if find "$APPDIR/usr" -name 'libwayland-*' -print -quit | grep -q .; then
 fi
 test -s "$APPDIR/usr/share/tessdata/eng.traineddata" \
     || { echo "ERROR: tessdata went missing from the AppDir" >&2; exit 1; }
+test -s "$APPDIR/usr/lib/libonnxruntime.so.$ORT" \
+    || { echo "ERROR: ONNX Runtime went missing from the AppDir" >&2; exit 1; }
 test -f "$APPDIR/usr/qml/QtMultimedia/libquickmultimediaplugin.so" \
     || { echo "ERROR: QtMultimedia QML plugin was not deployed" >&2; exit 1; }
 test -f "$APPDIR/usr/plugins/multimedia/libffmpegmediaplugin.so" \

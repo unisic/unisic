@@ -1278,13 +1278,46 @@ Item {
                         }
                     }
                     SettingRow {
+                        id: ocrEngineRow
+                        // Only where there is a choice: Windows OCR on Windows,
+                        // PaddleOCR on Linux. App.ocrEngines is CONSTANT, so
+                        // this is settled per platform at load and never
+                        // toggles under the pointer.
+                        visible: App.ocrEngines.length > 1
+                        readonly property bool win: App.ocrEngines.indexOf("windows") >= 0
+                        readonly property var ids: App.ocrEngines
+                        label: qsTr("OCR engine")
+                        // Only the text changes when the answer lands, so the
+                        // row keeps its place; the combo shows the engine that
+                        // actually runs (OcrEngines::effective()).
+                        help: win && !App.windowsOcrUsable
+                              ? qsTr("No OCR language is installed in Windows. Tesseract reads the text instead.")
+                              : !win && App.settings.ocrEngine === "paddle" && App.ocrEffectiveEngine !== "paddle"
+                                ? qsTr("PaddleOCR cannot run: ONNX Runtime or its model is missing. Tesseract reads the text instead.")
+                                : qsTr("Which recognizer reads the text in your captures.")
+                        Component.onCompleted: if (App.ocrEngines.length > 1) App.checkOcrEngines()
+                        helpDetail: win
+                                    ? qsTr("Windows OCR is built into Windows and reads the languages installed for your Windows account. Tesseract uses its own language packs and the language settings below. When no Windows OCR language is installed, Unisic recognizes with Tesseract instead.")
+                                    : qsTr("PaddleOCR makes far fewer mistakes on screenshots and needs no language packs, but it reads only Latin-script languages and Chinese. Tesseract uses its own language packs and the language settings below, and reads the scripts PaddleOCR cannot, such as Cyrillic, Korean or Arabic.")
+                        UComboBox {
+                            width: 180
+                            // Product names, the same in every language.
+                            readonly property var names: ({ windows: "Windows OCR", tesseract: "Tesseract", paddle: "PaddleOCR" })
+                            model: ocrEngineRow.ids.map((id) => names[id] || id)
+                            currentIndex: Math.max(0, ocrEngineRow.ids.indexOf(App.ocrEffectiveEngine))
+                            onActivated: (i) => App.settings.ocrEngine = ocrEngineRow.ids[i]
+                        }
+                    }
+                    // The language rows below only steer Tesseract.
+                    SettingRow {
+                        available: App.ocrEffectiveEngine === "tesseract"
                         label: qsTr("Detect languages automatically")
                         help: qsTr("Detects the script and recognizes with the matching language pack.")
                         helpDetail: qsTr("No need to know Tesseract language codes. With the OSD data installed (the “osd” Tesseract pack), Unisic detects the script of each capture - Latin, Arabic, Hebrew, Chinese/Japanese/Korean, Devanagari, and so on - and recognizes with just that script's installed packs, which is faster and more accurate than loading them all. Without the OSD pack it falls back to loading every installed pack. Install the packs for the scripts you use.")
                         USwitch { checked: App.settings.ocrAutoLanguage; onToggled: (c) => App.settings.ocrAutoLanguage = c }
                     }
                     SettingRow {
-                        available: !App.settings.ocrAutoLanguage
+                        available: App.ocrEffectiveEngine === "tesseract" && !App.settings.ocrAutoLanguage
                         label: qsTr("OCR languages")
                         help: qsTr("Tesseract language spec used when recognizing text.")
                         helpDetail: qsTr("Combine languages with “+”, e.g. “pol+eng”; each needs its Tesseract langpack installed. OCR also scans QR and bar codes: a code found in the region copies its content instead of the surrounding text.")
@@ -1299,7 +1332,7 @@ Item {
                     // the real "OCR does nothing" trap. The language data is a
                     // separate install that no build flag can supply.
                     Text {
-                        visible: !App.ocrHasLanguages
+                        visible: !App.ocrHasLanguages && App.ocrEffectiveEngine === "tesseract"
                         width: parent.width
                         wrapMode: Text.WordWrap
                         text: qsTr("No Tesseract language pack is installed, so OCR can't recognize anything yet. Install one, e.g. “tesseract-langpack-eng”.")
@@ -2378,7 +2411,9 @@ Item {
                         text: (App.backgroundRemover.runtimeFound
                                ? App.backgroundRemover.runtimeInfo
                                : App.backgroundRemover.canDownloadRuntime
-                                 ? qsTr("ONNX Runtime: not installed, it is downloaded with the model")
+                                 ? (App.backgroundRemover.runtimeInfo !== ""
+                                    ? qsTr("%1; a newer one is downloaded with the model").arg(App.backgroundRemover.runtimeInfo)
+                                    : qsTr("ONNX Runtime: not installed, it is downloaded with the model"))
                                  : App.backgroundRemover.runtimeInfo !== ""
                                    ? App.backgroundRemover.runtimeInfo
                                    : qsTr("ONNX Runtime: not installed - install the onnxruntime package from your distribution"))
@@ -4503,6 +4538,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Style presets"); onClicked: App.devTestStylePresets() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Cursor overlay"); onClicked: App.devTestCursorOverlay() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("OCR auto language"); onClicked: App.devTestOcrAutoLang() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("OCR engine"); onClicked: App.devTestOcrEngine() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Language"); onClicked: App.devTestLanguage() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Update check"); onClicked: App.devTestUpdateCheck() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Simulate update"); onClicked: App.devTestUpdateAvailable() }

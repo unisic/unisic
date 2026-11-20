@@ -10,6 +10,8 @@
 #include <functional>
 #include <memory>
 
+#include "ocr/PaddleOcr.h"
+
 class QNetworkAccessManager;
 class QNetworkReply;
 
@@ -21,6 +23,10 @@ class QNetworkReply;
 // anywhere else, or a one-time download into the user's data folder on x86_64
 // Linux - and the 181 MB model is always a one-time download there too. No
 // root, no compile gate: every build has the code.
+//
+// It also loads the runtime for OCR (PaddleOcr.h), whose model ships with the
+// package: OCR needs ONNX Runtime 1.20, background removal 1.25, so one
+// loaded runtime can serve OCR and still be too old for this feature.
 class BackgroundRemover : public QObject
 {
     Q_OBJECT
@@ -28,7 +34,8 @@ class BackgroundRemover : public QObject
     QML_UNCREATABLE("Provided by AppContext")
 
     // Probing loads the runtime, so it happens on the first read of
-    // runtimeFound, not at startup.
+    // runtimeFound, not at startup. True only for a runtime new enough for
+    // background removal.
     Q_PROPERTY(bool runtimeFound READ runtimeFound NOTIFY stateChanged)
     Q_PROPERTY(QString runtimeInfo READ runtimeInfo NOTIFY stateChanged)
     Q_PROPERTY(bool modelInstalled READ modelInstalled NOTIFY stateChanged)
@@ -64,12 +71,21 @@ public:
     bool busy() const { return m_busy; }
     QString error() const { return m_error; }
 
+    // OCR can run: the model files are there and a runtime loaded, or none was
+    // looked for yet (probing loads it, which startup must not do; the first
+    // run looks, and falls back to Tesseract without one).
+    bool ocrUsable() const;
+    // What an OCR run needs. Loads the runtime on first use; `api` is null
+    // without one, `det`/`rec` are empty without the model files.
+    PaddleOcr::Setup ocrSetup();
+
     // Fetches what is missing (the runtime when it can, then the model),
     // each checked against its pinned size and SHA-256 before it is kept.
     Q_INVOKABLE void download();
     Q_INVOKABLE void cancelDownload();
-    // Removes the downloaded model and runtime. A runtime already loaded stays
-    // mapped until Unisic quits; the files go now.
+    // Removes the downloaded model and runtime; OCR then runs on the system's
+    // runtime, or Tesseract. A runtime already loaded stays mapped until
+    // Unisic quits; the files go now.
     Q_INVOKABLE void deleteDownloads();
 
     // The picture with everything but the subject made transparent, off the

@@ -1,7 +1,7 @@
 name: Assert every build gate is on
 description: >
   Fail the job unless every one of Unisic's compile-time gates (ten on Linux,
-  five in the Windows port) is ON in <build-dir>/unisic-features.txt, the
+  six in the Windows port) is ON in <build-dir>/unisic-features.txt, the
   manifest CMake writes at configure time.
 
 # WHY THIS EXISTS. Unisic has no optional dependencies: every gate is a hard
@@ -60,8 +60,8 @@ runs:
         # UNISIC_KIT_FEATURES (HAVE_PIPEWIRE is defined on both sides and is
         # de-duplicated there, which is why this is ten names and not eleven).
         #
-        # Windows has five: the three portable ones, then GDI capture from
-        # cmake/UnisicWindows.cmake and RegisterHotKey from the kit.
+        # Windows has six: the three portable ones, then GDI capture and
+        # Windows OCR from cmake/UnisicWindows.cmake and RegisterHotKey from the kit.
         case "$UNISIC_PLATFORM" in
           linux)
             expected=(HAVE_PIPEWIRE HAVE_TESSERACT HAVE_ZXING HAVE_LIBINPUT
@@ -70,7 +70,7 @@ runs:
             ;;
           windows)
             expected=(HAVE_TESSERACT HAVE_ZXING HAVE_TRANSLATIONS
-                      HAVE_WIN32_GDI_CAPTURE HAVE_WIN32_HOTKEYS)
+                      HAVE_WIN32_GDI_CAPTURE HAVE_WIN32_OCR HAVE_WIN32_HOTKEYS)
             ;;
           *)
             echo "::error::platform '${UNISIC_PLATFORM}' is neither linux nor windows"

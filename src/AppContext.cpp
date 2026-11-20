@@ -58,6 +58,7 @@
 #include "ImageEncode.h"
 #include <QSaveFile>
 #include "ocr/OcrEngine.h"
+#include "ocr/OcrEngines.h"
 // zxing-cpp 3 removed MultiFormatWriter/BitMatrix in favour of CreateBarcode.
 #if __has_include(<ZXing/MultiFormatWriter.h>)
 #include <ZXing/BitMatrix.h>
@@ -329,6 +330,18 @@ AppContext::AppContext(QObject *parent)
     }
 
     m_ocr = new OcrEngine(this);
+    m_ocr->setEngine(ocrEffectiveEngine());
+    m_ocr->setPaddleSetup([this] { return m_bgRemover->ocrSetup(); });
+    connect(m_settings, &Settings::ocrEngineChanged, m_ocr, [this] {
+        m_ocr->setEngine(ocrEffectiveEngine());
+        emit ocrEngineStateChanged();
+    });
+    // The first OCR run, or Settings, looks for ONNX Runtime; without one
+    // Settings shows Tesseract as the engine that runs.
+    connect(m_bgRemover, &BackgroundRemover::stateChanged, this, [this] {
+        m_ocr->setEngine(ocrEffectiveEngine());
+        emit ocrEngineStateChanged();
+    });
 }
 
 AppContext::~AppContext()
@@ -577,6 +590,42 @@ bool AppContext::capScreenCastPortal() const
     // Probed on the session bus at startup: a dev-tab "-" here means the
     // desktop ships no ScreenCast portal backend at all.
     return m_screenCastPortalPresent;
+}
+
+QStringList AppContext::ocrEngines() const
+{
+    return OcrEngines::available();
+}
+
+QString AppContext::ocrEffectiveEngine() const
+{
+    return OcrEngines::effective(m_settings->ocrEngine(), m_windowsOcrUsable, m_bgRemover->ocrUsable());
+}
+
+void AppContext::checkOcrEngines()
+{
+    if (m_ocrEnginesChecked)
+        return;
+    m_ocrEnginesChecked = true;
+    if (!WindowsOcr::built()) {
+        m_windowsOcrUsable = false;
+        // Looks for ONNX Runtime now (one dlopen, when the OCR settings open),
+        // so Settings names the engine that will really run.
+        m_bgRemover->ocrSetup();
+        m_ocr->setEngine(ocrEffectiveEngine());
+        emit ocrEngineStateChanged();
+        return;
+    }
+    // WinRT activation can take a moment and joins an apartment, so it runs on
+    // a pool thread; the watcher is ours and dies with us if the answer is late.
+    auto *probe = new QFutureWatcher<bool>(this);
+    connect(probe, &QFutureWatcher<bool>::finished, this, [this, probe] {
+        m_windowsOcrUsable = probe->result();
+        probe->deleteLater();
+        m_ocr->setEngine(ocrEffectiveEngine());
+        emit ocrEngineStateChanged();
+    });
+    probe->setFuture(QtConcurrent::run(WindowsOcr::usable));
 }
 
 bool AppContext::ocrHasLanguages() const

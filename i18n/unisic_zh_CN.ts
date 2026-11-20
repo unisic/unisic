@@ -4,7 +4,7 @@
 <context>
     <name>AppContext</name>
     <message>
-        <location filename="../src/AppContext.cpp" line="+285"/>
+        <location filename="../src/AppContext.cpp" line="+286"/>
         <source>Encoding…</source>
         <translation>正在编码…</translation>
     </message>
@@ -19,7 +19,7 @@
         <translation>无法将 %1 移到回收站，文件仍在磁盘上</translation>
     </message>
     <message>
-        <location line="+3214"/>
+        <location line="+3262"/>
         <location line="+1883"/>
         <location line="+20"/>
         <source>Copied to clipboard</source>
@@ -32,12 +32,12 @@
         <translation>没有可识别的内容</translation>
     </message>
     <message>
-        <location line="-603"/>
+        <location line="-651"/>
         <source>Unisic %1 installed - it will start on the next launch</source>
         <translation>Unisic %1 已安装，下次启动时将使用新版本</translation>
     </message>
     <message>
-        <location line="+581"/>
+        <location line="+629"/>
         <source>Recognizing text…</source>
         <translation>正在识别文本…</translation>
     </message>
@@ -67,7 +67,7 @@
         <translation>。安装 “grim”（适用于 sway/niri/Hyprland 风格的合成器），或为你的桌面安装一个 xdg-desktop-portal 后端。</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="+723"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="+725"/>
         <source>Dev: text render: %1</source>
         <translation>Dev: 文本渲染：%1</translation>
     </message>
@@ -84,12 +84,12 @@
     <message>
         <location filename="../src/AppContext.cpp" line="+5293"/>
         <location filename="../src/diag/SmokeTests.cpp" line="+818"/>
-        <location line="+3551"/>
+        <location line="+3580"/>
         <source>Quit</source>
         <translation>退出</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="-3539"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="-3568"/>
         <source>Dev: language: %1</source>
         <translation>Dev: 语言：%1</translation>
     </message>
@@ -104,17 +104,17 @@
         <translation>Dev: OCR 文本框：%1（%2 个字形）</translation>
     </message>
     <message>
-        <location line="+111"/>
+        <location line="+140"/>
         <source>Dev: played capture sound &apos;%1&apos;</source>
         <translation>Dev: 已播放截图音效 “%1”</translation>
     </message>
     <message>
-        <location line="-976"/>
+        <location line="-1005"/>
         <source>Dev: capture on release: %1</source>
         <translation>Dev: 释放时截图：%1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="-6121"/>
+        <location filename="../src/AppContext.cpp" line="-6169"/>
         <source>Opened a terminal to install the update.</source>
         <translation>已打开终端以安装更新。</translation>
     </message>
@@ -124,7 +124,7 @@
         <translation>无法启动更新：%1</translation>
     </message>
     <message>
-        <location line="+894"/>
+        <location line="+942"/>
         <source>Reading key presses needs access to input devices. Run “%1”, then log out and back in.</source>
         <translation>读取按键需要访问输入设备。运行 “%1”，然后注销并重新登录。</translation>
     </message>
@@ -168,7 +168,7 @@
         <translation>录制单个窗口需要窗口选择器，而此桌面不提供该功能，请改为录制屏幕或区域。</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="+1125"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="+1154"/>
         <source>no screen</source>
         <translation>无屏幕</translation>
     </message>
@@ -203,7 +203,7 @@
         <translation>已找到，OCR 会自动识别每张截图的文字体系。</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="-2451"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="-2480"/>
         <source>Dev: custom theme: %1</source>
         <translation>Dev: 自定义主题：%1</translation>
     </message>
@@ -218,7 +218,12 @@
         <translation>Dev: OCR 自动语言：%1（已安装：%2；%3；映射：%4）</translation>
     </message>
     <message>
-        <location line="+48"/>
+        <location line="+33"/>
+        <source>Dev: OCR engine: %1</source>
+        <translation>Dev: OCR 引擎：%1</translation>
+    </message>
+    <message>
+        <location line="+44"/>
         <source>Dev: played recording sound &apos;%1&apos;</source>
         <translation>Dev: 已播放录制音效 “%1”</translation>
     </message>
@@ -455,7 +460,7 @@
         <translation>已上传，链接已复制</translation>
     </message>
     <message>
-        <location line="-3362"/>
+        <location line="-3410"/>
         <source>Unisic %1 is available - updating automatically</source>
         <translation>Unisic %1 已发布，正在自动更新</translation>
     </message>
@@ -471,7 +476,7 @@
         <translation>即时回放失败：%1</translation>
     </message>
     <message>
-        <location line="+707"/>
+        <location line="+755"/>
         <location line="+5"/>
         <source>Capture in %1…</source>
         <translation>将在 %1 秒后截图…</translation>
@@ -527,7 +532,7 @@
         <translation>将在 %1 秒后开始录制…</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="-5730"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="-5759"/>
         <source>Dev: clipboard paste: %1</source>
         <translation>Dev: 剪贴板粘贴：%1</translation>
     </message>
@@ -758,7 +763,7 @@
         <translation>Dev: 自动遮盖：%1</translation>
     </message>
     <message>
-        <location line="+650"/>
+        <location line="+679"/>
         <source>Dev: editor layouts %1</source>
         <translation>Dev: 编辑器布局：%1</translation>
     </message>
@@ -843,7 +848,7 @@
         <translation>Dev: 原生快捷键：%1</translation>
     </message>
     <message>
-        <location line="+1443"/>
+        <location line="+1450"/>
         <source>Dev: scrolling hand-off: %1</source>
         <translation>Dev: 滚动交接：%1</translation>
     </message>
@@ -878,7 +883,7 @@
         <translation>主窗口可见</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="-5112"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="-5148"/>
         <source>Dev: OCR highlight + redact: FAIL (%1)</source>
         <translation>Dev: OCR 高亮与涂黑：失败（%1）</translation>
     </message>
@@ -906,7 +911,7 @@
         <translation type="vanished">Dev: 自动涂黑规则：%1</translation>
     </message>
     <message>
-        <location line="+55"/>
+        <location line="+84"/>
         <source>Dev: ZIP export: SKIP (zip not installed)</source>
         <translation>Dev: ZIP 导出：跳过（未安装 zip）</translation>
     </message>
@@ -1076,7 +1081,7 @@
         <translation>无法保存到 %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="-4680"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="-4709"/>
         <source>Dev: hide while capturing: %1</source>
         <translation>Dev: 截图时隐藏：%1</translation>
     </message>
@@ -1203,12 +1208,12 @@
         <translation>无法编码截图</translation>
     </message>
     <message>
-        <location line="-3294"/>
+        <location line="-3342"/>
         <source>It installs itself in the background. Click to open Unisic.</source>
         <translation>更新会在后台自动安装。点击打开 Unisic。</translation>
     </message>
     <message>
-        <location line="+1134"/>
+        <location line="+1182"/>
         <location line="+1"/>
         <source>Selection is too small for scrolling capture</source>
         <translation>选区太小，无法进行滚动截图</translation>
@@ -1352,7 +1357,7 @@
         <translation>Dev: 安装器更新：失败（%1）</translation>
     </message>
     <message>
-        <location line="+2062"/>
+        <location line="+2091"/>
         <source>memory only</source>
         <translation>仅在内存中</translation>
     </message>
@@ -1748,7 +1753,7 @@
         <translation>已从 %1 移除 Unisic 快捷键</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="+1506"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="+1513"/>
         <source>Dev: desktop shortcuts: %1</source>
         <translation>Dev: 桌面快捷键：%1</translation>
     </message>
@@ -1843,7 +1848,7 @@
     </message>
     <message>
         <location line="+278"/>
-        <location filename="../src/diag/SmokeTests.cpp" line="-1535"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="-1542"/>
         <source>Capture monitor</source>
         <translation>截取显示器</translation>
     </message>
@@ -2088,17 +2093,18 @@
 <context>
     <name>BackgroundRemover</name>
     <message>
-        <location filename="../src/editor/BackgroundRemover.cpp" line="+490"/>
+        <location filename="../src/editor/BackgroundRemover.cpp" line="+517"/>
+        <location line="+12"/>
         <source>ONNX Runtime %1 is too old, %2 or newer is needed</source>
         <translation>ONNX Runtime %1 版本过旧，需要 %2 或更高版本</translation>
     </message>
     <message>
-        <location line="+10"/>
+        <location line="-1"/>
         <source>ONNX Runtime %1</source>
         <translation>ONNX Runtime %1</translation>
     </message>
     <message>
-        <location line="+66"/>
+        <location line="+69"/>
         <location line="+24"/>
         <location line="+38"/>
         <source>Cannot write %1: %2</source>
@@ -2130,7 +2136,7 @@
         <translation>无法解压 ONNX Runtime：%1</translation>
     </message>
     <message>
-        <location line="+42"/>
+        <location line="+71"/>
         <source>Background removal is already running</source>
         <translation>背景移除正在进行</translation>
     </message>
@@ -3131,7 +3137,7 @@
         <translation>上传失败：%1</translation>
     </message>
     <message>
-        <location line="+17"/>
+        <location line="+24"/>
         <source>Recognizing text…</source>
         <translation>正在识别文本…</translation>
     </message>
@@ -3141,7 +3147,8 @@
         <translation>未找到文本</translation>
     </message>
     <message>
-        <location line="+2"/>
+        <location line="-32"/>
+        <location line="+34"/>
         <source>Text recognized - click a line, double-click a word, or drag for letters · Ctrl+A all · Ctrl+C copy</source>
         <translation>已识别文本，点击一行、双击一个词，或拖动选择字母 · Ctrl+A 全选 · Ctrl+C 复制</translation>
     </message>
@@ -3295,7 +3302,7 @@
         <translation>遮盖</translation>
     </message>
     <message>
-        <location line="+84"/>
+        <location line="+90"/>
         <source>Discard annotations?</source>
         <translation>放弃标注？</translation>
     </message>
@@ -3336,49 +3343,49 @@
     </message>
     <message>
         <location line="+227"/>
-        <location line="+926"/>
+        <location line="+929"/>
         <source>Duplicate</source>
         <translation>复制一份</translation>
     </message>
     <message>
-        <location line="-914"/>
+        <location line="-917"/>
         <source>Arrange</source>
         <translation>排列</translation>
     </message>
     <message>
         <location line="+3"/>
-        <location line="+913"/>
+        <location line="+916"/>
         <source>Bring to front</source>
         <translation>置于顶层</translation>
     </message>
     <message>
-        <location line="-911"/>
-        <location line="+913"/>
+        <location line="-914"/>
+        <location line="+916"/>
         <source>Bring forward</source>
         <translation>上移一层</translation>
     </message>
     <message>
-        <location line="-911"/>
-        <location line="+913"/>
+        <location line="-914"/>
+        <location line="+916"/>
         <source>Send backward</source>
         <translation>下移一层</translation>
     </message>
     <message>
-        <location line="-911"/>
-        <location line="+913"/>
+        <location line="-914"/>
+        <location line="+916"/>
         <source>Send to back</source>
         <translation>置于底层</translation>
     </message>
     <message numerus="yes">
-        <location line="-903"/>
-        <location line="+905"/>
+        <location line="-906"/>
+        <location line="+908"/>
         <source>Delete %n shape(s)</source>
         <translation>
             <numerusform>删除 %n 个形状</numerusform>
         </translation>
     </message>
     <message>
-        <location line="-761"/>
+        <location line="-764"/>
         <source>Rotate left</source>
         <translation>向左旋转</translation>
     </message>
@@ -3404,24 +3411,24 @@
     </message>
     <message>
         <location line="+62"/>
-        <location line="+253"/>
+        <location line="+156"/>
         <source>On the whole image</source>
         <translation>整张图片</translation>
     </message>
     <message>
-        <location line="-239"/>
-        <location line="+249"/>
+        <location line="-142"/>
+        <location line="+152"/>
         <source>Copy text</source>
         <translation>复制文本</translation>
     </message>
     <message>
-        <location line="-230"/>
-        <location line="+246"/>
+        <location line="-133"/>
+        <location line="+149"/>
         <source>Remove background</source>
         <translation>移除背景</translation>
     </message>
     <message>
-        <location line="+671"/>
+        <location line="+771"/>
         <source>Fit</source>
         <translation>适应</translation>
     </message>
@@ -3431,7 +3438,7 @@
         <translation>1:1</translation>
     </message>
     <message>
-        <location line="-1019"/>
+        <location line="-1022"/>
         <source>Print…</source>
         <translation>打印…</translation>
     </message>
@@ -3482,23 +3489,23 @@
     </message>
     <message>
         <location line="+110"/>
-        <location line="+905"/>
+        <location line="+908"/>
         <source>Delete shape</source>
         <translation>删除形状</translation>
     </message>
     <message>
-        <location line="-557"/>
+        <location line="-560"/>
         <source>Pick a tool to see its options here.</source>
         <translation>选择工具后，其选项会显示在这里。</translation>
     </message>
     <message>
-        <location line="+23"/>
+        <location line="+70"/>
         <location line="+20"/>
         <source>Shapes</source>
         <translation>形状</translation>
     </message>
     <message>
-        <location line="+186"/>
+        <location line="+142"/>
         <location line="+1"/>
         <location line="+198"/>
         <source>Annotation canvas</source>
@@ -3537,7 +3544,7 @@
         <translation>缩放</translation>
     </message>
     <message>
-        <location line="-1019"/>
+        <location line="-1022"/>
         <source>Editor actions</source>
         <translation>编辑器操作</translation>
     </message>
@@ -3611,7 +3618,7 @@
         <translation>更多保存选项</translation>
     </message>
     <message>
-        <location line="-1414"/>
+        <location line="-1420"/>
         <source>Save as PNG</source>
         <translation>保存为 PNG</translation>
     </message>
@@ -3634,7 +3641,7 @@
         <translation>保存为 WebP</translation>
     </message>
     <message>
-        <location line="+1423"/>
+        <location line="+1429"/>
         <source>Uploading…</source>
         <translation>正在上传…</translation>
     </message>
@@ -3658,12 +3665,12 @@
         <translation>选择文本…</translation>
     </message>
     <message>
-        <location line="-1457"/>
+        <location line="-1463"/>
         <source>Save as…</source>
         <translation>保存为…</translation>
     </message>
     <message>
-        <location line="+2412"/>
+        <location line="+2421"/>
         <source>Zoom out (Ctrl+-)</source>
         <translation>缩小（Ctrl+-）</translation>
     </message>
@@ -3692,7 +3699,7 @@
         <translation>放大（Ctrl++）</translation>
     </message>
     <message>
-        <location line="-2443"/>
+        <location line="-2452"/>
         <source>Save as GIF</source>
         <translation>保存为 GIF</translation>
     </message>
@@ -3703,7 +3710,7 @@
     </message>
     <message>
         <location line="-44"/>
-        <location line="+1236"/>
+        <location line="+1242"/>
         <source>Recognizing…</source>
         <translation>正在识别…</translation>
     </message>
@@ -3725,7 +3732,7 @@
     <message>
         <location line="-40"/>
         <location line="+356"/>
-        <location line="+248"/>
+        <location line="+151"/>
         <source>Auto-redact</source>
         <translation>自动遮盖</translation>
     </message>
@@ -3742,7 +3749,7 @@
         <translation type="vanished">长数字</translation>
     </message>
     <message>
-        <location line="-557"/>
+        <location line="-460"/>
         <source>Select all</source>
         <translation>全选</translation>
     </message>
@@ -5131,14 +5138,14 @@ Starred (favorite) captures in the selection are kept - un-star them first.</sou
 <context>
     <name>QObject</name>
     <message>
-        <location filename="../src/ocr/OcrEngine.cpp" line="+242"/>
-        <location line="+79"/>
+        <location filename="../src/ocr/OcrEngine.cpp" line="+262"/>
+        <location line="+95"/>
         <source>No image to recognize</source>
         <translation>没有可识别的图像</translation>
     </message>
     <message>
         <location line="-63"/>
-        <location line="+100"/>
+        <location line="+116"/>
         <source>OCR language data for &quot;%1&quot; not found. Install the Tesseract language packs</source>
         <translation>未找到“%1”的 OCR 语言数据。请安装 Tesseract 语言包</translation>
     </message>
@@ -5492,7 +5499,7 @@ Starred (favorite) captures in the selection are kept - un-star them first.</sou
 <context>
     <name>RedactReview</name>
     <message>
-        <location filename="../qml/components/RedactReview.qml" line="+74"/>
+        <location filename="../qml/components/RedactReview.qml" line="+76"/>
         <source>Passwords and keys</source>
         <translation>密码与密钥</translation>
     </message>
@@ -5563,12 +5570,17 @@ Starred (favorite) captures in the selection are kept - un-star them first.</sou
     </message>
     <message>
         <location line="+58"/>
-        <location line="+7"/>
+        <location line="+18"/>
         <source>Auto-redact</source>
         <translation>自动遮盖</translation>
     </message>
     <message>
-        <location line="+9"/>
+        <location line="+11"/>
+        <source>Close</source>
+        <translation>关闭</translation>
+    </message>
+    <message>
+        <location line="+8"/>
         <source>Recognizing…</source>
         <translation>正在识别…</translation>
     </message>
@@ -5588,6 +5600,11 @@ Starred (favorite) captures in the selection are kept - un-star them first.</sou
         <location line="+0"/>
         <source>None found</source>
         <translation>未找到</translation>
+    </message>
+    <message>
+        <location line="+39"/>
+        <source>Select text to cover…</source>
+        <translation>选择要遮盖的文本…</translation>
     </message>
 </context>
 <context>
@@ -5648,34 +5665,34 @@ Starred (favorite) captures in the selection are kept - un-star them first.</sou
     </message>
     <message>
         <location line="-963"/>
-        <location line="+2980"/>
+        <location line="+3015"/>
         <source>Appearance</source>
         <translation>外观</translation>
     </message>
     <message>
-        <location line="-2981"/>
+        <location line="-3016"/>
         <source>Editor</source>
         <translation>编辑器</translation>
     </message>
     <message>
         <location line="+0"/>
-        <location line="+1636"/>
+        <location line="+1669"/>
         <source>Recording</source>
         <translation>录制</translation>
     </message>
     <message>
-        <location line="-1635"/>
+        <location line="-1668"/>
         <source>Hotkeys</source>
         <translation>快捷键</translation>
     </message>
     <message>
         <location line="+2"/>
-        <location line="+3941"/>
+        <location line="+3976"/>
         <source>Developer</source>
         <translation>开发者</translation>
     </message>
     <message>
-        <location line="-3925"/>
+        <location line="-3960"/>
         <source>System Theme</source>
         <translation>系统主题</translation>
     </message>
@@ -5785,12 +5802,12 @@ Starred (favorite) captures in the selection are kept - un-star them first.</sou
     </message>
     <message>
         <location line="+170"/>
-        <location line="+3239"/>
+        <location line="+3275"/>
         <source>Language</source>
         <translation>语言</translation>
     </message>
     <message>
-        <location line="-3238"/>
+        <location line="-3274"/>
         <source>Language of the Unisic interface.</source>
         <translation>Unisic 界面的语言。</translation>
     </message>
@@ -5806,7 +5823,7 @@ Starred (favorite) captures in the selection are kept - un-star them first.</sou
     </message>
     <message>
         <location line="-973"/>
-        <location line="+2671"/>
+        <location line="+2706"/>
         <source>Notifications</source>
         <translation>通知</translation>
     </message>
@@ -5851,7 +5868,7 @@ Starred (favorite) captures in the selection are kept - un-star them first.</sou
         <translation>使用通知服务器的抑制状态（全屏应用、勿扰模式、屏幕共享）。Unisic 启动时已经卡住的抑制会被忽略，因此行为异常的第三方应用无法永久屏蔽你的截图反馈。</translation>
     </message>
     <message>
-        <location line="-1805"/>
+        <location line="-1807"/>
         <source>OCR languages</source>
         <translation>OCR 语言</translation>
     </message>
@@ -5896,7 +5913,7 @@ Starred (favorite) captures in the selection are kept - un-star them first.</sou
         <translation>创建 XDG 自启动项，让应用在隐藏于系统托盘的状态下启动，这样没有可见窗口也能马上使用快捷键。</translation>
     </message>
     <message>
-        <location line="+1356"/>
+        <location line="+1358"/>
         <source>Open file after saving</source>
         <translation>保存后打开文件</translation>
     </message>
@@ -5911,13 +5928,13 @@ Starred (favorite) captures in the selection are kept - un-star them first.</sou
         <translation>使用该文件类型的系统默认应用。与编辑器无关；这里只打开已保存的文件。</translation>
     </message>
     <message>
-        <location line="-1036"/>
-        <location line="+2797"/>
+        <location line="-1038"/>
+        <location line="+2799"/>
         <source>Capture delay</source>
         <translation>截图延迟</translation>
     </message>
     <message>
-        <location line="-2796"/>
+        <location line="-2798"/>
         <source>Waits this long before taking the capture.</source>
         <translation>截图前等待这么长时间。</translation>
     </message>
@@ -5937,7 +5954,7 @@ Starred (favorite) captures in the selection are kept - un-star them first.</sou
         <translation>把鼠标指针绘制到截图中。</translation>
     </message>
     <message>
-        <location line="+1437"/>
+        <location line="+1439"/>
         <location line="+1332"/>
         <source>Capture sound</source>
         <translation>截图音效</translation>
@@ -6023,7 +6040,7 @@ Starred (favorite) captures in the selection are kept - un-star them first.</sou
         <translation>预览：%1</translation>
     </message>
     <message>
-        <location line="-1028"/>
+        <location line="-1030"/>
         <source>Capture behavior</source>
         <translation>截图行为</translation>
     </message>
@@ -6135,12 +6152,12 @@ Starred (favorite) captures in the selection are kept - un-star them first.</sou
     </message>
     <message>
         <location line="+12"/>
-        <location line="+952"/>
+        <location line="+954"/>
         <source>Downloading… %1%</source>
         <translation>正在下载… %1%</translation>
     </message>
     <message>
-        <location line="-951"/>
+        <location line="-953"/>
         <source>Update now</source>
         <translation>立即更新</translation>
     </message>
@@ -6155,7 +6172,7 @@ Starred (favorite) captures in the selection are kept - un-star them first.</sou
         <translation>AppImage 所在位置为只读，无法从这里自行更新。</translation>
     </message>
     <message>
-        <location line="+1208"/>
+        <location line="+1210"/>
         <source>Organizes saved screenshots and recordings into per-month subfolders (yyyy-MM).</source>
         <translation>把保存的截图和录像按月份整理到子文件夹（yyyy-MM）。</translation>
     </message>
@@ -6254,7 +6271,7 @@ Off or unsupported: a native desktop notification is shown instead - the capture
     </message>
     <message>
         <location filename="../qml/pages/EditPage.qml" line="-45"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="-857"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="-859"/>
         <source>Always start with the default colors</source>
         <translation>始终从默认颜色开始</translation>
     </message>
@@ -6342,7 +6359,7 @@ Off or unsupported: a native desktop notification is shown instead - the capture
         <translation>每次上传成功后使用系统默认浏览器执行。</translation>
     </message>
     <message>
-        <location line="+1248"/>
+        <location line="+1250"/>
         <source>The style only applies to the card Unisic draws itself; a native notification is drawn by the system server.</source>
         <translation>此样式仅适用于 Unisic 自己绘制的卡片；系统原生通知由系统服务器绘制。</translation>
     </message>
@@ -6367,12 +6384,12 @@ Off or unsupported: a native desktop notification is shown instead - the capture
         <translation>通知样式</translation>
     </message>
     <message>
-        <location line="-838"/>
+        <location line="-840"/>
         <source>Automatic uses VAAPI or NVENC when they actually encode on this machine, and falls back to software otherwise - a hardware encoder that is merely listed but broken is skipped. Hardware encoding accelerates MP4 (H.264); WebM uses AV1 on NVIDIA GPUs with an AV1 encoder (RTX 40 series and newer) and software VP9 everywhere else.</source>
         <translation>自动模式下，VAAPI 或 NVENC 只有在当前机器上真正能编码时才会使用，否则回退到软件编码；仅在列表中但实际损坏的硬件编码器会被跳过。硬件编码可加速 MP4（H.264）；WebM 在带 AV1 编码器的 NVIDIA GPU（RTX 40 系列及更新型号）上使用 AV1，其他情况使用软件 VP9。</translation>
     </message>
     <message>
-        <location line="+839"/>
+        <location line="+841"/>
         <source>How the capture card looks, from full card to tiny pill.</source>
         <translation>截图卡片的外观，从完整卡片到小型胶囊。</translation>
     </message>
@@ -6654,6 +6671,12 @@ Off or unsupported: a native desktop notification is shown instead - the capture
         <translation>OCR 自动语言</translation>
     </message>
     <message>
+        <location line="-3251"/>
+        <location line="+3252"/>
+        <source>OCR engine</source>
+        <translation>OCR 引擎</translation>
+    </message>
+    <message>
         <location line="+2"/>
         <source>Update check</source>
         <translation>检查更新</translation>
@@ -6665,7 +6688,7 @@ Off or unsupported: a native desktop notification is shown instead - the capture
     </message>
     <message>
         <location filename="../qml/pages/EditPage.qml" line="-214"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="-538"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="-539"/>
         <source>Edit an image</source>
         <translation>编辑图片</translation>
     </message>
@@ -6678,7 +6701,7 @@ Off or unsupported: a native desktop notification is shown instead - the capture
     <message>
         <location line="+78"/>
         <location line="+23"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="-1732"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="-1734"/>
         <source>Editor defaults</source>
         <translation>编辑器默认值</translation>
     </message>
@@ -6749,17 +6772,17 @@ Off or unsupported: a native desktop notification is shown instead - the capture
         <translation>以图像像素为单位，因此不受显示缩放影响，始终保持一致。</translation>
     </message>
     <message>
-        <location line="+1035"/>
+        <location line="+1037"/>
         <source>Capture overlay</source>
         <translation>截图覆盖层</translation>
     </message>
     <message>
-        <location line="-1986"/>
+        <location line="-1988"/>
         <source>The Unisic version you are running. Click it to see what&apos;s new.</source>
         <translation>你正在运行的 Unisic 版本。点击查看更新内容。</translation>
     </message>
     <message>
-        <location line="+2032"/>
+        <location line="+2034"/>
         <source>Toolbar position</source>
         <translation>工具栏位置</translation>
     </message>
@@ -6789,7 +6812,7 @@ Off or unsupported: a native desktop notification is shown instead - the capture
         <translation>在选择区域时显示（截图和录制都一样），帮助你把选区与屏幕上的元素对齐。纯视觉效果，永远不会被截进图像。</translation>
     </message>
     <message>
-        <location line="-1098"/>
+        <location line="-1100"/>
         <source>Editor tools</source>
         <translation>编辑器工具</translation>
     </message>
@@ -6814,7 +6837,7 @@ Off or unsupported: a native desktop notification is shown instead - the capture
         <translation>帧率越高越流畅，但文件会迅速变大。10-15 fps 通常足够录 UI 演示。</translation>
     </message>
     <message>
-        <location line="+614"/>
+        <location line="+616"/>
         <source>Screenshots folder</source>
         <translation>截图文件夹</translation>
     </message>
@@ -6824,13 +6847,13 @@ Off or unsupported: a native desktop notification is shown instead - the capture
         <translation>录像文件夹（GIF 和视频）</translation>
     </message>
     <message>
-        <location line="-890"/>
-        <location line="+2811"/>
+        <location line="-892"/>
+        <location line="+2813"/>
         <source>Capture on release</source>
         <translation>松开即截图</translation>
     </message>
     <message>
-        <location line="-2810"/>
+        <location line="-2812"/>
         <source>Takes the screenshot the moment you release the selection.</source>
         <translation>松开选区的那一刻就截图。</translation>
     </message>
@@ -6845,7 +6868,7 @@ Off or unsupported: a native desktop notification is shown instead - the capture
         <translation>GIF 最长时长</translation>
     </message>
     <message>
-        <location line="-1644"/>
+        <location line="-1677"/>
         <source>Capture</source>
         <translation>截图</translation>
     </message>
@@ -6880,12 +6903,27 @@ Off or unsupported: a native desktop notification is shown instead - the capture
         <translation>已复制“%1”。在终端中运行，然后注销并重新登录。</translation>
     </message>
     <message>
-        <location line="+604"/>
+        <location line="+637"/>
         <source>Detect languages automatically</source>
         <translation>自动检测语言</translation>
     </message>
     <message>
-        <location line="+119"/>
+        <location line="-17"/>
+        <source>Which recognizer reads the text in your captures.</source>
+        <translation>选择用哪种识别器读取截图中的文字。</translation>
+    </message>
+    <message>
+        <location line="-3"/>
+        <source>No OCR language is installed in Windows. Tesseract reads the text instead.</source>
+        <translation>Windows 中未安装 OCR 语言，改由 Tesseract 识别文本。</translation>
+    </message>
+    <message>
+        <location line="+6"/>
+        <source>Windows OCR is built into Windows and reads the languages installed for your Windows account. Tesseract uses its own language packs and the language settings below. When no Windows OCR language is installed, Unisic recognizes with Tesseract instead.</source>
+        <translation>Windows OCR 内置于 Windows，识别为你的 Windows 帐户安装的语言。Tesseract 使用自己的语言包和下方的语言设置。如果没有安装任何 Windows OCR 语言，Unisic 会改用 Tesseract 识别。</translation>
+    </message>
+    <message>
+        <location line="+133"/>
         <source>Update channel</source>
         <translation>更新通道</translation>
     </message>
@@ -6957,12 +6995,12 @@ Off or unsupported: a native desktop notification is shown instead - the capture
     </message>
     <message>
         <location line="+5"/>
-        <location line="+2810"/>
+        <location line="+2812"/>
         <source>Welcome screen</source>
         <translation>欢迎界面</translation>
     </message>
     <message>
-        <location line="-2809"/>
+        <location line="-2811"/>
         <source>Reopen the short setup card shown on the first launch.</source>
         <translation>重新打开首次启动时显示的简短设置卡片。</translation>
     </message>
@@ -6988,12 +7026,12 @@ Off or unsupported: a native desktop notification is shown instead - the capture
     </message>
     <message>
         <location line="+5"/>
-        <location line="+2886"/>
+        <location line="+2888"/>
         <source>Copy diagnostics</source>
         <translation>复制诊断信息</translation>
     </message>
     <message>
-        <location line="-2885"/>
+        <location line="-2887"/>
         <source>Diagnostics copied</source>
         <translation>已复制诊断信息</translation>
     </message>
@@ -7098,7 +7136,7 @@ Off or unsupported: a native desktop notification is shown instead - the capture
         <translation>所有显示器</translation>
     </message>
     <message>
-        <location line="+1648"/>
+        <location line="+1650"/>
         <location line="+10"/>
         <source>Preview mode</source>
         <translation>预览模式</translation>
@@ -7109,7 +7147,7 @@ Off or unsupported: a native desktop notification is shown instead - the capture
         <translation>这里是一块模拟屏幕，不是真实截图：你改动这张卡片里的任何设置，都会在这里实时绘制出来。切换模式可以看到：当快捷键启动的是测量或录制而不是截图时，覆盖层是什么样子。</translation>
     </message>
     <message>
-        <location line="-1657"/>
+        <location line="-1659"/>
         <source>Measurement copy format</source>
         <translation>测量复制格式</translation>
     </message>
@@ -7139,7 +7177,7 @@ Off or unsupported: a native desktop notification is shown instead - the capture
         <translation>CSS</translation>
     </message>
     <message>
-        <location line="+1684"/>
+        <location line="+1686"/>
         <source>Show which capture mode is running</source>
         <translation>显示当前截图模式</translation>
     </message>
@@ -7154,13 +7192,13 @@ Off or unsupported: a native desktop notification is shown instead - the capture
         <translation>光标旁的放大镜会显示你所在的确切像素。</translation>
     </message>
     <message>
-        <location line="-1571"/>
-        <location line="+2615"/>
+        <location line="-1573"/>
+        <location line="+2617"/>
         <source>External action</source>
         <translation>外部操作</translation>
     </message>
     <message>
-        <location line="-2337"/>
+        <location line="-2339"/>
         <source>Uses the input device selected below. Mixed with system audio when both are enabled. GIFs have no audio.</source>
         <translation>使用下方选择的输入设备。两者都启用时会与系统音频混合。GIF 没有音频。</translation>
     </message>
@@ -7190,7 +7228,7 @@ Off or unsupported: a native desktop notification is shown instead - the capture
         <translation>便于后期编辑：麦克风与系统音频分开保存，之后可以让其中一路压低另一路。需要至少两个音源，只有一个时没有可分离的内容，录制会保持单音轨。第一条音轨是已经混好的完整混音，所以文件在任何地方播放都有完整声音；分开的音源音轨排在它后面。</translation>
     </message>
     <message>
-        <location line="+862"/>
+        <location line="+864"/>
         <source>Casual: the full card with a large thumbnail, title and a row of action buttons.
 Compact: a tighter card with a medium thumbnail, filename and the same actions.
 Small: one slim row with tiny inline action icons.
@@ -7217,7 +7255,7 @@ Applies to the next capture.</source>
         <translation>外部操作超时</translation>
     </message>
     <message>
-        <location line="-2612"/>
+        <location line="-2614"/>
         <source>Run one program after each capture. Use $input for the capture file and $output for an optional result file. Commands are launched directly, without a shell.</source>
         <translation>每次截图后运行一个程序。用 $input 表示截图文件，用 $output 表示可选的结果文件。命令会被直接启动，不经过 shell。</translation>
     </message>
@@ -7357,7 +7395,7 @@ Applies to the next capture.</source>
         <translation>录制前倒计时</translation>
     </message>
     <message>
-        <location line="-1443"/>
+        <location line="-1476"/>
         <source>More about %1</source>
         <translation>关于 %1 的更多信息</translation>
     </message>
@@ -7367,7 +7405,7 @@ Applies to the next capture.</source>
         <translation>设置面板</translation>
     </message>
     <message>
-        <location line="+497"/>
+        <location line="+530"/>
         <source>Detects the script and recognizes with the matching language pack.</source>
         <translation>检测书写系统，并用匹配的语言包进行识别。</translation>
     </message>
@@ -7387,7 +7425,7 @@ Applies to the next capture.</source>
         <translation>打开更新日志</translation>
     </message>
     <message>
-        <location line="-1316"/>
+        <location line="-1349"/>
         <source>Flatpak installs are updated by Flatpak - Unisic does not check on its own.</source>
         <translation>Flatpak 安装的版本由 Flatpak 更新，Unisic 不会自行检查。</translation>
     </message>
@@ -7397,12 +7435,12 @@ Applies to the next capture.</source>
         <translation>这份副本来自 AUR，由你的 AUR 助手更新，因此 Unisic 不会自行检查。</translation>
     </message>
     <message>
-        <location line="+3368"/>
+        <location line="+3403"/>
         <source>A zoomed pixel grid follows the cursor with the hovered pixel highlighted, plus its position and color - so a selection edge lands on exactly the pixel you mean. Scroll on the overlay to zoom it in and out; scroll all the way out to hide the loupe. Purely visual and never captured into the image.</source>
         <translation>放大的像素网格会跟随光标，高亮当前悬停的像素，并显示其位置和颜色，这样选区边缘就能准确落在你想要的那个像素上。在覆盖层上滚动可以放大或缩小网格，一直缩小到底则隐藏放大镜。它只用于显示，绝不会被截取进图像。</translation>
     </message>
     <message>
-        <location line="-1436"/>
+        <location line="-1438"/>
         <source>Waits this many seconds before recording starts, showing a 3-2-1 cue.</source>
         <translation>录制开始前等待这么多秒，并显示 3-2-1 提示。</translation>
     </message>
@@ -7607,7 +7645,7 @@ Applies to the next capture.</source>
         <translation>NVENC（不可用）</translation>
     </message>
     <message>
-        <location line="+300"/>
+        <location line="+302"/>
         <source>Icon name for %1</source>
         <translation>%1 的图标名称</translation>
     </message>
@@ -7838,7 +7876,7 @@ Applies to the next capture.</source>
         <translation>全局快捷键</translation>
     </message>
     <message>
-        <location line="-3551"/>
+        <location line="-3586"/>
         <source>Delete the background removal files?</source>
         <translation>删除背景移除文件？</translation>
     </message>
@@ -7893,7 +7931,17 @@ Applies to the next capture.</source>
         <translation>在 Ko-fi 上捐赠</translation>
     </message>
     <message>
-        <location line="+528"/>
+        <location line="+41"/>
+        <source>PaddleOCR cannot run: ONNX Runtime or its model is missing. Tesseract reads the text instead.</source>
+        <translation>PaddleOCR 无法运行：缺少 ONNX Runtime 或其模型。改由 Tesseract 识别文字。</translation>
+    </message>
+    <message>
+        <location line="+5"/>
+        <source>PaddleOCR makes far fewer mistakes on screenshots and needs no language packs, but it reads only Latin-script languages and Chinese. Tesseract uses its own language packs and the language settings below, and reads the scripts PaddleOCR cannot, such as Cyrillic, Korean or Arabic.</source>
+        <translation>PaddleOCR 在截图上的错误要少得多，且无需语言包，但只能识别拉丁字母语言和中文。Tesseract 使用自己的语言包和下方的语言设置，可识别 PaddleOCR 无法识别的文字，例如西里尔字母、韩文或阿拉伯文。</translation>
+    </message>
+    <message>
+        <location line="+515"/>
         <source>Shorten the link</source>
         <translation>缩短链接</translation>
     </message>
@@ -7949,12 +7997,12 @@ Applies to the next capture.</source>
     </message>
     <message>
         <location line="+3"/>
-        <location line="+2637"/>
+        <location line="+2639"/>
         <source>Watched folder</source>
         <translation>监视文件夹</translation>
     </message>
     <message>
-        <location line="-2636"/>
+        <location line="-2638"/>
         <source>Uploads every new file that lands in this folder. Empty is off.</source>
         <translation>上传进入此文件夹的每个新文件。留空表示关闭。</translation>
     </message>
@@ -7985,17 +8033,22 @@ Applies to the next capture.</source>
     </message>
     <message>
         <location line="+116"/>
-        <location line="+2092"/>
+        <location line="+2094"/>
         <source>Background removal</source>
         <translation>背景移除</translation>
     </message>
     <message>
-        <location line="-2088"/>
+        <location line="-2090"/>
         <source>&quot;Remove background&quot; in the editor&apos;s More menu cuts the subject out with the BiRefNet lite model. It runs on this computer and nothing is uploaded. One run takes a few seconds and about 2 GB of memory.</source>
         <translation>编辑器“更多”菜单中的“移除背景”会用 BiRefNet lite 模型抠出主体。它在本机运行，不会上传任何内容。每次运行需要几秒钟和约 2 GB 内存。</translation>
     </message>
     <message>
-        <location line="+10"/>
+        <location line="+11"/>
+        <source>%1; a newer one is downloaded with the model</source>
+        <translation>%1；较新的版本会随模型一起下载</translation>
+    </message>
+    <message>
+        <location line="+1"/>
         <source>ONNX Runtime: not installed, it is downloaded with the model</source>
         <translation>ONNX Runtime：未安装，将随模型一起下载</translation>
     </message>
@@ -8711,7 +8764,7 @@ Applies to the next capture.</source>
         <translation>OCR 高亮与遮蔽</translation>
     </message>
     <message>
-        <location line="+9"/>
+        <location line="+10"/>
         <source>Installer update (dry-run)</source>
         <translation>安装器更新（试运行）</translation>
     </message>
@@ -8751,12 +8804,12 @@ Applies to the next capture.</source>
         <translation>切换开机启动</translation>
     </message>
     <message>
-        <location line="-210"/>
+        <location line="-211"/>
         <source>Running…</source>
         <translation>运行中…</translation>
     </message>
     <message>
-        <location line="-2284"/>
+        <location line="-2286"/>
         <source>Unisic draws the pointer itself, so it can be styled, enlarged and highlighted.</source>
         <translation>Unisic 自行绘制指针，因此可以设置样式、放大和高亮。</translation>
     </message>
@@ -8816,7 +8869,7 @@ Applies to the next capture.</source>
         <translation>此处的 VP9（WebM）没有硬件编码器，耗时是 MP4 的数倍。把上方的格式切换为 MP4 即可快速保存并使用硬件加速。</translation>
     </message>
     <message>
-        <location line="+1093"/>
+        <location line="+1095"/>
         <source>Custom themes</source>
         <translation>自定义主题</translation>
     </message>
@@ -8841,12 +8894,12 @@ Applies to the next capture.</source>
         <translation>重新加载</translation>
     </message>
     <message>
-        <location line="-1605"/>
+        <location line="-1607"/>
         <source>Screen under cursor</source>
         <translation>光标所在屏幕</translation>
     </message>
     <message>
-        <location line="+2670"/>
+        <location line="+2672"/>
         <source>Re-capture last region</source>
         <translation>重新截取上次区域</translation>
     </message>
@@ -8856,7 +8909,7 @@ Applies to the next capture.</source>
         <translation>运行完整冒烟测试（F8）</translation>
     </message>
     <message>
-        <location line="-2331"/>
+        <location line="-2333"/>
         <source>Video quality</source>
         <translation>视频质量</translation>
     </message>
@@ -8872,17 +8925,17 @@ Applies to the next capture.</source>
     </message>
     <message>
         <location line="+188"/>
-        <location line="+2318"/>
+        <location line="+2320"/>
         <source>Separate audio tracks</source>
         <translation>独立音轨</translation>
     </message>
     <message>
-        <location line="-2317"/>
+        <location line="-2319"/>
         <source>Writes every source as its own named track instead of mixing them together.</source>
         <translation>把每个来源写成各自命名的轨道，而不是混在一起。</translation>
     </message>
     <message>
-        <location line="+743"/>
+        <location line="+745"/>
         <source>Size</source>
         <translation>大小</translation>
     </message>
@@ -9447,13 +9500,69 @@ Applies to the next capture.</source>
         <translation>自动遮盖</translation>
     </message>
     <message>
-        <location line="+7"/>
+        <location line="+8"/>
         <source>Auto-restart gate</source>
         <translation>自动重启校验</translation>
     </message>
     <message>
+        <source>Remove the better OCR model?</source>
+        <translation type="vanished">移除更好的 OCR 模型？</translation>
+    </message>
+    <message>
+        <source>Text recognition goes back to Tesseract. Any ONNX Runtime that Unisic downloaded is removed too, unless background removal still needs it.</source>
+        <translation type="vanished">文字识别将改回使用 Tesseract。Unisic 下载的 ONNX Runtime 也会一并移除，除非背景移除仍需要它。</translation>
+    </message>
+    <message>
+        <source>Download the better OCR model below to choose it.</source>
+        <translation type="vanished">在下方下载更好的 OCR 模型后即可选择它。</translation>
+    </message>
+    <message>
+        <source>Tesseract uses its own language packs and the language settings below. The better OCR model makes far fewer mistakes on screenshots and needs no language packs, but it reads only Latin-script languages and Chinese, and the small model also Japanese.</source>
+        <translation type="vanished">Tesseract 使用自己的语言包和下方的语言设置。更好的 OCR 模型在截图上的错误少得多，也不需要语言包，但只能识别拉丁字母语言和中文，小型模型还能识别日文。</translation>
+    </message>
+    <message>
+        <source>Better OCR model</source>
+        <translation type="vanished">更好的 OCR 模型</translation>
+    </message>
+    <message>
+        <source>Reads the text in your captures with PaddleOCR&apos;s PP-OCRv6 instead of Tesseract: far fewer mistakes on screenshots, and no language packs to install. It reads Latin-script languages and Chinese, and the small model also Japanese; for Cyrillic, Arabic and other scripts keep Tesseract. It runs on this computer and nothing is uploaded.</source>
+        <translation type="vanished">使用 PaddleOCR 的 PP-OCRv6 代替 Tesseract 读取截图中的文字：截图上的错误少得多，且无需安装语言包。它能识别拉丁字母语言和中文，小型模型还能识别日文；西里尔字母、阿拉伯文等其他文字请继续使用 Tesseract。它在本机运行，不会上传任何内容。</translation>
+    </message>
+    <message>
+        <source>OCR model size</source>
+        <translation type="vanished">OCR 模型大小</translation>
+    </message>
+    <message>
+        <source>Downloading a model selects it; the other size is removed.</source>
+        <translation type="vanished">下载模型后会自动选用它，另一种大小的模型会被移除。</translation>
+    </message>
+    <message>
+        <source>Tiny (recommended)</source>
+        <translation type="vanished">微型（推荐）</translation>
+    </message>
+    <message>
+        <source>Small (most accurate)</source>
+        <translation type="vanished">小型（最准确）</translation>
+    </message>
+    <message>
+        <source>Tiny: %1 download, about 200 MB of memory while reading (up to 400 MB for a 4K screenshot). Fast, with few mistakes.</source>
+        <translation type="vanished">微型：下载 %1，识别时占用约 200 MB 内存（4K 截图最多 400 MB）。速度快，错误少。</translation>
+    </message>
+    <message>
+        <source>Small: %1 download, about 350 MB of memory while reading (up to 600 MB for a 4K screenshot). About five times slower than tiny, with about a third of its mistakes.</source>
+        <translation type="vanished">小型：下载 %1，识别时占用约 350 MB 内存（4K 截图最多 600 MB）。比微型慢约五倍，错误约为其三分之一。</translation>
+    </message>
+    <message>
+        <source>Model: small, downloaded</source>
+        <translation type="vanished">模型：小型，已下载</translation>
+    </message>
+    <message>
+        <source>Model: tiny, downloaded</source>
+        <translation type="vanished">模型：微型，已下载</translation>
+    </message>
+    <message>
         <location filename="../qml/pages/RecordPage.qml" line="-265"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="-577"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="-578"/>
         <source>GIF of the full screen</source>
         <translation>整个屏幕的 GIF</translation>
     </message>

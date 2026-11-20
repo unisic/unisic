@@ -88,17 +88,23 @@ jobs:
       - name: Test
         run: ctest --test-dir build-win --output-on-failure --timeout 120
 
-      - name: Print the failed tests' output
-        if: failure()
+      # unisic_ocr_engine_test failed on two runners and passed on a third
+      # with no output either way: it reads text with the runner's own Windows
+      # OCR and SKIPs (a pass to ctest) where no OCR language is installed, so
+      # its result is always printed until that is understood.
+      - name: Print the OCR test's and any failed test's output
+        if: always()
         run: |
           f=build-win/Testing/Temporary/LastTestsFailed.log
-          [ -f "$f" ] || exit 0
-          while IFS=: read -r _ name; do
+          names=unisic_ocr_engine_test
+          [ -f "$f" ] && names="$names $(cut -d: -f2 "$f" | grep -vx unisic_ocr_engine_test)"
+          for name in $names; do
+            [ -f "build-win/$name.exe" ] || continue
             echo "::group::$name"
             (cd build-win && QT_QPA_PLATFORM=offscreen timeout 120 "./$name.exe" -o "$name.txt,txt") || true
             cat "build-win/$name.txt" || true
             echo "::endgroup::"
-          done < "$f"
+          done
 
       - name: Stage the portable bundle and pack the zip
         run: packaging/windows/deploy.sh build-win dist-win release-win

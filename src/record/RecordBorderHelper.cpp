@@ -181,15 +181,20 @@ public:
         return m_pillW;
     }
 
-    // Clip the input shape to the visible pill. On xcb setMask sets the BOUNDING
-    // shape (visual+input): an empty QRegion would RESET to the full rectangle
-    // (catching clicks in the padding), so an explicit pill rect is required —
-    // recomputed only when the pill width actually changes.
+    // Fit the window to the visible pill. The window used to keep its generous
+    // creation width and rely on setMask (on xcb the BOUNDING shape) to hide the
+    // padding, but XWayland under cosmic-comp ignores the bounding shape when
+    // compositing and showed that padding as an opaque black bar beside the
+    // pill. Resizing to the pill leaves no padding to hide; the mask stays so
+    // the input shape is still explicit (an empty QRegion would RESET it to the
+    // full rectangle). Recomputed only when the pill width actually changes.
     void updateInputShape()
     {
         const int bwid = layout();
         if (bwid != m_maskW) {
             m_maskW = bwid;
+            if (bwid > 0 && bwid != width())
+                resize(bwid, height());
             setMask(QRegion(0, 0, bwid, height()));
         }
     }

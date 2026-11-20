@@ -2,3 +2,39 @@
 // installer's uninstall entry all read it from here. unisic.ico is generated
 // from resources/icons/unisic.svg by packaging/windows/make-icon.py.
 IDI_ICON1 ICON "unisic.ico"
+
+// File properties (Explorer > Properties > Details, and the signing service's
+// metadata check). The values come from project() in CMakeLists.txt through
+// <build>/unisic_version_rc.h, written by cmake/UnisicWindows.cmake, so every
+// build states one version. Numeric flags, not <winver.h> names, so the file
+// needs no Windows SDK header.
+#include "unisic_version_rc.h"
+
+1 VERSIONINFO
+FILEVERSION UNISIC_RC_VERSION
+PRODUCTVERSION UNISIC_RC_VERSION
+FILEFLAGSMASK 0x3fL
+FILEFLAGS 0x0L
+FILEOS 0x40004L // VOS_NT_WINDOWS32
+FILETYPE 0x1L   // VFT_APP
+FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0" // U.S. English, Unicode
+        BEGIN
+            VALUE "CompanyName", "Unisic"
+            VALUE "FileDescription", "Unisic"
+            VALUE "FileVersion", UNISIC_RC_VERSION_STR
+            VALUE "InternalName", "unisic"
+            VALUE "LegalCopyright", "GPL-3.0-or-later"
+            VALUE "OriginalFilename", "unisic.exe"
+            VALUE "ProductName", "Unisic"
+            VALUE "ProductVersion", UNISIC_RC_VERSION_STR
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END

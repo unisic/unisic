@@ -7,6 +7,7 @@
 // BitBlt reads from. Each image carries the DPR of the monitor it came from,
 // as the KWin path carries KWin's scale.
 #include "KWinScreenShot2.h"
+#include "CaptureTarget_win.h"
 
 #include <QGuiApplication>
 #include <QScreen>
@@ -130,10 +131,12 @@ BOOL CALLBACK pickTopWindow(HWND w, LPARAM out)
     return FALSE;
 }
 
+} // namespace
+
 // The foreground window, unless that is the taskbar (where a tray-menu pick
 // leaves the focus) or ours; then the topmost real window. EnumWindows walks
 // top to bottom, and unlike a GetWindow loop it survives the z-order changing.
-HWND captureTarget()
+HWND UnisicWin::captureTarget()
 {
     HWND fg = GetForegroundWindow();
     if (fg && !isShellOrOwn(fg))
@@ -142,6 +145,8 @@ HWND captureTarget()
     EnumWindows(pickTopWindow, reinterpret_cast<LPARAM>(&top));
     return top;
 }
+
+namespace {
 
 struct MonitorMatch {
     const wchar_t *device = nullptr;
@@ -267,7 +272,7 @@ void KWinScreenShot2::captureActiveScreen(bool includeCursor, Callback cb)
 void KWinScreenShot2::captureActiveWindow(bool includeCursor, Callback cb)
 {
     deliverLater(this, [includeCursor](QString *error) {
-        HWND wnd = captureTarget();
+        HWND wnd = UnisicWin::captureTarget();
         if (!wnd) {
             *error = QStringLiteral("no active window");
             return QImage();

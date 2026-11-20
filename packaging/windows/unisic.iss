@@ -2,8 +2,13 @@
 ; Build it with Inno Setup 6 after deploy.sh, from pwsh or cmd (an MSYS2 shell
 ; rewrites the /D switches as paths):
 ;
-;   iscc /DAppVersion=<UNISIC_VERSION_STRING> /DBundleDir=<abs path to dist-win>
-;        /DOutputDir=<abs dir> packaging\windows\unisic.iss
+;   iscc /DAppVersion=<UNISIC_VERSION_STRING> /DAppVersionNumeric=<x.y.z.0>
+;        /DBundleDir=<abs path to dist-win> /DOutputDir=<abs dir>
+;        packaging\windows\unisic.iss
+;
+; AppVersionNumeric is the project() version in CMakeLists.txt with a fourth
+; field of 0, the same number unisic.rc stamps into unisic.exe: the file
+; version resource takes digits only, where AppVersion may carry a suffix.
 ;
 ; It installs for the current user only, into %LOCALAPPDATA%\Programs\Unisic,
 ; and never asks for admin rights, so nothing outside the user's profile is
@@ -18,6 +23,9 @@
 
 #ifndef AppVersion
   #error Pass /DAppVersion=<UNISIC_VERSION_STRING>
+#endif
+#ifndef AppVersionNumeric
+  #error Pass /DAppVersionNumeric=<project() version>.0
 #endif
 #ifndef BundleDir
   #error Pass /DBundleDir=<the deploy.sh output folder, absolute>
@@ -35,6 +43,15 @@ AppVersion={#AppVersion}
 AppVerName=Unisic {#AppVersion}
 AppPublisher=Unisic
 AppPublisherURL=https://unisic.app
+; The setup exe's file properties, matching unisic.exe's (src/platform/win/unisic.rc).
+VersionInfoProductName=Unisic
+VersionInfoDescription=Unisic Setup
+VersionInfoCompany=Unisic
+VersionInfoCopyright=GPL-3.0-or-later
+VersionInfoProductVersion={#AppVersionNumeric}
+VersionInfoProductTextVersion={#AppVersion}
+VersionInfoVersion={#AppVersionNumeric}
+VersionInfoTextVersion={#AppVersion}
 AppSupportURL=https://github.com/unisic/unisic/issues
 AppUpdatesURL=https://github.com/unisic/unisic/releases
 PrivilegesRequired=lowest
@@ -49,6 +66,11 @@ MinVersion=10.0.17763
 WizardStyle=modern dynamic
 ShowLanguageDialog=auto
 SetupIconFile=..\..\src\platform\win\unisic.ico
+; The privacy policy, shown before installing (SignPath Foundation's terms ask
+; for it during installation). Plain ASCII text: Inno reads a .txt-style file
+; without a BOM as ANSI. The automatic update check it describes is turned off
+; in Settings > General > Updates.
+InfoBeforeFile=..\..\PRIVACY.md
 UninstallDisplayIcon={app}\bin\unisic.exe
 UninstallDisplayName=Unisic
 ; A second setup started while one runs (the user and an update at once) waits

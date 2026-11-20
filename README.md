@@ -70,7 +70,7 @@ Every hotkey is rebindable in Settings → Hotkeys. The same actions run from th
 - **Count** - screenshots per day in a small `unisic.stats` file; drop it on [unisic.app/stats](https://unisic.app/stats/) for an activity chart and a review of your year, drawn in your browser.
 - **Make it yours** - themes (one follows your system light/dark scheme and accent color) and a translated interface.
 
-Built for **Linux Wayland** on legitimate APIs only - xdg-desktop-portal, KWin ScreenShot2, PipeWire. KDE Plasma gets the fully silent native path; GNOME and wlroots desktops go through portals ([compositor support](https://unisic.app/docs/compositors)). No telemetry, no analytics, no account: the only request Unisic makes on its own is a release check against GitHub ([details](https://unisic.app/docs/introduction#privacy)).
+Built for **Linux Wayland** on legitimate APIs only - xdg-desktop-portal, KWin ScreenShot2, PipeWire. KDE Plasma gets the fully silent native path; GNOME and wlroots desktops go through portals ([compositor support](https://unisic.app/docs/compositors)). No telemetry, no analytics, no account: on its own, Unisic only checks GitHub for a new release and, where it updates itself (AppImage, Windows), downloads it; one switch turns both off ([privacy policy](PRIVACY.md)).
 
 <details>
 <summary><b>X11 also works (best-effort second target)</b></summary>
@@ -90,7 +90,7 @@ Daily use happens on Wayland, so X11 was verified by walking through the feature
 
 The Windows port is written entirely by AI. The author will not touch the code it takes to port Unisic to a system this poorly thought out, so everything Windows-specific, from the capture and recording paths to the installer and the CI that tests it, was written by an AI model and checked by running it, not written by hand.
 
-Screenshots (full screen, region, active window), the overlay, the editor, saving (GIF included, through the ffmpeg the build carries), the clipboard, OCR, the tray and global hotkeys work on Windows 11, and so does recording a GIF or video of the full screen or a region, with system sound, a microphone and (Windows 10 version 2004 or later) single applications' sound, plus the scrolling capture. Recording a single window does not, yet, and the editor has no "Remove background" there. From 0.8.8 on, every [release](https://github.com/unisic/unisic/releases) carries two Windows files, both marked experimental because the port is a preview, checked by hand on Windows 11 rather than used every day like the Linux build: `unisic-<version>-windows-x64-experimental-setup.exe`, a setup wizard that installs Unisic for your user only, with a Start menu entry and an uninstaller, and `Unisic-<version>-windows-x86_64-experimental.zip`, the same files to unpack anywhere and run as `bin\unisic.exe`. Neither needs administrator rights. Both update themselves: a newer release's zip is downloaded, checked against its sha256 and unpacked under `%APPDATA%\Unisic\unisic\updates`, and the installed or unpacked `unisic.exe` starts that copy from then on, so keep an unpacked folder where it is. To build it yourself, use MSYS2 ([build notes](AGENTS.md#3-build-run-and-dependencies)).
+Screenshots (full screen, region, active window), the overlay, the editor, saving (GIF included, through the ffmpeg the build carries), the clipboard, OCR, the tray and global hotkeys work on Windows 11, and so does recording a GIF or video of the full screen or a region, with system sound, a microphone and (Windows 10 version 2004 or later) single applications' sound, plus the scrolling capture. Recording a single window does not, yet, and the editor has no "Remove background" there. From 0.8.8 on, every [release](https://github.com/unisic/unisic/releases) carries two Windows files, both marked experimental because the port is a preview (volunteers check it by hand on Windows 11, not the author, and they do not know Unisic as thoroughly as the author does, so not everything could be checked): `unisic-<version>-windows-x64-experimental-setup.exe`, a setup wizard that installs Unisic for your user only, with a Start menu entry and an uninstaller, and `Unisic-<version>-windows-x86_64-experimental.zip`, the same files to unpack anywhere and run as `bin\unisic.exe`. Neither needs administrator rights. Both update themselves: a newer release's zip is downloaded, checked against its sha256 and unpacked under `%APPDATA%\Unisic\unisic\updates`, and the installed or unpacked `unisic.exe` starts that copy from then on, so keep an unpacked folder where it is. To build it yourself, use MSYS2 ([build notes](AGENTS.md#3-build-run-and-dependencies)).
 
 Windows keeps <kbd>Win</kbd> + <kbd>Shift</kbd> with digits and most letters for itself, so the default hotkeys there sit on Print Screen:
 
@@ -105,6 +105,8 @@ Windows keeps <kbd>Win</kbd> + <kbd>Shift</kbd> with digits and most letters for
 | <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>Esc</kbd> | Stop recording (fixed emergency stop; <kbd>Ctrl</kbd> + <kbd>Esc</kbd> is the Start menu) |
 
 A bare <kbd>Print</kbd> opens the Snipping Tool until you turn off Settings → Accessibility → Keyboard → "Use the Print screen key to open screen capture"; <kbd>Ctrl</kbd> + <kbd>Print</kbd> works either way.
+
+To uninstall: the setup wizard's copy goes through Windows Settings > Apps > Installed apps > Unisic > Uninstall, which also removes staged updates. For the zip, quit Unisic from the tray, turn off "Start at login" first if you turned it on, then delete the unpacked folder. Either way, your settings and capture history stay in `%APPDATA%\Unisic` and `%LOCALAPPDATA%\Unisic`; delete those two folders to remove them too.
 
 </details>
 
@@ -123,6 +125,17 @@ cmake --build build && ./build/unisic
 Every dependency is required: configure stops and names the missing package instead of building a Unisic with a feature quietly absent. The one exception is background removal: ONNX Runtime is loaded only when it is used, bundled in the Flatpak, and elsewhere comes from your distribution or a download in Settings. Dev-package lines for Fedora, Debian/Ubuntu and Arch are in [CONTRIBUTING.md](CONTRIBUTING.md#building).
 
 </details>
+
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
+
+- Committers and reviewers: [Members of the unisic organization](https://github.com/orgs/unisic/people)
+- Approvers: [Owners](https://github.com/orgs/unisic/people?query=role%3Aowner)
+
+The Windows binaries are built by GitHub Actions from this repository ([.github/workflows/windows.yml](.github/workflows/windows.yml)).
+
+Privacy policy: This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it, apart from the automatic update check described in [PRIVACY.md](PRIVACY.md), which can be turned off.
 
 ## Contributing
 

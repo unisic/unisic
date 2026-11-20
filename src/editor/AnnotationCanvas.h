@@ -307,6 +307,12 @@ public:
     bool hasOcrSelection() const;
     // Called from the OCR callback with the recognized words (image px).
     void setOcrWords(const QVector<OcrWord> &words);
+    // Auto-redact's scan ends here: out of text-pick mode, so clicks and
+    // Ctrl+A act on the shapes again, with the words kept for its review.
+    void leaveOcrModeKeepingWords();
+    // Recognized words to redact from. Outside OCR mode only while the base
+    // is still the image they were read from (a crop or flatten moves text).
+    bool hasOcrWords() const;
     Q_INVOKABLE void ocrSelectAll();
     Q_INVOKABLE void clearOcrMode();
     // Selected words joined in reading order (spaces within a line, newlines
@@ -761,6 +767,7 @@ private:
     bool m_ocrMode = false;
     bool m_ocrBusy = false;
     QVector<OcrWord> m_ocrWords;
+    qint64 m_ocrWordsBaseKey = -1;
     QVector<OcrLine> m_ocrLines;
     int m_ocrCaretA = -1;       // anchor caret [0..N]
     int m_ocrCaretB = -1;       // active caret [0..N]

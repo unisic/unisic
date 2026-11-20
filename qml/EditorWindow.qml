@@ -200,8 +200,8 @@ Window {
         editorSession.bindCanvas(canvas)
     }
 
-    // True once the user has taken any export action (save/copy/upload/OCR)
-    // - a statusText with statusExported is only ever set by those. Used to skip the
+    // True once the user has taken any export action (save/copy/upload, or
+    // copying recognized text) - a statusText with statusExported is only ever set by those. Used to skip the
     // discard-confirm nag: once exported, closing never nags.
     property bool exported: false
     // Set by the discard confirmation so the second close() pass goes through.
@@ -431,6 +431,13 @@ Window {
         busy: canvas.ocrBusy
         onClosed: editorSession.endSensitiveScan()
     }
+    // The review stays open over the editor, so a press outside it hands the
+    // keyboard back to the editor's shortcuts (Ctrl+A, Delete, Escape).
+    Connections {
+        target: redactReview._overlay
+        enabled: redactReview.opened
+        function onPressed() { shortcutScope.forceActiveFocus() }
+    }
     StickerPopup {
         id: stickerPopup
         objectName: "editorStickerPopup"
@@ -654,14 +661,16 @@ Window {
                 else if (e.key === Qt.Key_Up) canvas.nudgeSelectedAnnot(0, -step)
                 else canvas.nudgeSelectedAnnot(0, step)
             }
-            // Escape cancels the colour eyedropper first, then exits OCR pick
-            // mode, then deselects a shape, then cancels a crop selection;
-            // only a press with nothing pending closes the editor.
+            // Escape cancels the colour eyedropper first, then closes the
+            // Auto-redact review, then exits OCR pick mode, then deselects a
+            // shape, then cancels a crop selection; only a press with nothing
+            // pending closes the editor.
             else if (e.key === Qt.Key_Escape) {
                 if (canvas.colorPicking) {
                     canvas.colorPicking = false
                     editorWindow.pendingColorPopup = null
                 }
+                else if (redactReview.visible) redactReview.close()
                 else if (canvas.ocrMode) canvas.clearOcrMode()
                 else if (canvas.hasAnnotSelection) canvas.clearAnnotSelection()
                 else if (canvas.hasSelection) canvas.clearSelection()
@@ -1289,7 +1298,7 @@ Window {
                     UButton {
                         id: toolRedact
                         objectName: "editorToolRedact"
-                        // Kept while its popup is open over the scan's OCR mode.
+                        // Kept while its popup is open, whatever gets selected meanwhile.
                         visible: ctxPanel.offersRedact
                                  || (redactReview.visible && redactReview.anchor === toolRedact)
                         compact: true

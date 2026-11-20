@@ -3881,7 +3881,7 @@ Item {
                         id: advancedHotkeys
                         label: expanded ? qsTr("Hide advanced shortcuts")
                                         : qsTr("Show advanced shortcuts")
-                        summary: qsTr("OCR region, Copy last capture, Instant replay")
+                        summary: qsTr("OCR region, Copy last capture, Instant replay, more recording, Measure, Edit and Upload")
                     }
                     HotkeyRow {
                         // A conflicting row shows even while collapsed: it is
@@ -3914,6 +3914,100 @@ Item {
                         actionId: "instant-replay"
                         shortcuts: App.settings.hotkeyInstantReplay
                         onChanged: (t) => { App.settings.hotkeyInstantReplay = t; App.applyHotkey("instant-replay") }
+                    }
+                    // The page tiles that had no hotkey. Unbound until the user
+                    // records one.
+                    HotkeyRow {
+                        visible: advancedHotkeys.expanded || page.searchActive || problem
+                        discloser: advancedHotkeys
+                        label: qsTr("Video of the full screen")
+                        help: qsTr("Hotkey: start or stop a video of the whole screen.")
+                        actionId: "record-screen"
+                        shortcuts: App.settings.hotkeyRecordScreen
+                        onChanged: (t) => { App.settings.hotkeyRecordScreen = t; App.applyHotkey("record-screen") }
+                    }
+                    HotkeyRow {
+                        visible: advancedHotkeys.expanded || page.searchActive || problem
+                        discloser: advancedHotkeys
+                        label: qsTr("GIF of the full screen")
+                        help: qsTr("Hotkey: start or stop a GIF of the whole screen.")
+                        actionId: "gif-screen"
+                        shortcuts: App.settings.hotkeyGifScreen
+                        onChanged: (t) => { App.settings.hotkeyGifScreen = t; App.applyHotkey("gif-screen") }
+                    }
+                    HotkeyRow {
+                        visible: advancedHotkeys.expanded || page.searchActive || problem
+                        discloser: advancedHotkeys
+                        label: qsTr("Video of a window")
+                        help: qsTr("Hotkey: start or stop a video of one window you pick.")
+                        available: App.capRecordWindowSource
+                        hint: qsTr("Recording one window needs the desktop's window picker, which this session does not have.")
+                        actionId: "record-window"
+                        shortcuts: App.settings.hotkeyRecordWindow
+                        onChanged: (t) => { App.settings.hotkeyRecordWindow = t; App.applyHotkey("record-window") }
+                    }
+                    HotkeyRow {
+                        visible: advancedHotkeys.expanded || page.searchActive || problem
+                        discloser: advancedHotkeys
+                        label: qsTr("Pause or resume recording")
+                        help: qsTr("Hotkey: pause the running recording, or resume it.")
+                        actionId: "pause-recording"
+                        shortcuts: App.settings.hotkeyPauseRecording
+                        onChanged: (t) => { App.settings.hotkeyPauseRecording = t; App.applyHotkey("pause-recording") }
+                    }
+                    HotkeyRow {
+                        visible: advancedHotkeys.expanded || page.searchActive || problem
+                        discloser: advancedHotkeys
+                        label: qsTr("Measure")
+                        help: qsTr("Hotkey: select a region and measure distances and angles in it.")
+                        actionId: "measure"
+                        shortcuts: App.settings.hotkeyMeasure
+                        onChanged: (t) => { App.settings.hotkeyMeasure = t; App.applyHotkey("measure") }
+                    }
+                    HotkeyRow {
+                        visible: advancedHotkeys.expanded || page.searchActive || problem
+                        discloser: advancedHotkeys
+                        label: qsTr("Edit an image")
+                        help: qsTr("Hotkey: pick an image file and open it in the editor.")
+                        actionId: "edit-image"
+                        shortcuts: App.settings.hotkeyEditImage
+                        onChanged: (t) => { App.settings.hotkeyEditImage = t; App.applyHotkey("edit-image") }
+                    }
+                    HotkeyRow {
+                        visible: advancedHotkeys.expanded || page.searchActive || problem
+                        discloser: advancedHotkeys
+                        label: qsTr("Trim a video")
+                        help: qsTr("Hotkey: pick a recording and open it in the trim window.")
+                        actionId: "trim-video"
+                        shortcuts: App.settings.hotkeyTrimVideo
+                        onChanged: (t) => { App.settings.hotkeyTrimVideo = t; App.applyHotkey("trim-video") }
+                    }
+                    HotkeyRow {
+                        visible: advancedHotkeys.expanded || page.searchActive || problem
+                        discloser: advancedHotkeys
+                        label: qsTr("Upload a file")
+                        help: qsTr("Hotkey: pick any file and upload it.")
+                        actionId: "upload-file"
+                        shortcuts: App.settings.hotkeyUploadFile
+                        onChanged: (t) => { App.settings.hotkeyUploadFile = t; App.applyHotkey("upload-file") }
+                    }
+                    HotkeyRow {
+                        visible: advancedHotkeys.expanded || page.searchActive || problem
+                        discloser: advancedHotkeys
+                        label: qsTr("Upload clipboard")
+                        help: qsTr("Hotkey: upload the copied file, image or text.")
+                        actionId: "upload-clipboard"
+                        shortcuts: App.settings.hotkeyUploadClipboard
+                        onChanged: (t) => { App.settings.hotkeyUploadClipboard = t; App.applyHotkey("upload-clipboard") }
+                    }
+                    HotkeyRow {
+                        visible: advancedHotkeys.expanded || page.searchActive || problem
+                        discloser: advancedHotkeys
+                        label: qsTr("QR code of copied text")
+                        help: qsTr("Hotkey: show the copied text as a QR code.")
+                        actionId: "qr-clipboard"
+                        shortcuts: App.settings.hotkeyQrClipboard
+                        onChanged: (t) => { App.settings.hotkeyQrClipboard = t; App.applyHotkey("qr-clipboard") }
                     }
                     UButton {
                         anchors.right: parent.right

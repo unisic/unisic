@@ -129,7 +129,10 @@ Popup {
     onAboutToShow: flyUp = UFlyout.sideAtOpen(anchor, _overlay, flyWant, preferAbove)
 
     focus: true
-    closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+    // Not on a press outside: picking a bar on the image or Select all is
+    // part of reviewing, and closed the list under it. The editor's Escape
+    // closes it once the canvas holds the focus.
+    closePolicy: Popup.CloseOnEscape
     padding: Theme.spacingM
 
     background: Rectangle {

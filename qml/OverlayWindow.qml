@@ -575,8 +575,8 @@ Window {
                     if (canvas.tool === AnnotationCanvas.Measure)
                         return qsTr("Drag to measure · Tab: distance/size · Ctrl+C copies the sizes · Esc to close")
                     const drag = qsTr("Drag to select")
-                    // Only offered where KWin answered where the active window
-                    // is; nowhere else can an app learn that.
+                    // Only offered where KWin (or Win32 on Windows) answered where
+                    // the active window is; nowhere else can an app learn that.
                     const win = (overlayController.activeWindowKnown
                               ? qsTr(" · W selects the active window") : "")
                               + (App.settings.pixelLoupe ? qsTr(" · C copies the color") : "")

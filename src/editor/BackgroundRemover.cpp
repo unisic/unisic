@@ -38,9 +38,11 @@ struct Pin {
 };
 enum { RuntimePin, ModelPin };
 const Pin kPins[] = {
-    {"https://github.com/microsoft/onnxruntime/releases/download/v1.31.1/"
+    // Our mirror of the upstream tarball, the library byte-identical: the
+    // microsoft/onnxruntime release URL answers 404 since November 2026.
+    {"https://github.com/unisic/unisic-models/releases/download/onnxruntime-1.31.1/"
      "onnxruntime-linux-x64-1.31.1.tgz",
-     11413655, "c849e36a1ef3e22d4ff217b9d1ce4a3cf5b9467b975610913ae959ad5b16bdc9"},
+     11153537, "8b5b171ec86280789101de7ad7c762b65054aa24790a057d7950b41c1d01a490"},
     // scripts/birefnet-deformconv.py applied to the onnx-community export
     // (docs/dev/packaging.md "Background removal").
     {"https://github.com/unisic/unisic-models/releases/download/birefnet-lite-dcn-1/"

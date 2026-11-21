@@ -175,6 +175,7 @@ qt_add_executable(unisic
     src/record/KeystrokeOverlayPainter.h src/record/KeystrokeOverlayPainter.cpp
     src/record/InputPermission.h src/record/InputPermission.cpp
     src/record/TrimController.h src/record/TrimController.cpp
+    src/record/ClipGraph.h
     src/record/RecordBorderHelper.h src/record/RecordBorderHelper.cpp
     src/record/RecordBorderController.h src/record/RecordBorderController.cpp
     src/editor/AnnotationCanvas.h src/editor/AnnotationCanvas.cpp
@@ -891,6 +892,15 @@ if(BUILD_TESTING)
     target_link_libraries(unisic_video_quality_test PRIVATE Qt6::Core Qt6::Test)
     target_include_directories(unisic_video_quality_test PRIVATE src)
     add_test(NAME unisic_video_quality_test COMMAND unisic_video_quality_test)
+
+    # The clip export's filter graph (segments joined, crop, scale, tracks).
+    qt_add_executable(unisic_clip_graph_test
+        tests/ClipGraphTest.cpp
+        src/record/ClipGraph.h
+    )
+    target_link_libraries(unisic_clip_graph_test PRIVATE Qt6::Core Qt6::Test)
+    target_include_directories(unisic_clip_graph_test PRIVATE src)
+    add_test(NAME unisic_clip_graph_test COMMAND unisic_clip_graph_test)
 
     qt_add_executable(unisic_settings_persistence_test
         tests/SettingsPersistenceTest.cpp

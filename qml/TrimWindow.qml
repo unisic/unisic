@@ -7,7 +7,7 @@ import "components"
 Window {
     id: trimWindow
     width: 1100; height: 720
-    minimumWidth: 780; minimumHeight: 540
+    minimumWidth: 960; minimumHeight: 600
     visible: true
     title: qsTr("Trim recording")
     color: Theme.primary
@@ -38,14 +38,19 @@ Window {
     // ffprobe's container length can run past the player's own: an out-point
     // beyond the last frame never reaches the loop check, so playback ran off
     // the end of the file instead of looping.
-    onDurationChanged: if (duration > 0 && trimEnd > duration) trimEnd = duration
+    onDurationChanged: {
+        if (duration > 0 && trimEnd > duration)
+            trimEnd = duration
+        if (viewLen <= 0 || viewLen > duration)
+            setView(0, duration)
+    }
     // Playback previews the CUT, not the file: it stays inside the selection and
     // (by default) loops it, so hitting play answers "what will I get?".
     property bool loopSelection: true
     // Stream-copy cut: instant and lossless, but it can only start on a
     // keyframe, so the in-point snaps onto one and the timeline shows where.
     property bool lossless: false
-    readonly property bool snapping: lossless && !trimController.gif
+    readonly property bool snapping: lossless && plainCut && !trimController.gif
                                      && trimController.keyframeState === TrimController.Ready
     // What the pointer is dragging (0 nothing, 1 in, 2 out, 3 the whole
     // selection) - the preview
@@ -74,11 +79,131 @@ Window {
         trimStart = v
     }
     function setEnd(t) { trimEnd = Math.max(trimStart + 0.1, Math.min(t, duration)) }
-    function save() {
-        if (trimEnd - trimStart < 0.1)
+
+    // Cuts inside the selection: split points (seconds, ascending) divide it
+    // into parts, and a part can be dropped from the clip. A dropped part is
+    // keyed by the split it starts at, or -1 for the first part, so it stays
+    // dropped while the in-point moves.
+    property var splits: []
+    property var dropped: []
+    readonly property var parts: {
+        const out = []
+        let from = trimStart, key = -1
+        for (let i = 0; i < splits.length; ++i) {
+            const t = splits[i]
+            if (t <= trimStart + 0.05 || t >= trimEnd - 0.05)
+                continue
+            out.push({ start: from, end: t, key: key, kept: dropped.indexOf(key) < 0 })
+            from = t
+            key = t
+        }
+        out.push({ start: from, end: trimEnd, key: key, kept: dropped.indexOf(key) < 0 })
+        return out
+    }
+    readonly property var keptParts: parts.filter(function(p) { return p.kept })
+    readonly property real keptLength: keptParts.reduce(function(sum, p) { return sum + p.end - p.start }, 0)
+    function partAt(t) {
+        for (let i = 0; i < parts.length; ++i)
+            if (t >= parts[i].start && t < parts[i].end)
+                return parts[i]
+        return null
+    }
+    function splitAt(t) {
+        if (t <= trimStart + 0.1 || t >= trimEnd - 0.1)
             return
-        App.trimRecording(trimSourcePath, trimStart, trimEnd, snapping, liveGains, mixTrackIndex)
+        for (let i = 0; i < splits.length; ++i)
+            if (Math.abs(splits[i] - t) < 0.1)
+                return
+        const next = splits.concat([t]).sort(function(a, b) { return a - b })
+        // Splitting a dropped part drops both halves.
+        const part = partAt(t)
+        if (part && !part.kept)
+            dropped = dropped.concat([t])
+        splits = next
+    }
+    function toggleDropAt(t) {
+        const part = partAt(Math.max(trimStart, Math.min(t, trimEnd - 0.001)))
+        if (!part)
+            return
+        if (part.kept && keptParts.length === 1)
+            return      // the clip cannot become empty
+        dropped = part.kept ? dropped.concat([part.key])
+                            : dropped.filter(function(k) { return k !== part.key })
+    }
+    function clearCuts() { splits = []; dropped = [] }
+    // Where playback goes from t when t sits in a dropped part: the next kept
+    // part's start, or -1 when none follows.
+    function nextKeptFrom(t) {
+        for (let i = 0; i < keptParts.length; ++i)
+            if (keptParts[i].end > t + 0.02)
+                return Math.max(t, keptParts[i].start)
+        return -1
+    }
+
+    // The frame: a crop of the source at a fixed aspect, slid along its free
+    // axis (cropPos 0..1), and the output's shorter side (0 = as recorded).
+    property string aspect: App.settings.clipAspect
+    property real cropPos: 0.5
+    property int shortSide: App.settings.clipShortSide
+    readonly property int srcW: trimController.videoWidth
+    readonly property int srcH: trimController.videoHeight
+    readonly property var cropRect: {
+        const ratios = { "16:9": 16 / 9, "9:16": 9 / 16, "1:1": 1 }
+        const r = ratios[aspect]
+        if (!r || srcW <= 0 || srcH <= 0)
+            return null
+        const w = Math.min(srcW, Math.round(srcH * r)) & ~1
+        const h = Math.min(srcH, Math.round(w / r)) & ~1
+        if (w >= srcW && h >= srcH)
+            return null
+        return { x: Math.round((srcW - w) * cropPos) & ~1, y: Math.round((srcH - h) * cropPos) & ~1, w: w, h: h }
+    }
+    readonly property bool cropHorizontal: cropRect !== null && cropRect.w < srcW
+    // A stream copy cannot join parts, crop or scale.
+    readonly property bool plainCut: keptParts.length === 1 && cropRect === null
+                                     && (shortSide <= 0 || Math.min(srcW, srcH) <= shortSide)
+    property string clipName: ""
+
+    function save() {
+        if (keptLength < 0.1 || (keptParts.length > 1 && !trimController.audioReady))
+            return
+        const titles = trimController.audioTracks.map(function(t) { return t.label })
+        App.exportClip({
+            path: trimSourcePath,
+            segments: keptParts.map(function(p) { return [p.start, p.end] }),
+            lossless: snapping && plainCut,
+            gains: liveGains,
+            mixTrack: mixTrackIndex,
+            titles: titles,
+            crop: cropRect || {},
+            width: srcW,
+            height: srcH,
+            shortSide: shortSide,
+            name: clipName.trim()
+        })
         close()
+    }
+
+    // Timeline zoom: the strip shows [viewStart, viewStart + viewLen]. The
+    // wheel zooms around the pointer, Shift+wheel pans, and playback keeps
+    // the playhead in view.
+    property real viewStart: 0
+    property real viewLen: duration
+    readonly property real minViewLen: Math.min(duration, 1)
+    function setView(start, len) {
+        viewLen = Math.max(minViewLen, Math.min(len, duration))
+        viewStart = Math.max(0, Math.min(start, duration - viewLen))
+    }
+    function zoomAround(t, factor) { setView(t - (t - viewStart) / factor, viewLen / factor) }
+    onPlayheadChanged: {
+        if (viewLen < duration && (playhead < viewStart || playhead > viewStart + viewLen))
+            setView(playhead - viewLen * 0.1, viewLen)
+    }
+    function loopStart() { return keptParts.length > 0 ? keptParts[0].start : trimStart }
+    function stepFrame(n) {
+        if (previewLoader.item && previewLoader.item.playing)
+            previewLoader.item.pause()
+        seekTo(playhead + n * frameDur)
     }
     function seekTo(t) {
         if (hasPreview && previewLoader.item)
@@ -109,9 +234,9 @@ Window {
             item.pause()
             return
         }
-        // Play always previews the selection: land inside it first.
+        // Play always previews the clip: land inside a kept part first.
         if (playhead < trimStart - 0.05 || playhead > trimEnd - 0.05)
-            seekTo(trimStart)
+            seekTo(loopStart())
         item.play()
     }
 
@@ -204,17 +329,27 @@ Window {
             }
             const atEnd = item.position / 1000 >= Math.min(trimWindow.trimEnd, trimWindow.duration) - 0.25
             if (wasPlaying && atEnd && trimWindow.loopSelection && trimWindow.activeHandle === 0)
-                Qt.callLater(function() { trimWindow.seekTo(trimWindow.trimStart); item.play() })
+                Qt.callLater(function() { trimWindow.seekTo(trimWindow.loopStart()); item.play() })
             wasPlaying = false
         }
         function onPositionChanged() {
             const item = previewLoader.item
             if (!item || !item.playing || trimWindow.activeHandle !== 0)
                 return
-            if (item.position / 1000 < trimWindow.trimEnd - 0.02)
+            const pos = item.position / 1000
+            const part = trimWindow.partAt(pos)
+            // A dropped part is skipped, as the saved clip will skip it.
+            if (part && !part.kept) {
+                const next = trimWindow.nextKeptFrom(pos)
+                if (next >= 0) {
+                    Qt.callLater(function() { trimWindow.seekTo(next + 0.01) })
+                    return
+                }
+            } else if (pos < trimWindow.trimEnd - 0.02) {
                 return
+            }
             if (trimWindow.loopSelection) {
-                Qt.callLater(function() { trimWindow.seekTo(trimWindow.trimStart) })
+                Qt.callLater(function() { trimWindow.seekTo(trimWindow.loopStart()) })
             } else {
                 item.pause()
                 Qt.callLater(function() { trimWindow.seekTo(trimWindow.endPreviewTime()) })
@@ -287,7 +422,9 @@ Window {
     }
 
     // Keyboard: space play/pause, I/O mark in-out at playhead, arrows scrub,
-    // Home/End jump to the cut edges, L loops, Ctrl+S saves, Ctrl+W closes.
+    // comma/period step one frame, Home/End jump to the cut edges, L loops,
+    // S splits at the playhead, Delete drops or restores the part under it,
+    // +/- zoom the timeline and 0 fits it, Ctrl+S saves, Ctrl+W closes.
     //
     // This scope WRAPS the whole window content - it must not be a sibling of
     // it. The kit's controls are tab stops and they accept only the keys they
@@ -318,6 +455,15 @@ Window {
             case Qt.Key_Home: seekTo(trimWindow.trimStart); e.accepted = true; break
             case Qt.Key_End: seekTo(trimWindow.endPreviewTime()); e.accepted = true; break
             case Qt.Key_L: trimWindow.loopSelection = !trimWindow.loopSelection; e.accepted = true; break
+            case Qt.Key_S: trimWindow.splitAt(playhead); e.accepted = true; break
+            case Qt.Key_Delete:
+            case Qt.Key_Backspace: trimWindow.toggleDropAt(playhead); e.accepted = true; break
+            case Qt.Key_Comma: trimWindow.stepFrame(-1); e.accepted = true; break
+            case Qt.Key_Period: trimWindow.stepFrame(1); e.accepted = true; break
+            case Qt.Key_Plus:
+            case Qt.Key_Equal: trimWindow.zoomAround(playhead, 2); e.accepted = true; break
+            case Qt.Key_Minus: trimWindow.zoomAround(playhead, 0.5); e.accepted = true; break
+            case Qt.Key_0: trimWindow.setView(0, trimWindow.duration); e.accepted = true; break
             }
         }
         Component.onCompleted: keys.forceActiveFocus()
@@ -411,7 +557,8 @@ Window {
                     iconName: "line-save"
                     text: qsTr("Save trimmed copy")
                     accessibleDescription: qsTr("Ctrl+S")
-                    enabled: trimWindow.trimEnd - trimWindow.trimStart >= 0.1
+                    enabled: trimWindow.keptLength >= 0.1
+                             && (trimWindow.keptParts.length === 1 || trimController.audioReady)
                     onClicked: trimWindow.save()
                 }
                 Sep {
@@ -473,6 +620,68 @@ Window {
                         fileUrl: App.fileDragUri(trimSourcePath)
                         trackGains: trimWindow.liveGains
                         mixTrack: trimWindow.mixTrackIndex
+                    }
+                }
+
+                // The frame being cropped out, on the picture itself: outside it
+                // is dimmed, and a drag slides it along its free axis. Mapped
+                // through the source size, since the video is fitted with bars.
+                Item {
+                    id: cropLayer
+                    readonly property real fit: (trimWindow.srcW > 0 && trimWindow.srcH > 0)
+                                                ? Math.min(previewBox.width / trimWindow.srcW,
+                                                           previewBox.height / trimWindow.srcH) : 0
+                    width: trimWindow.srcW * fit
+                    height: trimWindow.srcH * fit
+                    anchors.centerIn: parent
+                    visible: trimWindow.cropRect !== null && fit > 0
+                    readonly property rect frame: trimWindow.cropRect
+                        ? Qt.rect(trimWindow.cropRect.x * fit, trimWindow.cropRect.y * fit,
+                                  trimWindow.cropRect.w * fit, trimWindow.cropRect.h * fit)
+                        : Qt.rect(0, 0, width, height)
+                    readonly property color shade: Theme.alpha(Theme.mediaBase, 0.7)
+                    Rectangle { x: 0; y: 0; width: cropLayer.frame.x; height: parent.height; color: cropLayer.shade }
+                    Rectangle {
+                        x: cropLayer.frame.x + cropLayer.frame.width; y: 0
+                        width: parent.width - x; height: parent.height; color: cropLayer.shade
+                    }
+                    Rectangle {
+                        x: cropLayer.frame.x; y: 0
+                        width: cropLayer.frame.width; height: cropLayer.frame.y; color: cropLayer.shade
+                    }
+                    Rectangle {
+                        x: cropLayer.frame.x; y: cropLayer.frame.y + cropLayer.frame.height
+                        width: cropLayer.frame.width; height: parent.height - y; color: cropLayer.shade
+                    }
+                    Rectangle {
+                        x: cropLayer.frame.x; y: cropLayer.frame.y
+                        width: cropLayer.frame.width; height: cropLayer.frame.height
+                        color: "transparent"
+                        border.width: 2
+                        border.color: Theme.accent
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+                            preventStealing: true
+                            property real pressPos: 0
+                            property real pressCrop: 0
+                            onPressed: (m) => {
+                                const p = mapToItem(cropLayer, m.x, m.y)
+                                pressPos = trimWindow.cropHorizontal ? p.x : p.y
+                                pressCrop = trimWindow.cropPos
+                            }
+                            onPositionChanged: (m) => {
+                                const p = mapToItem(cropLayer, m.x, m.y)
+                                const slack = trimWindow.cropHorizontal ? cropLayer.width - cropLayer.frame.width
+                                                                        : cropLayer.height - cropLayer.frame.height
+                                if (slack <= 0)
+                                    return
+                                const d = (trimWindow.cropHorizontal ? p.x : p.y) - pressPos
+                                trimWindow.cropPos = Math.max(0, Math.min(1, pressCrop + d / slack))
+                            }
+                            // The inspector's slider is the keyboard way to move it.
+                            Accessible.ignored: true
+                        }
                     }
                 }
 
@@ -565,6 +774,48 @@ Window {
                             anchors.right: parent.right
                             anchors.verticalCenter: parent.verticalCenter
                             spacing: 8
+                            UIconButton {
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: 30; height: 30
+                                iconName: "line-minus"
+                                iconSize: 16
+                                enabled: trimWindow.viewLen < trimWindow.duration
+                                tooltip: qsTr("Zoom out (-)")
+                                onClicked: trimWindow.zoomAround(trimWindow.playhead, 0.5)
+                            }
+                            UIconButton {
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: 30; height: 30
+                                iconName: "line-plus"
+                                iconSize: 16
+                                enabled: trimWindow.viewLen > trimWindow.minViewLen
+                                tooltip: qsTr("Zoom in on the timeline (+, mouse wheel)")
+                                onClicked: trimWindow.zoomAround(trimWindow.playhead, 2)
+                            }
+                            Sep { anchors.verticalCenter: parent.verticalCenter }
+                            UIconButton {
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: 30; height: 30
+                                iconName: "line-cut"
+                                iconSize: 16
+                                enabled: hasPreview && trimWindow.playhead > trimWindow.trimStart + 0.1
+                                         && trimWindow.playhead < trimWindow.trimEnd - 0.1
+                                tooltip: qsTr("Split at the playhead (S)")
+                                onClicked: trimWindow.splitAt(trimWindow.playhead)
+                            }
+                            UIconButton {
+                                readonly property var part: trimWindow.partAt(trimWindow.playhead)
+                                readonly property bool restores: part !== null && !part.kept
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: 30; height: 30
+                                iconName: restores ? "line-undo" : "line-trash"
+                                iconSize: 16
+                                enabled: hasPreview && trimWindow.parts.length > 1 && part !== null
+                                         && (restores || trimWindow.keptParts.length > 1)
+                                tooltip: restores ? qsTr("Restore this part (Del)") : qsTr("Remove this part (Del)")
+                                onClicked: trimWindow.toggleDropAt(trimWindow.playhead)
+                            }
+                            Sep { anchors.verticalCenter: parent.verticalCenter }
                             UButton {
                                 anchors.verticalCenter: parent.verticalCenter
                                 compact: true; height: 30; cornerRadius: 7
@@ -594,12 +845,15 @@ Window {
 
                         function timeAt(x) {
                             return track.width > 0
-                                   ? Math.max(0, Math.min(x / track.width * trimWindow.duration, trimWindow.duration))
+                                   ? Math.max(0, Math.min(trimWindow.viewStart + x / track.width * trimWindow.viewLen,
+                                                          trimWindow.duration))
                                    : 0
                         }
                         function xOf(t) {
-                            return trimWindow.duration > 0 ? track.width * (t / trimWindow.duration) : 0
+                            return trimWindow.viewLen > 0
+                                   ? track.width * ((t - trimWindow.viewStart) / trimWindow.viewLen) : 0
                         }
+                        function inView(x) { return x >= -1 && x <= track.width + 1 }
 
                         Rectangle {
                             id: track
@@ -636,11 +890,13 @@ Window {
                                     source: trimController.filmstrip
                                     asynchronous: true
                                     smooth: true
-                                    // Nearest tile in TIME to this cell's centre.
+                                    // Nearest tile in TIME to this cell's centre, so a
+                                    // zoomed timeline repeats the tile it is inside of.
                                     sourceClipRect: {
-                                        const cells = Math.max(1, Math.ceil(track.width / track.cellW))
                                         const tiles = trimController.filmstripTiles
-                                        const i = Math.max(0, Math.min(Math.floor((index + 0.5) / cells * tiles), tiles - 1))
+                                        const t = timeline.timeAt((index + 0.5) * track.cellW)
+                                        const i = Math.max(0, Math.min(Math.floor(t / Math.max(0.001, trimWindow.duration) * tiles),
+                                                                       tiles - 1))
                                         return Qt.rect(Math.round(i * track.tileW), 0,
                                                        Math.round(track.tileW), Math.round(track.tileH))
                                     }
@@ -668,6 +924,25 @@ Window {
                                 height: parent.height
                                 color: Theme.alpha(Theme.mediaBase, 0.66)
                             }
+                            // Dropped parts stay on the strip, dimmed and struck
+                            // through, so Delete over one can bring it back.
+                            Repeater {
+                                model: trimWindow.parts
+                                Rectangle {
+                                    required property var modelData
+                                    visible: !modelData.kept
+                                    x: timeline.xOf(modelData.start)
+                                    width: Math.max(0, timeline.xOf(modelData.end) - x)
+                                    height: parent.height
+                                    color: Theme.alpha(Theme.mediaBase, 0.78)
+                                    Rectangle {
+                                        anchors.centerIn: parent
+                                        width: parent.width - 8
+                                        height: 2
+                                        color: Theme.alpha(Theme.accent, 0.45)
+                                    }
+                                }
+                            }
                             Rectangle {
                                 x: timeline.xOf(trimWindow.trimStart)
                                 width: Math.max(0, timeline.xOf(trimWindow.trimEnd) - x)
@@ -675,6 +950,16 @@ Window {
                                 color: "transparent"
                                 border.width: 2
                                 border.color: Theme.accent
+                            }
+                            Repeater {
+                                model: trimWindow.parts.slice(1)
+                                Rectangle {
+                                    required property var modelData
+                                    x: timeline.xOf(modelData.start) - 1
+                                    width: 2
+                                    height: parent.height
+                                    color: Theme.accent
+                                }
                             }
 
                             // Where a lossless cut can actually start. The FULL table
@@ -691,7 +976,9 @@ Window {
                                 let lastX = -minPx
                                 for (let i = 0; i < kfs.length; ++i) {
                                     const x = timeline.xOf(kfs[i])
-                                    if (x - lastX >= minPx) {
+                                    if (x > track.width)
+                                        break
+                                    if (x >= 0 && x - lastX >= minPx) {
                                         out.push(kfs[i])
                                         lastX = x
                                     }
@@ -722,6 +1009,19 @@ Window {
                                 property real pressX: 0
                                 property real pressStart: 0
                                 property real pressLength: 0
+                                property var pressSplits: []
+                                property var pressDropped: []
+                                // Wheel zooms around the pointer; Shift or a
+                                // sideways wheel pans.
+                                onWheel: (w) => {
+                                    const dx = w.angleDelta.x !== 0 ? w.angleDelta.x
+                                             : ((w.modifiers & Qt.ShiftModifier) ? w.angleDelta.y : 0)
+                                    if (dx !== 0)
+                                        trimWindow.setView(trimWindow.viewStart - dx / 120 * trimWindow.viewLen * 0.1,
+                                                           trimWindow.viewLen)
+                                    else if (w.angleDelta.y !== 0)
+                                        trimWindow.zoomAround(timeline.timeAt(w.x), Math.pow(1.25, w.angleDelta.y / 120))
+                                }
                                 function inSelection(x) {
                                     return x >= timeline.xOf(trimWindow.trimStart)
                                            && x <= timeline.xOf(trimWindow.trimEnd)
@@ -733,6 +1033,8 @@ Window {
                                     pressX = m.x
                                     pressStart = trimWindow.trimStart
                                     pressLength = trimWindow.trimEnd - trimWindow.trimStart
+                                    pressSplits = trimWindow.splits
+                                    pressDropped = trimWindow.dropped
                                     mode = inSelection(m.x) ? 1 : 0
                                     if (mode === 0)
                                         trimWindow.seekTo(timeline.timeAt(m.x))
@@ -752,12 +1054,16 @@ Window {
                                         if (previewLoader.item)
                                             previewLoader.item.pause()
                                     }
-                                    const dt = (m.x - pressX) / Math.max(1, track.width) * trimWindow.duration
+                                    const dt = (m.x - pressX) / Math.max(1, track.width) * trimWindow.viewLen
                                     let start = Math.max(0, Math.min(pressStart + dt, trimWindow.duration - pressLength))
                                     if (trimWindow.snapping)
                                         start = trimController.snapStart(start)
                                     trimWindow.trimStart = start
                                     trimWindow.trimEnd = Math.min(start + pressLength, trimWindow.duration)
+                                    // The cuts travel with the selection.
+                                    const shift = start - pressStart
+                                    trimWindow.splits = pressSplits.map(function(t) { return t + shift })
+                                    trimWindow.dropped = pressDropped.map(function(k) { return k < 0 ? k : k + shift })
                                     trimWindow.scrubTo(start)
                                 }
                                 onReleased: (m) => {
@@ -790,7 +1096,7 @@ Window {
 
                         // Playhead: a line with a knob above the strip.
                         Item {
-                            visible: hasPreview
+                            visible: hasPreview && timeline.inView(x + width / 2)
                             x: timeline.xOf(trimWindow.playhead) - width / 2
                             y: -6
                             width: 10
@@ -818,6 +1124,7 @@ Window {
                                 id: handle
                                 required property int index
                                 readonly property bool isStart: index === 0
+                                visible: timeline.inView(x + width / 2)
                                 x: timeline.xOf(isStart ? trimWindow.trimStart : trimWindow.trimEnd) - width / 2
                                 y: -4
                                 width: 12
@@ -938,10 +1245,64 @@ Window {
                                 width: parent.width
                                 elide: Text.ElideRight
                                 //: Trim window: length of the selection, then of the whole recording.
-                                text: qsTr("%1 of %2").arg(trimWindow.fmt(trimWindow.trimEnd - trimWindow.trimStart))
+                                text: qsTr("%1 of %2").arg(trimWindow.fmt(trimWindow.keptLength))
                                                       .arg(trimWindow.fmt(trimWindow.duration))
                                 color: Theme.textSecondary
                                 font.pixelSize: Theme.fontS
+                            }
+                        }
+                    }
+
+                    Section {
+                        title: qsTr("Clip")
+                        UTextField {
+                            width: parent.width
+                            text: trimWindow.clipName
+                            placeholder: qsTr("Name (optional)")
+                            accessibleName: qsTr("Clip name")
+                            accessibleDescription: qsTr("Becomes the file name, next to the recording.")
+                            onEdited: (t) => trimWindow.clipName = t
+                        }
+                    }
+
+                    // The frame: an aspect cropped out of the recording (dragged
+                    // into place on the preview, or with the slider), and the
+                    // output size. Both re-encode.
+                    Section {
+                        title: qsTr("Frame")
+                        InspectorRow {
+                            label: qsTr("Aspect")
+                            UComboBox {
+                                width: 170
+                                readonly property var ids: ["original", "16:9", "9:16", "1:1"]
+                                model: [qsTr("As recorded"), qsTr("Landscape 16:9"), qsTr("Vertical 9:16"), qsTr("Square 1:1")]
+                                enabled: trimWindow.srcW > 0
+                                accessibleName: qsTr("Aspect")
+                                currentIndex: Math.max(0, ids.indexOf(trimWindow.aspect))
+                                onActivated: (i) => trimWindow.aspect = ids[i]
+                            }
+                        }
+                        InspectorRow {
+                            label: qsTr("Position")
+                            enabled: trimWindow.cropRect !== null
+                            USlider {
+                                width: 150
+                                from: 0; to: 1; stepSize: 0.01
+                                value: trimWindow.cropPos
+                                accessibleName: trimWindow.cropHorizontal ? qsTr("Frame position, left to right")
+                                                                          : qsTr("Frame position, top to bottom")
+                                onMoved: (v) => trimWindow.cropPos = v
+                            }
+                        }
+                        InspectorRow {
+                            label: qsTr("Size")
+                            UComboBox {
+                                width: 170
+                                readonly property var ids: [0, 1080, 720, 480]
+                                model: [qsTr("As recorded"), "1080p", "720p", "480p"]
+                                accessibleName: qsTr("Size")
+                                currentIndex: Math.max(0, ids.indexOf(trimWindow.shortSide))
+                                onActivated: (i) => trimWindow.shortSide = ids[i]
                             }
                         }
                     }
@@ -986,9 +1347,11 @@ Window {
                         InspectorRow {
                             id: losslessRow
                             label: qsTr("Fast lossless cut")
-                            enabled: !trimController.gif
+                            enabled: !trimController.gif && trimWindow.plainCut
                             sub: trimController.gif
                                  ? qsTr("A GIF is always re-rendered, so the cut lands on the exact frame.")
+                                 : !trimWindow.plainCut
+                                   ? qsTr("Removed parts, a frame or a size are re-encoded, so this is off.")
                                  : !trimWindow.lossless
                                    ? qsTr("Off: the selection is re-encoded and starts on the exact frame.")
                                    : (trimController.keyframeState === TrimController.Busy
@@ -997,7 +1360,7 @@ Window {
                                          ? qsTr("On: copies the streams, so the start snaps to a keyframe (ticks).")
                                          : qsTr("No keyframes found - saving will re-encode instead.")))
                             MiniSwitch {
-                                checked: trimWindow.lossless
+                                checked: trimWindow.lossless && trimWindow.plainCut
                                 accessibleName: losslessRow.label
                                 accessibleDescription: losslessRow.sub
                                 onToggled: (c) => trimWindow.lossless = c

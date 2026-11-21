@@ -42,6 +42,7 @@
 #include <QCursor>
 #include "record/RecordBorderController.h"
 #include "record/TrimController.h"
+#include "record/ClipGraph.h"
 #include "editor/EditorSession.h"
 #include "editor/ImageEffects.h"
 #include "PreviewController.h"
@@ -3436,6 +3437,8 @@ void AppContext::finishRecordingEntry(const QString &path, const QImage &thumb, 
     if (m_settings->copyToClipboard())
         copyFileToClipboard(path);
     runExternalAction(thumb, path);
+    if (fromInstantReplay && m_settings->clipOpenReplay())
+        openTrimRecording(path);
 
     // Inhibition is sampled NOW, not at recording start: a recording can run
     // for minutes, and muteOnFullscreen must reflect what is on screen when
@@ -4083,6 +4086,7 @@ void AppContext::openTrimRecording(const QString &path)
         // is not a contract worth leaning on.
         qreal duration = -1;
         qreal frameDur = 0;
+        QSize size;
         const QList<QByteArray> lines = output.split('\n');
         for (const QByteArray &line : lines) {
             const int eq = line.indexOf('=');
@@ -4095,6 +4099,10 @@ void AppContext::openTrimRecording(const QString &path)
                 const qreal d = value.toDouble(&ok);
                 if (ok)
                     duration = d;
+            } else if (key == "width") {
+                size.setWidth(value.toInt());
+            } else if (key == "height") {
+                size.setHeight(value.toInt());
             } else if (key == "avg_frame_rate") {
                 // "30/1", "30000/1001"; "0/0" for unknown → stays 0.
                 const int slash = value.indexOf('/');
@@ -4109,7 +4117,7 @@ void AppContext::openTrimRecording(const QString &path)
             showToast(tr("Could not read the recording duration"), true);
             return;
         }
-        showTrimWindow(path, duration, frameDur);
+        showTrimWindow(path, duration, frameDur, size);
     });
     connect(probe, &QProcess::errorOccurred, this,
             [this, probe, completed](QProcess::ProcessError error) {
@@ -4122,11 +4130,12 @@ void AppContext::openTrimRecording(const QString &path)
     probe->start(ffprobe, {QStringLiteral("-v"), QStringLiteral("error"),
                            QStringLiteral("-select_streams"), QStringLiteral("v:0"),
                            QStringLiteral("-show_entries"),
-                           QStringLiteral("stream=avg_frame_rate:format=duration"),
+                           QStringLiteral("stream=avg_frame_rate,width,height:format=duration"),
                            QStringLiteral("-of"), QStringLiteral("default=nw=1"), path});
 }
 
-void AppContext::showTrimWindow(const QString &path, qreal duration, qreal frameDuration)
+void AppContext::showTrimWindow(const QString &path, qreal duration, qreal frameDuration,
+                                QSize videoSize)
 {
     if (!m_engine)
         return;
@@ -4136,7 +4145,7 @@ void AppContext::showTrimWindow(const QString &path, qreal duration, qreal frame
         return;
     }
     auto *ctx = new QQmlContext(m_engine->rootContext(), this);
-    auto *trim = new TrimController(path, duration, frameDuration);
+    auto *trim = new TrimController(path, duration, frameDuration, videoSize);
     ctx->setContextProperty(QStringLiteral("trimSourcePath"), path);
     ctx->setContextProperty(QStringLiteral("trimDuration"), duration);
     ctx->setContextProperty(QStringLiteral("trimController"), trim);
@@ -4215,17 +4224,18 @@ void AppContext::runTrimStep(const QStringList &args,
     process->start(ffmpeg, fullArgs);
 }
 
-void AppContext::trimGif(const QString &path, const QString &output, qreal start, qreal end)
+void AppContext::trimGif(const QString &path, const QString &output,
+                         const QList<QPointF> &segments, const QString &videoTail, qint64 lengthMs)
 {
     // A GIF cannot be seeked (input -ss silently yields the whole file) and
     // cannot be stream-copied mid-file, so the range is selected inside the
     // filter graph and the selection is re-rendered through the same two-pass
     // palettegen/paletteuse the recorder uses. setpts rebases the selection to
     // zero; without it the output keeps a `start` seconds of empty lead-in.
+    // Every kept span is trimmed and joined in the graph (ClipGraph), then
+    // cropped/scaled when the clip is reframed; it leaves as [v].
     const int quality = m_settings->gifQuality();
-    const QString range = QStringLiteral("trim=start=%1:end=%2,setpts=PTS-STARTPTS")
-                              .arg(QString::number(start, 'f', 3),
-                                   QString::number(end, 'f', 3));
+    const QString range = ClipGraph::build(segments, videoTail, {}, -1, {}, {}).filter;
     // The palette is scratch: it lives in the cache dir (NOT next to the
     // recording, where an exit mid-trim would leave a stray
     // "*-trimmed.gif.palette.png" forever), and stale ones from an earlier
@@ -4240,7 +4250,6 @@ void AppContext::trimGif(const QString &path, const QString &output, qreal start
     for (const QFileInfo &fi : stale)
         if (fi.lastModified() < cutoff)
             QFile::remove(fi.absoluteFilePath());
-    const qint64 lengthMs = qRound64((end - start) * 1000);
     static quint32 paletteSerial = 0;
     const QString palette = cache.filePath(QStringLiteral("trim-palette-%1-%2.png")
                                                .arg(QCoreApplication::applicationPid())
@@ -4248,8 +4257,9 @@ void AppContext::trimGif(const QString &path, const QString &output, qreal start
     runTrimStep({QStringLiteral("-y"), QStringLiteral("-nostats"),
                  QStringLiteral("-loglevel"), QStringLiteral("error"),
                  QStringLiteral("-i"), path,
-                 QStringLiteral("-vf"),
-                 range + QLatin1Char(',') + FfmpegUtil::gifPaletteGenFilter(quality),
+                 QStringLiteral("-filter_complex"),
+                 range + QStringLiteral(";[v]%1[p]").arg(FfmpegUtil::gifPaletteGenFilter(quality)),
+                 QStringLiteral("-map"), QStringLiteral("[p]"),
                  palette},
                 [this, path, output, palette, range, quality, lengthMs](bool ok, const QString &diagnostic) {
         if (!ok) {
@@ -4261,9 +4271,9 @@ void AppContext::trimGif(const QString &path, const QString &output, qreal start
                      QStringLiteral("-loglevel"), QStringLiteral("error"),
                      QStringLiteral("-i"), path,
                      QStringLiteral("-i"), palette,
-                     QStringLiteral("-lavfi"),
-                     QStringLiteral("[0:v]%1[x];[x][1:v]%2")
-                         .arg(range, FfmpegUtil::gifPaletteUseFilter(quality)),
+                     QStringLiteral("-filter_complex"),
+                     range + QStringLiteral(";[v][1:v]%1[g]").arg(FfmpegUtil::gifPaletteUseFilter(quality)),
+                     QStringLiteral("-map"), QStringLiteral("[g]"),
                      output},
                     [this, output, palette](bool ok2, const QString &diagnostic2) {
             QFile::remove(palette);
@@ -4280,7 +4290,29 @@ void AppContext::trimGif(const QString &path, const QString &output, qreal start
 void AppContext::trimRecording(const QString &path, qreal startSeconds, qreal endSeconds,
                                bool lossless, const QVariantList &audioGains, int mixTrack)
 {
-    if (!QFileInfo::exists(path) || startSeconds < 0 || endSeconds <= startSeconds) {
+    exportClip({{QStringLiteral("path"), path},
+                {QStringLiteral("segments"), QVariantList{QVariantList{startSeconds, endSeconds}}},
+                {QStringLiteral("lossless"), lossless},
+                {QStringLiteral("gains"), audioGains},
+                {QStringLiteral("mixTrack"), mixTrack}});
+}
+
+void AppContext::exportClip(const QVariantMap &options)
+{
+    const QString path = options.value(QStringLiteral("path")).toString();
+    QList<QPointF> segments;
+    qreal keptSeconds = 0;
+    for (const QVariant &v : options.value(QStringLiteral("segments")).toList()) {
+        const QVariantList pair = v.toList();
+        if (pair.size() != 2)
+            continue;
+        const QPointF seg(qMax(0.0, pair.at(0).toDouble()), pair.at(1).toDouble());
+        if (seg.y() - seg.x() < 0.01 || (!segments.isEmpty() && seg.x() < segments.last().y()))
+            continue;   // empty, or out of order: the graph needs ascending spans
+        segments << seg;
+        keptSeconds += seg.y() - seg.x();
+    }
+    if (!QFileInfo::exists(path) || segments.isEmpty() || keptSeconds < 0.05) {
         showToast(tr("Invalid trim range"), true);
         return;
     }
@@ -4289,44 +4321,66 @@ void AppContext::trimRecording(const QString &path, qreal startSeconds, qreal en
         return;
     }
     const QFileInfo source(path);
-    QString output = source.absolutePath() + QLatin1Char('/') + source.completeBaseName()
-                     + QStringLiteral("-trimmed.") + source.suffix();
+    // A clip title becomes the file name; whatever a file system or a shell
+    // would trip over turns into a dash, and the name stays next to the source.
+    QString base = options.value(QStringLiteral("name")).toString();
+    base.replace(QRegularExpression(QStringLiteral("[/\\\\:*?\"<>|\\x00-\\x1f]")), QStringLiteral("-"));
+    base = base.trimmed().left(120);
+    if (base.isEmpty() || base.startsWith(QLatin1Char('.')))
+        base = source.completeBaseName() + QStringLiteral("-trimmed");
+    const QString stem = source.absolutePath() + QLatin1Char('/') + base;
+    QString output = stem + QLatin1Char('.') + source.suffix();
     for (int i = 1; QFileInfo::exists(output); ++i)
-        output = source.absolutePath() + QLatin1Char('/') + source.completeBaseName()
-                 + QStringLiteral("-trimmed-%1.").arg(i) + source.suffix();
+        output = stem + QStringLiteral("-%1.").arg(i) + source.suffix();
+
+    const QVariantMap crop = options.value(QStringLiteral("crop")).toMap();
+    const QString tail = ClipGraph::videoTail(
+        options.value(QStringLiteral("width")).toInt(), options.value(QStringLiteral("height")).toInt(),
+        crop.value(QStringLiteral("x")).toInt(), crop.value(QStringLiteral("y")).toInt(),
+        crop.value(QStringLiteral("w")).toInt(), crop.value(QStringLiteral("h")).toInt(),
+        options.value(QStringLiteral("shortSide")).toInt());
+    const QString evenCrop = QStringLiteral("crop=trunc(iw/2)*2:trunc(ih/2)*2");
+    const bool reframed = tail != evenCrop;
+    const qint64 keptMs = qRound64(keptSeconds * 1000);
 
     showToast(tr("Trimming recording…"));
     const QString suffix = source.suffix().toLower();
     if (suffix == QLatin1String("gif")) {
-        trimGif(path, output, startSeconds, endSeconds);
+        trimGif(path, output, segments, reframed ? tail : QString(), keptMs);
         return;
     }
 
-    const QString ss = QString::number(startSeconds, 'f', 3);
-    const QString dur = QString::number(endSeconds - startSeconds, 'f', 3);
     // The trim window sends one gain per audio track; all-1.0 (or none) means
     // the audio is untouched and can stay a stream copy.
     QList<double> gains;
     bool audioEdited = false;
-    for (const QVariant &value : audioGains) {
+    for (const QVariant &value : options.value(QStringLiteral("gains")).toList()) {
         const double gain = value.toDouble();
         gains << gain;
         if (gain < 0 || !qFuzzyCompare(gain, 1.0))
             audioEdited = true;
     }
+    const int mixTrack = options.value(QStringLiteral("mixTrack"), -1).toInt();
     const bool webm = suffix == QLatin1String("webm");
     const auto editArgs = [&] {
         return mixTrack >= 0 && mixTrack < gains.size()
                    ? GifRecorder::audioRemixArgs(webm, gains, mixTrack, tr("Mix"))
                    : GifRecorder::audioEditArgs(webm, gains);
     };
-    QStringList args{QStringLiteral("-y"), QStringLiteral("-nostats"),
-                     QStringLiteral("-loglevel"), QStringLiteral("error"),
-                     QStringLiteral("-ss"), ss,
-                     QStringLiteral("-i"), path,
-                     QStringLiteral("-t"), dur};
-    if (lossless) {
-        // The caller has already snapped `startSeconds` onto a keyframe, so the
+    const auto finish = [this, output](bool ok, const QString &diagnostic) {
+        if (!ok) {
+            QFile::remove(output);
+            showToast(tr("Trim failed: %1").arg(diagnostic), true);
+            return;
+        }
+        onRecordingFinished(output);
+    };
+
+    const QPointF first = segments.first();
+    // A stream copy cannot crop, scale or join cuts; the window only offers
+    // it for one plain segment, and anything else re-encodes here regardless.
+    if (options.value(QStringLiteral("lossless")).toBool() && segments.size() == 1 && !reframed) {
+        // The caller has already snapped the start onto a keyframe, so the
         // copy starts exactly there. make_zero rebases the timestamps instead of
         // leaning on a container edit list (which not every player honours).
         // Explicit maps, not `-c copy` alone: ffmpeg's default stream selection
@@ -4334,80 +4388,106 @@ void AppContext::trimRecording(const QString &path, qreal startSeconds, qreal en
         // separate-tracks recording. A volume/mute edit re-encodes the audio
         // (a filter cannot run on a copied stream); the video is copied either
         // way, so the cut stays instant.
-        args << QStringLiteral("-avoid_negative_ts") << QStringLiteral("make_zero")
-             << QStringLiteral("-map") << QStringLiteral("0:v:0")
-             << QStringLiteral("-c:v") << QStringLiteral("copy");
+        QStringList args{QStringLiteral("-y"), QStringLiteral("-nostats"),
+                         QStringLiteral("-loglevel"), QStringLiteral("error"),
+                         QStringLiteral("-ss"), QString::number(first.x(), 'f', 3),
+                         QStringLiteral("-i"), path,
+                         QStringLiteral("-t"), QString::number(first.y() - first.x(), 'f', 3),
+                         QStringLiteral("-avoid_negative_ts"), QStringLiteral("make_zero"),
+                         QStringLiteral("-map"), QStringLiteral("0:v:0"),
+                         QStringLiteral("-c:v"), QStringLiteral("copy")};
         if (audioEdited)
             args << editArgs();
         else
             args << QStringLiteral("-map") << QStringLiteral("0:a?")
                  << QStringLiteral("-c:a") << QStringLiteral("copy");
+        args << output;
+        runTrimStep(args, finish, keptMs);
+        return;
+    }
+
+    // Re-encode. With -ss/-t in front of -i ffmpeg seeks to the keyframe
+    // before the first cut and decodes forward, so the file starts on the
+    // exact frame and a cut late in an hour-long replay does not decode the
+    // whole hour; every later span is then relative to that first frame.
+    const int crf = UnisicVideo::crfFromPercent(m_settings->videoQualityPercent());
+    QStringList pre, codec;
+    QString hwTail;
+    if (webm) {
+        codec << QStringLiteral("-c:v") << QStringLiteral("libvpx-vp9")
+              << QStringLiteral("-crf") << QString::number(crf)
+              << QStringLiteral("-b:v") << QStringLiteral("0")
+              << QStringLiteral("-deadline") << QStringLiteral("good")
+              << QStringLiteral("-cpu-used") << QStringLiteral("4")
+              << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
+              << QStringLiteral("-row-mt") << QStringLiteral("1");
+    } else if (m_settings->videoEncoder() == QLatin1String("vaapi")
+               && FfmpegUtil::hardwareEncoderAvailable(QStringLiteral("vaapi"))) {
+        pre << QStringLiteral("-vaapi_device") << QStringLiteral("/dev/dri/renderD128");
+        hwTail = QStringLiteral(",format=nv12,hwupload");
+        codec << QStringLiteral("-c:v") << QStringLiteral("h264_vaapi")
+              << QStringLiteral("-qp") << QString::number(qBound(1, crf, 40))
+              << QStringLiteral("-movflags") << QStringLiteral("+faststart");
+    } else if (m_settings->videoEncoder() == QLatin1String("nvenc")
+               && FfmpegUtil::hardwareEncoderAvailable(QStringLiteral("nvenc"))) {
+        codec << QStringLiteral("-c:v") << QStringLiteral("h264_nvenc")
+              << QStringLiteral("-preset") << QStringLiteral("p4")
+              << QStringLiteral("-cq") << QString::number(crf)
+              << QStringLiteral("-b:v") << QStringLiteral("0")
+              << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
+              << QStringLiteral("-movflags") << QStringLiteral("+faststart");
+    } else if (FfmpegUtil::encoderUsable(QStringLiteral("libx264"))) {
+        codec << QStringLiteral("-c:v") << QStringLiteral("libx264")
+              << QStringLiteral("-preset") << QStringLiteral("veryfast")
+              << QStringLiteral("-crf") << QString::number(crf)
+              << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
+              << QStringLiteral("-movflags") << QStringLiteral("+faststart");
     } else {
-        // Re-encode: with -ss in front of -i ffmpeg seeks to the preceding
-        // keyframe and decodes forward, so the output starts on the exact frame.
-        const int crf = UnisicVideo::crfFromPercent(m_settings->videoQualityPercent());
-        // yuv420p needs even dimensions (same rule the recorder enforces on its
-        // crop): an imported MP4/MOV/MKV can be odd-sized, and libx264 & friends
-        // abort with "width not divisible by 2". Trim at most one edge pixel.
-        const QString evenCrop = QStringLiteral("crop=trunc(iw/2)*2:trunc(ih/2)*2");
-        if (suffix == QLatin1String("webm")) {
-            args << QStringLiteral("-vf") << evenCrop
-                 << QStringLiteral("-c:v") << QStringLiteral("libvpx-vp9")
-                 << QStringLiteral("-crf") << QString::number(crf)
-                 << QStringLiteral("-b:v") << QStringLiteral("0")
-                 << QStringLiteral("-deadline") << QStringLiteral("good")
-                 << QStringLiteral("-cpu-used") << QStringLiteral("4")
-                 << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
-                 << QStringLiteral("-row-mt") << QStringLiteral("1");
-        } else if (m_settings->videoEncoder() == QLatin1String("vaapi")
-                   && FfmpegUtil::hardwareEncoderAvailable(QStringLiteral("vaapi"))) {
-            args << QStringLiteral("-vaapi_device") << QStringLiteral("/dev/dri/renderD128")
-                 << QStringLiteral("-vf") << evenCrop + QStringLiteral(",format=nv12,hwupload")
-                 << QStringLiteral("-c:v") << QStringLiteral("h264_vaapi")
-                 << QStringLiteral("-qp") << QString::number(qBound(1, crf, 40))
-                 << QStringLiteral("-movflags") << QStringLiteral("+faststart");
-        } else if (m_settings->videoEncoder() == QLatin1String("nvenc")
-                   && FfmpegUtil::hardwareEncoderAvailable(QStringLiteral("nvenc"))) {
-            args << QStringLiteral("-vf") << evenCrop
-                 << QStringLiteral("-c:v") << QStringLiteral("h264_nvenc")
-                 << QStringLiteral("-preset") << QStringLiteral("p4")
-                 << QStringLiteral("-cq") << QString::number(crf)
-                 << QStringLiteral("-b:v") << QStringLiteral("0")
-                 << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
-                 << QStringLiteral("-movflags") << QStringLiteral("+faststart");
-        } else if (FfmpegUtil::encoderUsable(QStringLiteral("libx264"))) {
-            args << QStringLiteral("-vf") << evenCrop
-                 << QStringLiteral("-c:v") << QStringLiteral("libx264")
-                 << QStringLiteral("-preset") << QStringLiteral("veryfast")
-                 << QStringLiteral("-crf") << QString::number(crf)
-                 << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
-                 << QStringLiteral("-movflags") << QStringLiteral("+faststart");
-        } else {
-            args << QStringLiteral("-vf") << evenCrop
-                 << QStringLiteral("-c:v") << QStringLiteral("libopenh264")
-                 << QStringLiteral("-b:v") << QStringLiteral("%1M").arg(qBound(2, (51 - crf) / 3, 16))
-                 << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
-                 << QStringLiteral("-movflags") << QStringLiteral("+faststart");
-        }
+        codec << QStringLiteral("-c:v") << QStringLiteral("libopenh264")
+              << QStringLiteral("-b:v") << QStringLiteral("%1M").arg(qBound(2, (51 - crf) / 3, 16))
+              << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
+              << QStringLiteral("-movflags") << QStringLiteral("+faststart");
+    }
+    // tail always starts with a crop: yuv420p needs even dimensions (the
+    // recorder enforces the same on its region), and an imported MP4/MOV/MKV
+    // can be odd-sized - libx264 & friends abort "width not divisible by 2".
+    QStringList args = QStringList{QStringLiteral("-y"), QStringLiteral("-nostats"),
+                                   QStringLiteral("-loglevel"), QStringLiteral("error")}
+                       + pre
+                       + QStringList{QStringLiteral("-ss"), QString::number(first.x(), 'f', 3),
+                                     QStringLiteral("-t"),
+                                     QString::number(segments.last().y() - first.x(), 'f', 3),
+                                     QStringLiteral("-i"), path};
+    if (segments.size() == 1) {
+        args << QStringLiteral("-vf") << tail + hwTail << codec
+             << QStringLiteral("-map") << QStringLiteral("0:v:0");
         // Same audio args the recorder's own conversion uses, so a trim keeps
         // every track of a multi-track recording instead of the first one.
         // No names passed: this file is finished, and ffmpeg's metadata copy
         // carries the ones it already has.
-        args << QStringLiteral("-map") << QStringLiteral("0:v:0");
         if (audioEdited)
             args << editArgs();
         else
             args << GifRecorder::finalAudioArgs(webm);
+    } else {
+        // Several kept spans: the audio has to be cut in the graph too, track
+        // by track, so the titles go back on by hand (filters drop them).
+        QList<QPointF> relative;
+        for (const QPointF &seg : std::as_const(segments))
+            relative << seg - QPointF(first.x(), first.x());
+        QStringList titles;
+        for (const QVariant &t : options.value(QStringLiteral("titles")).toList())
+            titles << t.toString();
+        const ClipGraph::Graph graph = ClipGraph::build(relative, tail + hwTail, gains, mixTrack,
+                                                        titles, tr("Mix"));
+        args << QStringLiteral("-filter_complex") << graph.filter
+             << QStringLiteral("-map") << QStringLiteral("[v]") << codec << graph.audioArgs;
+        if (!graph.audioArgs.isEmpty())
+            args << QStringLiteral("-c:a") << (webm ? QStringLiteral("libopus") : QStringLiteral("aac"))
+                 << QStringLiteral("-b:a") << (webm ? QStringLiteral("128k") : QStringLiteral("192k"));
     }
     args << output;
-    runTrimStep(args, [this, output](bool ok, const QString &diagnostic) {
-        if (!ok) {
-            QFile::remove(output);
-            showToast(tr("Trim failed: %1").arg(diagnostic), true);
-            return;
-        }
-        onRecordingFinished(output);
-    }, qRound64((endSeconds - startSeconds) * 1000));
+    runTrimStep(args, finish, keptMs);
 }
 
 void AppContext::runExternalAction(const QImage &image, const QString &savedPath)

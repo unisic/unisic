@@ -56,7 +56,8 @@ Rectangle {
     // the action group above, which translate differently.
     readonly property var settingsTabs: {
         var t = [qsTr("General", "Settings category"), qsTr("Capture", "Settings category"),
-                 qsTr("Recording", "Settings category"), qsTr("Editor", "Settings category"),
+                 qsTr("Recording", "Settings category"), qsTr("Clips", "Settings category"),
+                 qsTr("Editor", "Settings category"),
                  qsTr("Saving", "Settings category"), qsTr("Notifications", "Settings category"),
                  qsTr("Appearance", "Settings category"), qsTr("Hotkeys", "Settings category")]
         if (App.devBuild)
@@ -64,7 +65,7 @@ Rectangle {
         return t
     }
     // Same order and glyphs as SettingsPage.tabIcons; change both together.
-    readonly property var settingsTabIcons: ["line-sliders", "line-camera", "line-record", "line-pencil",
+    readonly property var settingsTabIcons: ["line-sliders", "line-camera", "line-record", "line-film", "line-pencil",
                                              "line-save", "line-bell", "line-palette", "line-keyboard",
                                              "line-terminal"]
 

@@ -224,7 +224,7 @@ Item {
                             title: modelData.title
                             sub: modelData.sub
                             hotkey: modelData.hotkey
-                            onOpenHotkeys: page.openSettings(7, "")
+                            onOpenHotkeys: page.openSettings(8, "")
                             onActivated: {
                                 if (modelData.action === 0) App.captureFullScreen()
                                 else if (modelData.action === 1) App.captureRegion()

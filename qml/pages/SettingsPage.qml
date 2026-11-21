@@ -296,16 +296,16 @@ Item {
     // Categories in the left rail. One category = one thing the user is trying
     // to configure; everything about that thing lives in that one pane
     // (notifications used to be split across three tabs, editor across two).
-    // The Developer category (index 8) only exists in a dev build.
+    // The Developer category (index 9) only exists in a dev build.
     readonly property var tabNames: {
-        var t = [qsTr("General"), qsTr("Capture"), qsTr("Recording"), qsTr("Editor"),
+        var t = [qsTr("General"), qsTr("Capture"), qsTr("Recording"), qsTr("Clips"), qsTr("Editor"),
                  qsTr("Saving"), qsTr("Notifications"), qsTr("Appearance"), qsTr("Hotkeys")]
         if (App.devBuild)
             t.push(qsTr("Developer"))
         return t
     }
     readonly property var tabIcons: {
-        var t = ["line-sliders", "line-camera", "line-record", "line-pencil",
+        var t = ["line-sliders", "line-camera", "line-record", "line-film", "line-pencil",
                  "line-save", "line-bell", "line-palette", "line-keyboard"]
         if (App.devBuild)
             t.push("line-terminal")
@@ -2042,49 +2042,6 @@ Item {
                             onChanged: (v) => App.settings.recordCountdownSec = v
                         }
                     }
-                    SettingRow {
-                        label: qsTr("Instant replay length")
-                        help: qsTr("Keeps only the most recent encoded seconds while replay is active.")
-                        helpDetail: qsTr("The ring uses fixed-count two-second segments in the disk cache, not raw frames in RAM, and drops the oldest as it goes. Saving snapshots completed segments without stopping the ring. Long replays take gigabytes of disk space, and saving one copies it first.")
-                        UValueCombo { width: 130; values: [10,15,30,60,120,300,600,1800,3600]; from: 10; to: 3600; suffix: " s"; value: App.settings.instantReplaySeconds; onChanged: (v) => App.settings.instantReplaySeconds = v }
-                    }
-                    SettingRow {
-                        label: qsTr("Start instant replay automatically")
-                        help: qsTr("Keeps recording the screen in the background, ready to save the last moments.")
-                        helpDetail: qsTr("When Unisic starts: from launch until you stop it. While a game is running: games started by Steam, and on Linux games using GameMode (Lutris, Heroic, gamemoderun); it stops when the game closes. Starting a recording pauses it, and it comes back afterwards.")
-                        UComboBox {
-                            width: 220
-                            readonly property var ids: ["off", "launch", "game"]
-                            model: [qsTr("Off"), qsTr("When Unisic starts"), qsTr("While a game is running")]
-                            currentIndex: Math.max(0, ids.indexOf(App.settings.instantReplayAuto))
-                            onActivated: (i) => App.settings.instantReplayAuto = ids[i]
-                        }
-                    }
-                    SettingRow {
-                        label: qsTr("Replay watermark")
-                        help: qsTr("Marks every instant replay with its own text, separate from the screenshot watermark.")
-                        helpDetail: qsTr("Burned into the replay while it records, so saving stays a quick copy. A change applies the next time instant replay starts.")
-                        USwitch { checked: App.settings.replayWatermarkEnabled; onToggled: (c) => App.settings.replayWatermarkEnabled = c }
-                    }
-                    SettingRow {
-                        available: App.settings.replayWatermarkEnabled
-                        label: qsTr("Replay watermark text")
-                        UTextField {
-                            width: 220
-                            text: App.settings.replayWatermarkText
-                            onEdited: (t) => App.settings.replayWatermarkText = t
-                        }
-                    }
-                    SettingRow {
-                        available: App.settings.replayWatermarkEnabled
-                        label: qsTr("Replay watermark position")
-                        UComboBox {
-                            width: 180
-                            model: page.watermarkPosNames
-                            currentIndex: Math.max(0, page.watermarkPosIds.indexOf(App.settings.replayWatermarkPosition))
-                            onActivated: (i) => App.settings.replayWatermarkPosition = page.watermarkPosIds[i]
-                        }
-                    }
                 }
             }
 
@@ -2295,12 +2252,119 @@ Item {
 
         // ===== Editor (3): everything about annotating — defaults, session
         // persistence, background removal, the tool set and its icons. =====
+        // Clips: the instant replay that catches a moment, and the clip editor
+        // (trim window) defaults that shape how it is cut and shared.
         Loader {
             anchors.fill: parent
             readonly property int tabIndex: 3
             visible: page.tab === 3 || page.searchPanesWanted
             opacity: (page.tab === 3 && !page.searchActive) ? 1 : 0
             enabled: page.tab === 3 && !page.searchActive
+            property bool touched: false
+            active: touched || visible
+            asynchronous: page.searchActive && !touched
+            onLoaded: {
+                if (!page.searchActive)
+                    latchTimer.restart()
+                else
+                    Qt.callLater(page.rebuildSearch)
+            }
+            sourceComponent: ScrollPane {
+            SettingsGroup {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Instant replay") }
+                    SettingRow {
+                        label: qsTr("Instant replay length")
+                        help: qsTr("Keeps only the most recent encoded seconds while replay is active.")
+                        helpDetail: qsTr("The ring uses fixed-count two-second segments in the disk cache, not raw frames in RAM, and drops the oldest as it goes. Saving snapshots completed segments without stopping the ring. Long replays take gigabytes of disk space, and saving one copies it first.")
+                        UValueCombo { width: 130; values: [10,15,30,60,120,300,600,1800,3600]; from: 10; to: 3600; suffix: " s"; value: App.settings.instantReplaySeconds; onChanged: (v) => App.settings.instantReplaySeconds = v }
+                    }
+                    SettingRow {
+                        label: qsTr("Start instant replay automatically")
+                        help: qsTr("Keeps recording the screen in the background, ready to save the last moments.")
+                        helpDetail: qsTr("When Unisic starts: from launch until you stop it. While a game is running: games started by Steam, and on Linux games using GameMode (Lutris, Heroic, gamemoderun); it stops when the game closes. Starting a recording pauses it, and it comes back afterwards.")
+                        UComboBox {
+                            width: 220
+                            readonly property var ids: ["off", "launch", "game"]
+                            model: [qsTr("Off"), qsTr("When Unisic starts"), qsTr("While a game is running")]
+                            currentIndex: Math.max(0, ids.indexOf(App.settings.instantReplayAuto))
+                            onActivated: (i) => App.settings.instantReplayAuto = ids[i]
+                        }
+                    }
+                    SettingRow {
+                        label: qsTr("Replay watermark")
+                        help: qsTr("Marks every instant replay with its own text, separate from the screenshot watermark.")
+                        helpDetail: qsTr("Burned into the replay while it records, so saving stays a quick copy. A change applies the next time instant replay starts.")
+                        USwitch { checked: App.settings.replayWatermarkEnabled; onToggled: (c) => App.settings.replayWatermarkEnabled = c }
+                    }
+                    SettingRow {
+                        available: App.settings.replayWatermarkEnabled
+                        label: qsTr("Replay watermark text")
+                        UTextField {
+                            width: 220
+                            text: App.settings.replayWatermarkText
+                            onEdited: (t) => App.settings.replayWatermarkText = t
+                        }
+                    }
+                    SettingRow {
+                        available: App.settings.replayWatermarkEnabled
+                        label: qsTr("Replay watermark position")
+                        UComboBox {
+                            width: 180
+                            model: page.watermarkPosNames
+                            currentIndex: Math.max(0, page.watermarkPosIds.indexOf(App.settings.replayWatermarkPosition))
+                            onActivated: (i) => App.settings.replayWatermarkPosition = page.watermarkPosIds[i]
+                        }
+                    }
+                }
+            }
+            SettingsGroup {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Clip editor") }
+                    SettingRow {
+                        label: qsTr("Open saved replays in the clip editor")
+                        help: qsTr("A saved instant replay opens in the trim window, ready to cut and share.")
+                        USwitch { checked: App.settings.clipOpenReplay; onToggled: (c) => App.settings.clipOpenReplay = c }
+                    }
+                    SettingRow {
+                        label: qsTr("Default frame")
+                        help: qsTr("The frame the trim window starts with. Vertical fits TikTok, Shorts and Reels.")
+                        UComboBox {
+                            width: 200
+                            readonly property var ids: ["original", "16:9", "9:16", "1:1"]
+                            model: [qsTr("As recorded"), qsTr("Landscape 16:9"), qsTr("Vertical 9:16"), qsTr("Square 1:1")]
+                            currentIndex: Math.max(0, ids.indexOf(App.settings.clipAspect))
+                            onActivated: (i) => App.settings.clipAspect = ids[i]
+                        }
+                    }
+                    SettingRow {
+                        label: qsTr("Default clip size")
+                        help: qsTr("Scales a saved clip so its shorter side has this many pixels. Never enlarges.")
+                        UComboBox {
+                            width: 200
+                            readonly property var ids: [0, 1080, 720, 480]
+                            model: [qsTr("As recorded"), "1080p", "720p", "480p"]
+                            currentIndex: Math.max(0, ids.indexOf(App.settings.clipShortSide))
+                            onActivated: (i) => App.settings.clipShortSide = ids[i]
+                        }
+                    }
+                }
+            }
+            }
+        }
+
+        Loader {
+            anchors.fill: parent
+            readonly property int tabIndex: 4
+            visible: page.tab === 4 || page.searchPanesWanted
+            opacity: (page.tab === 4 && !page.searchActive) ? 1 : 0
+            enabled: page.tab === 4 && !page.searchActive
             property bool touched: false
             active: touched || visible
             // Search-driven builds incubate asynchronously so even the
@@ -2592,10 +2656,10 @@ Item {
         // ===== Saving (4): where files land and what they're called =====
         Loader {
             anchors.fill: parent
-            readonly property int tabIndex: 4
-            visible: page.tab === 4 || page.searchPanesWanted
-            opacity: (page.tab === 4 && !page.searchActive) ? 1 : 0
-            enabled: page.tab === 4 && !page.searchActive
+            readonly property int tabIndex: 5
+            visible: page.tab === 5 || page.searchPanesWanted
+            opacity: (page.tab === 5 && !page.searchActive) ? 1 : 0
+            enabled: page.tab === 5 && !page.searchActive
             property bool touched: false
             active: touched || visible
             // Search-driven builds incubate asynchronously so even the
@@ -3025,10 +3089,10 @@ Item {
         // split is exactly what made these settings hard to find. =====
         Loader {
             anchors.fill: parent
-            readonly property int tabIndex: 5
-            visible: page.tab === 5 || page.searchPanesWanted
-            opacity: (page.tab === 5 && !page.searchActive) ? 1 : 0
-            enabled: page.tab === 5 && !page.searchActive
+            readonly property int tabIndex: 6
+            visible: page.tab === 6 || page.searchPanesWanted
+            opacity: (page.tab === 6 && !page.searchActive) ? 1 : 0
+            enabled: page.tab === 6 && !page.searchActive
             property bool touched: false
             active: touched || visible
             // Search-driven builds incubate asynchronously so even the
@@ -3334,10 +3398,10 @@ Item {
         // ===== Appearance (6): theme, window chrome, tray icon =====
         Loader {
             anchors.fill: parent
-            readonly property int tabIndex: 6
-            visible: page.tab === 6 || page.searchPanesWanted
-            opacity: (page.tab === 6 && !page.searchActive) ? 1 : 0
-            enabled: page.tab === 6 && !page.searchActive
+            readonly property int tabIndex: 7
+            visible: page.tab === 7 || page.searchPanesWanted
+            opacity: (page.tab === 7 && !page.searchActive) ? 1 : 0
+            enabled: page.tab === 7 && !page.searchActive
             property bool touched: false
             active: touched || visible
             // Search-driven builds incubate asynchronously so even the
@@ -3834,10 +3898,10 @@ Item {
         // ===== Hotkeys (7) =====
         Loader {
             anchors.fill: parent
-            readonly property int tabIndex: 7
-            visible: page.tab === 7 || page.searchPanesWanted
-            opacity: (page.tab === 7 && !page.searchActive) ? 1 : 0
-            enabled: page.tab === 7 && !page.searchActive
+            readonly property int tabIndex: 8
+            visible: page.tab === 8 || page.searchPanesWanted
+            opacity: (page.tab === 8 && !page.searchActive) ? 1 : 0
+            enabled: page.tab === 8 && !page.searchActive
             property bool touched: false
             active: touched || visible
             // Search-driven builds incubate asynchronously so even the
@@ -4291,15 +4355,15 @@ Item {
         // ===== Developer (dev build only, tab 8) =====
         Loader {
             anchors.fill: parent
-            readonly property int tabIndex: 8
+            readonly property int tabIndex: 9
             // Gated on App.devBuild: in a release build the pane must never
             // instantiate, or the search would list its rows and jumping to
             // one would expose the smoke-test buttons on a hidden tab.
             // Visible-but-inert while searching: per-row `visible:` gates keep
             // their real values so collectRows can skip hidden rows.
-            visible: App.devBuild && (page.tab === 8 || page.searchPanesWanted)
-            opacity: (page.tab === 8 && !page.searchActive) ? 1 : 0
-            enabled: page.tab === 8 && !page.searchActive
+            visible: App.devBuild && (page.tab === 9 || page.searchPanesWanted)
+            opacity: (page.tab === 9 && !page.searchActive) ? 1 : 0
+            enabled: page.tab === 9 && !page.searchActive
             property bool touched: false
             // Search needs every pane instantiated so it can walk the rows.
             active: App.devBuild && (touched || visible)

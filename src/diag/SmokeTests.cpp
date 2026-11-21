@@ -1462,7 +1462,7 @@ void AppContext::trimCutCheck(std::function<void(const QString &)> done)
     QFile::copy(source, copySource);
 
     // Same window the trim editor builds, on the same file.
-    auto *probe = new TrimController(source, 3.0, 1.0 / 30, this);
+    auto *probe = new TrimController(source, 3.0, 1.0 / 30, QSize(), this);
     probe->buildFilmstrip(8, 48);
     probe->loadKeyframes();
 
@@ -4784,7 +4784,7 @@ static QString headerSearchCheck(QQuickWindow *win)
     // Words from the field's own lists, so the check holds in every language.
     const QVariantList everything = search->property("everything").toList();
     const QVariantList tabs = search->property("settingsTabs").toList();
-    if (everything.size() < 2 || tabs.size() < 8)
+    if (everything.size() < 2 || tabs.size() < 9)
         return QStringLiteral("FAIL (%1 actions, %2 categories)").arg(everything.size()).arg(tabs.size());
     QMetaObject::invokeMethod(search, "focusField");
     const bool focused = input->hasActiveFocus();
@@ -4813,14 +4813,14 @@ static QString headerSearchCheck(QQuickWindow *win)
         out << QStringLiteral("dismiss left the field filled or the list open");
 
     const QVariant page0 = win->property("currentPage");
-    QMetaObject::invokeMethod(win, "openSettingsAt", Q_ARG(QVariant, 7), Q_ARG(QVariant, QString()));
+    QMetaObject::invokeMethod(win, "openSettingsAt", Q_ARG(QVariant, 8), Q_ARG(QVariant, QString()));
     QCoreApplication::processEvents();
     QQuickItem *settings = nullptr;
     for (QQuickItem *i : win->findChildren<QQuickItem *>(QStringLiteral("settingsPage")))
         if (i->isVisible())
             settings = i;
-    if (win->property("currentPage").toInt() != 5 || !settings || settings->property("tab").toInt() != 7) {
-        out << QStringLiteral("category route did not open Settings at tab 7");
+    if (win->property("currentPage").toInt() != 5 || !settings || settings->property("tab").toInt() != 8) {
+        out << QStringLiteral("category route did not open Settings at tab 8");
     } else {
         QMetaObject::invokeMethod(win, "openSettingsAt", Q_ARG(QVariant, -1), Q_ARG(QVariant, tab));
         QCoreApplication::processEvents();

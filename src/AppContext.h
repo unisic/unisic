@@ -2,7 +2,9 @@
 #include <QObject>
 #include <QImage>
 #include <QColor>
+#include <QPointF>
 #include <QRect>
+#include <QSize>
 #include <QPointer>
 #include <QStringList>
 #include <QVariantMap>
@@ -631,6 +633,15 @@ public:
                                    bool lossless = false,
                                    const QVariantList &audioGains = {},
                                    int mixTrack = -1);
+    // The clip editor's export, trimRecording's superset. Keys: path,
+    // segments ([[start, end], ...] seconds, ascending: the kept spans,
+    // joined in order), lossless, gains, mixTrack (as above), titles (one
+    // per audio track, written back when spans are joined), crop {x, y, w,
+    // h} in source pixels with width/height the source size, shortSide (px
+    // of the shorter output side, 0 = as is, never upscales) and name (the
+    // output's base name, empty = "<source>-trimmed"). A stream copy is only
+    // possible for one span with no crop or scale; anything else re-encodes.
+    Q_INVOKABLE void exportClip(const QVariantMap &options);
     Q_INVOKABLE void startGifRegion();
     Q_INVOKABLE void startGifFullScreen();
     Q_INVOKABLE void startVideoScreen();
@@ -1248,13 +1259,15 @@ private:
     void captureRegionWithTool(int initialTool);
     void runExternalAction(const QImage &image, const QString &savedPath);
     void refreshWatermarkImage();
-    void showTrimWindow(const QString &path, qreal duration, qreal frameDuration = 0);
+    void showTrimWindow(const QString &path, qreal duration, qreal frameDuration = 0,
+                        QSize videoSize = {});
     // One ffmpeg step of a trim. `done(ok, diagnostic)` runs on the GUI thread;
     // the GIF cut chains two of these (palettegen, then paletteuse).
     void runTrimStep(const QStringList &args,
                      std::function<void(bool, const QString &)> done,
                      qint64 progressMs = 0, qreal from = 0, qreal to = 1);
-    void trimGif(const QString &path, const QString &output, qreal start, qreal end);
+    void trimGif(const QString &path, const QString &output, const QList<QPointF> &segments,
+                 const QString &videoTail, qint64 lengthMs);
     // Dev harness: cut a generated clip both ways through the real trim path and
     // report whether the files came out where the selection said they would,
     // plus whether the timeline's filmstrip and keyframe table built. Async -

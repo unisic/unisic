@@ -158,6 +158,9 @@ class Settings : public QObject
     Q_PROPERTY(bool replayWatermarkEnabled READ replayWatermarkEnabled WRITE setReplayWatermarkEnabled NOTIFY replayWatermarkEnabledChanged)
     Q_PROPERTY(QString replayWatermarkText READ replayWatermarkText WRITE setReplayWatermarkText NOTIFY replayWatermarkTextChanged)
     Q_PROPERTY(QString replayWatermarkPosition READ replayWatermarkPosition WRITE setReplayWatermarkPosition NOTIFY replayWatermarkPositionChanged)
+    Q_PROPERTY(bool clipOpenReplay READ clipOpenReplay WRITE setClipOpenReplay NOTIFY clipOpenReplayChanged)
+    Q_PROPERTY(QString clipAspect READ clipAspect WRITE setClipAspect NOTIFY clipAspectChanged)
+    Q_PROPERTY(int clipShortSide READ clipShortSide WRITE setClipShortSide NOTIFY clipShortSideChanged)
     Q_PROPERTY(QString hotkeyInstantReplay READ hotkeyInstantReplay WRITE setHotkeyInstantReplay NOTIFY hotkeyInstantReplayChanged)
     Q_PROPERTY(QString hotkeyRecord READ hotkeyRecord WRITE setHotkeyRecord NOTIFY hotkeyRecordChanged)
     Q_PROPERTY(QString hotkeyOcr READ hotkeyOcr WRITE setHotkeyOcr NOTIFY hotkeyOcrChanged)
@@ -658,6 +661,12 @@ public:
     U_SETTING(QString, replayWatermarkText, setReplayWatermarkText, "video/replayWatermarkText", QStringLiteral("Unisic"))
     U_SETTING(QString, replayWatermarkPosition, setReplayWatermarkPosition,
               "video/replayWatermarkPosition", QStringLiteral("bottom-right"))
+    // Clips (Settings > Clips). A saved instant replay opens in the clip
+    // editor; the editor starts with this frame ("original", "16:9", "9:16",
+    // "1:1") and output size (shorter side in px, 0 = as recorded).
+    U_SETTING(bool, clipOpenReplay, setClipOpenReplay, "clips/openReplay", false)
+    U_SETTING(QString, clipAspect, setClipAspect, "clips/aspect", QStringLiteral("original"))
+    U_SETTING(int, clipShortSide, setClipShortSide, "clips/shortSide", 0)
     U_SETTING(QString, hotkeyInstantReplay, setHotkeyInstantReplay,
               "hotkeys/instantReplay", QStringLiteral("Meta+Shift+I"))
     U_SETTING(QString, hotkeyRecord, setHotkeyRecord, "hotkeys/record", QStringLiteral(UNISIC_HOTKEY_RECORD))
@@ -835,6 +844,7 @@ public:
         emit separateAudioTracksChanged();
         emit instantReplaySecondsChanged(); emit hotkeyInstantReplayChanged(); emit instantReplayAutoChanged();
         emit replayWatermarkEnabledChanged(); emit replayWatermarkTextChanged(); emit replayWatermarkPositionChanged();
+        emit clipOpenReplayChanged(); emit clipAspectChanged(); emit clipShortSideChanged();
         emit showCapturePopupChanged(); emit capturePopupPositionChanged();
         emit capturePopupDurationSecChanged(); emit capturePopupStyleChanged(); emit capturePopupMarginChanged();
         emit hiddenNotifActionsChanged(); emit notificationActionOrderChanged();
@@ -968,6 +978,9 @@ signals:
     void replayWatermarkTextChanged();
     void replayWatermarkPositionChanged();
     void hotkeyInstantReplayChanged();
+    void clipOpenReplayChanged();
+    void clipAspectChanged();
+    void clipShortSideChanged();
     void hotkeyRecordChanged();
     void hotkeyOcrChanged();
     void hotkeyRecordScreenChanged();

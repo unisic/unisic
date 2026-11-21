@@ -178,7 +178,7 @@ Item {
                         // The record-gif / record-video actions start a region.
                         hotkey: page.gifMode ? App.settings.hotkeyGif : App.settings.hotkeyRecord
                         enabled: page.idle
-                        onOpenHotkeys: page.openSettings(7, "")
+                        onOpenHotkeys: page.openSettings(8, "")
                         onActivated: page.gifMode ? App.startGifRegion() : App.startVideoRegion()
                     }
                     SourceTile {

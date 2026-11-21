@@ -5,6 +5,7 @@
 #include "capture/KWinScreenShot2.h"
 #include "capture/ScrollCaptureController.h"
 #include "capture/KWinForceBlur.h"
+#include "capture/KWinWindowGeometry.h"
 #include "overlay/OverlayController.h"
 #include "upload/UploadManager.h"
 #include "actions/ExternalActionRunner.h"
@@ -582,7 +583,8 @@ bool AppContext::capRecordWindowSource() const
     // Window recording is resolved by the portal's window picker (or KWin's).
     // The X11 backend records a monitor rect and has no window source, so an
     // X11-only desktop can record screen and region but not a single window.
-    return m_screenCastPortalPresent;
+    // Windows records the target window's area instead (startVideoWindow).
+    return m_screenCastPortalPresent || QGuiApplication::platformName() == QLatin1String("windows");
 }
 
 bool AppContext::capScreenCastPortal() const
@@ -1731,10 +1733,53 @@ void AppContext::startVideoWindow()
                      "does not provide - record the screen or a region instead."), true);
         return;
     }
+    if (QGuiApplication::platformName() == QLatin1String("windows")) {
+        startVideoWindowArea();
+        return;
+    }
     m_pendingRecordRegion = QRect();
     m_pendingRecordScreen = nullptr; // stale target would misplace the countdown
     startRecorderCountdown([this](bool hold) {
         m_recorder->start(videoOutput(), GifRecorder::Window, {}, nullptr, hold);
+    });
+}
+
+// Windows has no window picker and the direct grab records a monitor rect, so
+// "a window" is the area of the window the active-window screenshot and the
+// overlay's W key aim at, recorded as a region (what ShareX does). Asked here,
+// at the trigger, before the countdown can take the foreground.
+// shortcut: the area is fixed at the start, so moving the window or covering
+// it shows in the recording; Windows.Graphics.Capture would follow the window.
+void AppContext::startVideoWindowArea()
+{
+    KWinWindowGeometry geom;
+    QRect logical;
+    QString error;
+    // The Windows implementation answers inside the call.
+    geom.queryActiveWindow([&](const QRect &r, const QString &e) {
+        logical = r;
+        error = e;
+    });
+    QScreen *screen = logical.isEmpty() ? nullptr : QGuiApplication::screenAt(logical.center());
+    if (!screen) {
+        qWarning() << "Window recording: no target window:" << error;
+        showToast(tr("No window to record. Click the window first, then start the recording."), true);
+        return;
+    }
+    // Screen-relative physical pixels, the contract of the region recorder.
+    const QRect g = screen->geometry();
+    const qreal dpr = screen->devicePixelRatio();
+    const QRect phys = QRect(qRound((logical.x() - g.x()) * dpr), qRound((logical.y() - g.y()) * dpr),
+                             qRound(logical.width() * dpr), qRound(logical.height() * dpr))
+                           .intersected(QRect(0, 0, qRound(g.width() * dpr), qRound(g.height() * dpr)));
+    if (phys.width() < 2 || phys.height() < 2) {
+        showToast(tr("No window to record. Click the window first, then start the recording."), true);
+        return;
+    }
+    m_pendingRecordRegion = phys;
+    m_pendingRecordScreen = screen;
+    startRecorderCountdown([this, phys, screen, dpr](bool hold) {
+        m_recorder->start(videoOutput(), GifRecorder::Region, phys, screen, hold, dpr);
     });
 }
 

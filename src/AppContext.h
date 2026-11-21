@@ -1107,6 +1107,7 @@ private:
     // countdown/cue runs, then commitRecordingAfterCue() releases encoding so no
     // countdown number and no start sound land in the recording.
     void startRecorderCountdown(std::function<void(bool)> begin);
+    void startVideoWindowArea(); // Windows: the target window's area as a region
     // Ticks the visible countdown (region frame number or toast), then commits.
     void runRecordCountdownVisuals(int secs);
     // Clears the number, plays the start cue, then commit()s encoding after a

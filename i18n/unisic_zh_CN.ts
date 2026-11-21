@@ -4,7 +4,7 @@
 <context>
     <name>AppContext</name>
     <message>
-        <location filename="../src/AppContext.cpp" line="+286"/>
+        <location filename="../src/AppContext.cpp" line="+287"/>
         <source>Encoding…</source>
         <translation>正在编码…</translation>
     </message>
@@ -19,25 +19,25 @@
         <translation>无法将 %1 移到回收站，文件仍在磁盘上</translation>
     </message>
     <message>
-        <location line="+3262"/>
+        <location line="+3306"/>
         <location line="+1883"/>
         <location line="+20"/>
         <source>Copied to clipboard</source>
         <translation>已复制到剪贴板</translation>
     </message>
     <message>
-        <location line="-4625"/>
+        <location line="-4668"/>
         <location line="+25"/>
         <source>Nothing to recognize</source>
         <translation>没有可识别的内容</translation>
     </message>
     <message>
-        <location line="-651"/>
+        <location line="-652"/>
         <source>Unisic %1 installed - it will start on the next launch</source>
         <translation>Unisic %1 已安装，下次启动时将使用新版本</translation>
     </message>
     <message>
-        <location line="+629"/>
+        <location line="+630"/>
         <source>Recognizing text…</source>
         <translation>正在识别文本…</translation>
     </message>
@@ -82,7 +82,7 @@
         <translation>Dev: 形状编辑：%1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="+5293"/>
+        <location filename="../src/AppContext.cpp" line="+5336"/>
         <location filename="../src/diag/SmokeTests.cpp" line="+818"/>
         <location line="+3580"/>
         <source>Quit</source>
@@ -114,7 +114,7 @@
         <translation>Dev: 释放时截图：%1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="-6169"/>
+        <location filename="../src/AppContext.cpp" line="-6213"/>
         <source>Opened a terminal to install the update.</source>
         <translation>已打开终端以安装更新。</translation>
     </message>
@@ -124,7 +124,7 @@
         <translation>无法启动更新：%1</translation>
     </message>
     <message>
-        <location line="+942"/>
+        <location line="+943"/>
         <source>Reading key presses needs access to input devices. Run “%1”, then log out and back in.</source>
         <translation>读取按键需要访问输入设备。运行 “%1”，然后注销并重新登录。</translation>
     </message>
@@ -173,7 +173,7 @@
         <translation>无屏幕</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="+348"/>
+        <location filename="../src/AppContext.cpp" line="+391"/>
         <source>No log file was opened for this run</source>
         <translation>本次运行没有打开日志文件</translation>
     </message>
@@ -460,7 +460,7 @@
         <translation>已上传，链接已复制</translation>
     </message>
     <message>
-        <location line="-3410"/>
+        <location line="-3454"/>
         <source>Unisic %1 is available - updating automatically</source>
         <translation>Unisic %1 已发布，正在自动更新</translation>
     </message>
@@ -476,7 +476,7 @@
         <translation>即时回放失败：%1</translation>
     </message>
     <message>
-        <location line="+755"/>
+        <location line="+756"/>
         <location line="+5"/>
         <source>Capture in %1…</source>
         <translation>将在 %1 秒后截图…</translation>
@@ -516,7 +516,7 @@
         <translation>截图已取消</translation>
     </message>
     <message>
-        <location line="+308"/>
+        <location line="+351"/>
         <source>Start instant replay first</source>
         <translation>请先启动即时回放</translation>
     </message>
@@ -1208,18 +1208,24 @@
         <translation>无法编码截图</translation>
     </message>
     <message>
-        <location line="-3342"/>
+        <location line="-3386"/>
         <source>It installs itself in the background. Click to open Unisic.</source>
         <translation>更新会在后台自动安装。点击打开 Unisic。</translation>
     </message>
     <message>
-        <location line="+1182"/>
+        <location line="+1183"/>
         <location line="+1"/>
         <source>Selection is too small for scrolling capture</source>
         <translation>选区太小，无法进行滚动截图</translation>
     </message>
     <message>
-        <location line="+734"/>
+        <location line="+385"/>
+        <location line="+10"/>
+        <source>No window to record. Click the window first, then start the recording.</source>
+        <translation>没有可录制的窗口。请先点击该窗口，再开始录制。</translation>
+    </message>
+    <message>
+        <location line="+382"/>
         <location line="+11"/>
         <source>Found.</source>
         <translation>已找到。</translation>
@@ -1795,12 +1801,12 @@
         <translation>开始/保存即时回放</translation>
     </message>
     <message>
-        <location line="-4268"/>
+        <location line="-4311"/>
         <source>No monitor named %1. Connected: %2</source>
         <translation>没有名为 %1 的显示器。已连接的显示器：%2</translation>
     </message>
     <message>
-        <location line="+607"/>
+        <location line="+650"/>
         <source>Missing from this install. The Tesseract &quot;osd&quot; pack is required for OCR script detection.</source>
         <translation>当前安装缺少该组件。OCR 书写系统检测需要 Tesseract 的 “osd” 语言包。</translation>
     </message>

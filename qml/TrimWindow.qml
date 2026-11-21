@@ -47,7 +47,8 @@ Window {
     property bool lossless: false
     readonly property bool snapping: lossless && !trimController.gif
                                      && trimController.keyframeState === TrimController.Ready
-    // Which handle the pointer is dragging (0 none, 1 in, 2 out) - the preview
+    // What the pointer is dragging (0 nothing, 1 in, 2 out, 3 the whole
+    // selection) - the preview
     // follows it, so you always see the frame you are placing.
     property int activeHandle: 0
     // One source frame, in seconds (ffprobe avg_frame_rate; 30 fps fallback).
@@ -489,7 +490,7 @@ Window {
                     Text {
                         id: edgeLabel
                         anchors.centerIn: parent
-                        text: trimWindow.activeHandle === 1
+                        text: trimWindow.activeHandle !== 2
                               ? qsTr("First frame · %1").arg(trimWindow.fmt(trimWindow.trimStart))
                               : qsTr("Last frame · %1").arg(trimWindow.fmt(trimWindow.trimEnd))
                         color: Theme.accent; font.pixelSize: Theme.fontS; font.weight: Font.DemiBold
@@ -709,12 +710,70 @@ Window {
                                 }
                             }
 
-                            // Click / drag anywhere on the strip to move the playhead.
+                            // Outside the selection a click or drag moves the playhead.
+                            // Inside it a drag past a few pixels moves the whole
+                            // selection, its length kept; a plain click there still
+                            // seeks, on release, once it is clear it was no drag.
                             MouseArea {
+                                id: stripMouse
                                 anchors.fill: parent
-                                enabled: hasPreview
-                                onPressed: (m) => trimWindow.seekTo(timeline.timeAt(m.x))
-                                onPositionChanged: (m) => trimWindow.scrubTo(timeline.timeAt(m.x))
+                                hoverEnabled: true
+                                property int mode: 0          // 0 scrub, 1 may move, 2 moving
+                                property real pressX: 0
+                                property real pressStart: 0
+                                property real pressLength: 0
+                                function inSelection(x) {
+                                    return x >= timeline.xOf(trimWindow.trimStart)
+                                           && x <= timeline.xOf(trimWindow.trimEnd)
+                                }
+                                cursorShape: mode === 2 ? Qt.ClosedHandCursor
+                                             : (containsMouse && inSelection(mouseX) ? Qt.OpenHandCursor
+                                                                                     : Qt.ArrowCursor)
+                                onPressed: (m) => {
+                                    pressX = m.x
+                                    pressStart = trimWindow.trimStart
+                                    pressLength = trimWindow.trimEnd - trimWindow.trimStart
+                                    mode = inSelection(m.x) ? 1 : 0
+                                    if (mode === 0)
+                                        trimWindow.seekTo(timeline.timeAt(m.x))
+                                }
+                                onPositionChanged: (m) => {
+                                    if (!pressed)
+                                        return
+                                    if (mode === 0) {
+                                        trimWindow.scrubTo(timeline.timeAt(m.x))
+                                        return
+                                    }
+                                    if (mode === 1) {
+                                        if (Math.abs(m.x - pressX) < 5)
+                                            return
+                                        mode = 2
+                                        trimWindow.activeHandle = 3
+                                        if (previewLoader.item)
+                                            previewLoader.item.pause()
+                                    }
+                                    const dt = (m.x - pressX) / Math.max(1, track.width) * trimWindow.duration
+                                    let start = Math.max(0, Math.min(pressStart + dt, trimWindow.duration - pressLength))
+                                    if (trimWindow.snapping)
+                                        start = trimController.snapStart(start)
+                                    trimWindow.trimStart = start
+                                    trimWindow.trimEnd = Math.min(start + pressLength, trimWindow.duration)
+                                    trimWindow.scrubTo(start)
+                                }
+                                onReleased: (m) => {
+                                    if (mode === 2) {
+                                        trimWindow.activeHandle = 0
+                                        trimWindow.seekTo(trimWindow.trimStart)
+                                    } else if (mode === 1) {
+                                        trimWindow.seekTo(timeline.timeAt(m.x))
+                                    }
+                                    mode = 0
+                                }
+                                onCanceled: {
+                                    if (mode === 2)
+                                        trimWindow.activeHandle = 0
+                                    mode = 0
+                                }
                                 // The keyboard equivalent lives at window level (the
                                 // `keys` Item: arrows scrub, Home/End jump), so this
                                 // reports the value and points at those keys instead of
@@ -1014,5 +1073,6 @@ Window {
             }
         }
     }
+    WindowOutline {}
     UWindowResizer { active: !App.settings.useSystemDecoration }
 }

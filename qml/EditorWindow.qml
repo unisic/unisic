@@ -2614,5 +2614,6 @@ Window {
             }
         }
     }
+    WindowOutline {}
     UWindowResizer { active: !App.settings.useSystemDecoration }
 }

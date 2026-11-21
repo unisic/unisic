@@ -2334,10 +2334,28 @@ Item {
                             onActivated: (i) => App.settings.clipIndicatorStyle = ids[i]
                         }
                     }
+                    SettingRow {
+                        label: qsTr("Recording dot")
+                        help: qsTr("A small red dot stays in a corner of the screen for as long as instant replay records.")
+                        helpDetail: qsTr("It never takes a click. Instant replay records what is on the screen, so with Whole screen the dot is in your clips too; Game window on KDE Plasma leaves it out.")
+                        USwitch { checked: App.settings.clipStatusDot; onToggled: (c) => App.settings.clipStatusDot = c }
+                    }
+                    SettingRow {
+                        available: App.settings.clipStatusDot
+                        label: qsTr("Dot corner")
+                        UComboBox {
+                            width: 220
+                            readonly property var ids: ["top-left", "top-right", "bottom-left", "bottom-right"]
+                            model: [qsTr("Top left"), qsTr("Top right"), qsTr("Bottom left"), qsTr("Bottom right")]
+                            currentIndex: Math.max(0, ids.indexOf(App.settings.clipStatusCorner))
+                            onActivated: (i) => App.settings.clipStatusCorner = ids[i]
+                        }
+                    }
                     ClipOsdPreview {
                         width: parent.width
                         look: App.settings.clipIndicatorStyle
-                        opacity: App.settings.clipIndicator ? 1 : 0.5
+                        dotCorner: App.settings.clipStatusDot ? App.settings.clipStatusCorner : ""
+                        opacity: App.settings.clipIndicator || App.settings.clipStatusDot ? 1 : 0.5
                     }
                     Text {
                         id: clipDirLabel

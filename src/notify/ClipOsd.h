@@ -25,15 +25,24 @@ public:
 
     // tone: "rec", "busy", "ok" or "error" (ClipOsd.qml).
     void show(const QString &title, const QString &detail, const QString &tone, int ms = 2600);
+    // The steady dot in `corner` ("top-left", "bottom-right"...) while instant
+    // replay runs (ClipStatusDot.qml): on/off, the corner change re-places it.
+    // Same surface rules as the pill; one window or one helper process.
+    void setStatusDot(bool on, const QString &corner);
 
 private:
+    QProcess *spawnHelper(const QStringList &extra);
     AppContext *m_app;
     bool m_layerShell;
     QPointer<QQuickWindow> m_win;
     QProcess *m_helper = nullptr;
+    QPointer<QQuickWindow> m_dot;
+    QProcess *m_dotHelper = nullptr;
+    QString m_dotCorner; // the corner the live dot sits in; empty while off
 };
 
-// `unisic --osd-helper <screen> <x> <y> <w> <h>`: the XWayland/X11 host of
-// ClipOsd.qml. Reads "title\tdetail\ttone\tms\tlook" lines on stdin, quits once the
-// pill fades out or stdin closes, so it never outlives the parent.
+// `unisic --osd-helper <screen> <x> <y> <w> <h> [dot <corner>]`: the XWayland/X11
+// host of ClipOsd.qml. Reads "title\tdetail\ttone\tms\tlook" lines on stdin, quits
+// once the pill fades out or stdin closes, so it never outlives the parent.
+// With "dot" it shows ClipStatusDot.qml in that corner until stdin closes.
 int runOsdHelper(int argc, char *argv[]);

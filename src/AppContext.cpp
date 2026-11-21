@@ -314,6 +314,12 @@ AppContext::AppContext(QObject *parent)
         continueAfterRecording();
     });
     connect(m_settings, &Settings::instantReplayAutoChanged, this, &AppContext::applyInstantReplayAuto);
+    // Queued: the recorder signals before it is fully idle, and the ring must
+    // read as stopped by then or the dot comes back after a stop.
+    connect(this, &AppContext::recordingChanged, this, &AppContext::updateReplayDot, Qt::QueuedConnection);
+    connect(m_recorder, &GifRecorder::failed, this, &AppContext::updateReplayDot, Qt::QueuedConnection);
+    connect(m_settings, &Settings::clipStatusDotChanged, this, &AppContext::updateReplayDot);
+    connect(m_settings, &Settings::clipStatusCornerChanged, this, &AppContext::updateReplayDot);
     // After startup settles (portal probe, tray), not on the startup path.
     QTimer::singleShot(3000, this, &AppContext::applyInstantReplayAuto);
     connect(m_recorder, &GifRecorder::replayExportFailed, this, [this](const QString &error) {
@@ -1863,6 +1869,17 @@ void AppContext::saveInstantReplay()
     showClipIndicator(tr("Saving clip…"), QString(), QStringLiteral("busy"), 120000);
     m_recorder->saveInstantReplay();
     showToast(tr("Saving instant replay…"));
+}
+
+void AppContext::updateReplayDot()
+{
+    const bool on = m_settings->clipStatusDot() && m_recorder->instantReplayActive() && !m_converting
+                    && !QCoreApplication::closingDown();
+    if (!on && !m_clipOsd)
+        return;
+    if (!m_clipOsd)
+        m_clipOsd = new ClipOsd(this, m_layerShellAvailable, this);
+    m_clipOsd->setStatusDot(on, m_settings->clipStatusCorner());
 }
 
 void AppContext::showClipIndicator(const QString &title, const QString &detail,

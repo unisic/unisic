@@ -333,6 +333,7 @@ qt_add_qml_module(unisic
         qml/NotificationPopup.qml
         qml/RecordBorder.qml
         qml/ClipOsd.qml
+        qml/ClipStatusDot.qml
         qml/ScrollCaptureOverlay.qml
         qml/PreviewWindow.qml
         qml/TrimWindow.qml
@@ -364,6 +365,7 @@ qt_add_qml_module(unisic
         qml/components/RecentStrip.qml
         qml/components/ClipOsdPill.qml
         qml/components/ClipOsdPreview.qml
+        qml/components/ClipStatusDotMark.qml
         qml/components/HeaderButton.qml
         qml/components/WindowOutline.qml
         qml/components/FilterToggle.qml

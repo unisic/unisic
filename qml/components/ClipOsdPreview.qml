@@ -3,11 +3,13 @@ import Unisic
 import Unisic.Kit
 
 // Settings > Clips: the clip indicator in the chosen style, in its three
-// usual states, on a mock screen. The pills are the real ClipOsdPill and the
+// usual states, on a mock screen, with the status dot in its corner. The pills are the real ClipOsdPill and the
 // texts the ones AppContext shows, so what is seen here is what a game gets.
 Item {
     id: root
     property string look: "pill"
+    // The status dot's corner, "" while it is off.
+    property string dotCorner: ""
     implicitHeight: 132
     Accessible.role: Accessible.Graphic
     Accessible.name: qsTr("Indicator preview")
@@ -28,6 +30,13 @@ Item {
                 GradientStop { position: 1.0; color: Qt.rgba(Theme.secondary.r, Theme.secondary.g, Theme.secondary.b, 0.16) }
             }
         }
+    }
+
+    ClipStatusDotMark {
+        visible: root.dotCorner !== ""
+        x: root.dotCorner.endsWith("left") ? 10 : root.width - width - 10
+        y: root.dotCorner.startsWith("top") ? 10 : root.height - height - 10
+        Accessible.ignored: true
     }
 
     Row {

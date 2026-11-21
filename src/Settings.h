@@ -167,6 +167,8 @@ class Settings : public QObject
     Q_PROPERTY(QString clipSource READ clipSource WRITE setClipSource NOTIFY clipSourceChanged)
     Q_PROPERTY(bool clipKeepSession READ clipKeepSession WRITE setClipKeepSession NOTIFY clipKeepSessionChanged)
     Q_PROPERTY(QString clipSessionDirectory READ clipSessionDirectory WRITE setClipSessionDirectory NOTIFY clipSessionDirectoryChanged)
+    Q_PROPERTY(bool clipStatusDot READ clipStatusDot WRITE setClipStatusDot NOTIFY clipStatusDotChanged)
+    Q_PROPERTY(QString clipStatusCorner READ clipStatusCorner WRITE setClipStatusCorner NOTIFY clipStatusCornerChanged)
     Q_PROPERTY(QStringList recentGames READ recentGames WRITE setRecentGames NOTIFY recentGamesChanged)
     Q_PROPERTY(QString hotkeyReplayToggle READ hotkeyReplayToggle WRITE setHotkeyReplayToggle NOTIFY hotkeyReplayToggleChanged)
     Q_PROPERTY(QString hotkeyInstantReplay READ hotkeyInstantReplay WRITE setHotkeyInstantReplay NOTIFY hotkeyInstantReplayChanged)
@@ -689,6 +691,10 @@ public:
     // Where session recordings and their ring go; empty = the clips folder.
     // A big second disk is the point: the ring of a 4 h session is tens of GB.
     U_SETTING(QString, clipSessionDirectory, setClipSessionDirectory, "clips/sessionDirectory", QString())
+    // A steady dot in a screen corner while instant replay runs (ClipOsd::
+    // setStatusDot), in "top-left" / "top-right" / "bottom-left" / "bottom-right".
+    U_SETTING(bool, clipStatusDot, setClipStatusDot, "clips/statusDot", false)
+    U_SETTING(QString, clipStatusCorner, setClipStatusCorner, "clips/statusCorner", QStringLiteral("top-right"))
     // What instant replay records: "screen" (the monitor under the pointer)
     // or "window" (the game's window, else the window in front when it starts;
     // AppContext::startReplayRing).
@@ -877,7 +883,7 @@ public:
         emit replayWatermarkEnabledChanged(); emit replayWatermarkTextChanged(); emit replayWatermarkPositionChanged();
         emit clipOpenReplayChanged(); emit clipAspectChanged(); emit clipShortSideChanged();
         emit clipSaveDirectoryChanged(); emit clipIndicatorChanged(); emit hotkeyReplayToggleChanged();
-        emit clipIndicatorStyleChanged(); emit clipKeepSessionChanged(); emit clipSessionDirectoryChanged(); emit clipSourceChanged(); emit recentGamesChanged();
+        emit clipIndicatorStyleChanged(); emit clipKeepSessionChanged(); emit clipSessionDirectoryChanged(); emit clipStatusDotChanged(); emit clipStatusCornerChanged(); emit clipSourceChanged(); emit recentGamesChanged();
         emit showCapturePopupChanged(); emit capturePopupPositionChanged();
         emit capturePopupDurationSecChanged(); emit capturePopupStyleChanged(); emit capturePopupMarginChanged();
         emit hiddenNotifActionsChanged(); emit notificationActionOrderChanged();
@@ -1019,6 +1025,8 @@ signals:
     void clipIndicatorStyleChanged();
     void clipKeepSessionChanged();
     void clipSessionDirectoryChanged();
+    void clipStatusDotChanged();
+    void clipStatusCornerChanged();
     void clipSourceChanged();
     void recentGamesChanged();
     void hotkeyReplayToggleChanged();

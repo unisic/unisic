@@ -1162,6 +1162,8 @@ private:
     // The on-screen clip pill (Settings > Clips > indicator); see ClipOsd.
     void showClipIndicator(const QString &title, const QString &detail, const QString &tone,
                            int ms = 2600);
+    // The steady corner dot (Settings > Clips): on while the ring records.
+    void updateReplayDot();
     bool m_recordBorderCountdownOnly = false; // frame is a bare countdown (full-screen/window)
     int m_pendingCountdownSecs = 0;  // visible countdown length for the hold
     CaptureNotification *showCaptureNotification(const QImage &img, const QString &path,

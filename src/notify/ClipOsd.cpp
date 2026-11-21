@@ -21,7 +21,9 @@
 
 namespace {
 const QString kQml = QStringLiteral("qrc:/qt/qml/Unisic/qml/ClipOsd.qml");
+const QString kDotQml = QStringLiteral("qrc:/qt/qml/Unisic/qml/ClipStatusDot.qml");
 constexpr int kTop = 32; // px below the top edge, clear of a panel's shadow
+constexpr int kDotEdge = 12; // the dot's distance from its corner
 
 // One protocol line; tabs and newlines inside a field would split it.
 QByteArray osdLine(const QString &title, const QString &detail, const QString &tone, int ms,
@@ -50,12 +52,15 @@ ClipOsd::ClipOsd(AppContext *app, bool layerShell, QObject *parent)
 
 ClipOsd::~ClipOsd()
 {
-    if (m_helper) {
-        m_helper->closeWriteChannel(); // the helper quits on EOF
-        if (!m_helper->waitForFinished(500))
-            m_helper->kill();
+    for (QProcess *helper : {m_helper, m_dotHelper}) {
+        if (!helper)
+            continue;
+        helper->closeWriteChannel(); // the helper quits on EOF
+        if (!helper->waitForFinished(500))
+            helper->kill();
     }
     delete m_win;
+    delete m_dot;
 }
 
 void ClipOsd::show(const QString &title, const QString &detail, const QString &tone, int ms)
@@ -96,39 +101,86 @@ void ClipOsd::show(const QString &title, const QString &detail, const QString &t
         m_helper->write(osdLine(title, detail, tone, ms, look));
         return;
     }
+    if (QProcess *proc = spawnHelper({})) {
+        proc->write(osdLine(title, detail, tone, ms, look)); // buffered until the helper reads
+        m_helper = proc;
+    }
+}
+
+QProcess *ClipOsd::spawnHelper(const QStringList &extra)
+{
     const bool x11 = QGuiApplication::platformName() == QLatin1String("xcb");
     if (!x11 && !qEnvironmentVariableIsSet("DISPLAY"))
-        return; // no layer-shell and no X server: nowhere to stack above a game
+        return nullptr; // no layer-shell and no X server: nowhere to stack above a game
     QScreen *screen = QGuiApplication::screenAt(QCursor::pos());
     if (!screen)
         screen = QGuiApplication::primaryScreen();
     if (!screen)
-        return;
+        return nullptr;
     const QRect g = screen->geometry();
     auto *proc = new QProcess(this);
     proc->setProgram(QCoreApplication::applicationFilePath());
-    proc->setArguments({QStringLiteral("--osd-helper"), screen->name(),
-                        QString::number(g.x()), QString::number(g.y()),
-                        QString::number(g.width()), QString::number(g.height())});
+    proc->setArguments(QStringList{QStringLiteral("--osd-helper"), screen->name(),
+                                   QString::number(g.x()), QString::number(g.y()),
+                                   QString::number(g.width()), QString::number(g.height())}
+                       + extra);
     proc->setProcessChannelMode(QProcess::ForwardedOutputChannel);
     connect(proc, &QProcess::readyReadStandardError, this, [proc] {
         DiagLog::appendChildOutput(QStringLiteral("osd-helper"), proc->readAllStandardError());
     });
-    connect(proc, &QProcess::finished, this, [this, proc] {
+    const auto gone = [this, proc] {
         if (m_helper == proc)
             m_helper = nullptr;
+        if (m_dotHelper == proc)
+            m_dotHelper = nullptr;
         proc->deleteLater();
-    });
-    connect(proc, &QProcess::errorOccurred, this, [this, proc](QProcess::ProcessError e) {
-        if (e != QProcess::FailedToStart)
-            return;
-        if (m_helper == proc)
-            m_helper = nullptr;
-        proc->deleteLater();
+    };
+    connect(proc, &QProcess::finished, this, gone);
+    connect(proc, &QProcess::errorOccurred, this, [gone](QProcess::ProcessError e) {
+        if (e == QProcess::FailedToStart)
+            gone();
     });
     proc->start();
-    proc->write(osdLine(title, detail, tone, ms, look)); // buffered until the helper reads
-    m_helper = proc;
+    return proc;
+}
+
+void ClipOsd::setStatusDot(bool on, const QString &corner)
+{
+    const QString want = on ? corner : QString();
+    if (want == m_dotCorner)
+        return;
+    // Off, or moving to another corner: the old surface goes first.
+    if (m_dotHelper) {
+        m_dotHelper->closeWriteChannel(); // the helper quits on EOF
+        m_dotHelper = nullptr;            // its finished handler deletes it
+    }
+    if (m_dot)
+        m_dot->deleteLater();
+    m_dotCorner = want;
+    if (!on)
+        return;
+
+    if (m_layerShell || LayerShellNotifier::placesCardItself()) {
+        QQmlEngine *engine = m_app->qmlEngine();
+        if (!engine)
+            return;
+        QQmlComponent component(engine, QUrl(kDotQml));
+        auto *win = qobject_cast<QQuickWindow *>(component.create());
+        if (!win) {
+            qWarning() << component.errorString();
+            return;
+        }
+        QScreen *screen = QGuiApplication::screenAt(QCursor::pos());
+        if (!screen)
+            screen = QGuiApplication::primaryScreen();
+        if (screen)
+            win->setScreen(screen);
+        LayerShellNotifier::place(win, screen, corner, kDotEdge);
+        win->show();
+        m_dot = win;
+        return;
+    }
+    m_dotHelper = spawnHelper({QStringLiteral("dot"), corner});
 }
 
 int runOsdHelper(int argc, char *argv[])
@@ -149,10 +201,12 @@ int runOsdHelper(int argc, char *argv[])
         return 2;
     const QString name = args[i + 1];
     const QRect logical(args[i + 2].toInt(), args[i + 3].toInt(), args[i + 4].toInt(), args[i + 5].toInt());
+    const bool dot = i + 7 < args.size() && args[i + 6] == QLatin1String("dot");
+    const QString corner = dot ? args[i + 7] : QString();
 
     QQmlEngine engine;
     engine.addImageProvider(QStringLiteral("icon"), new IconImageProvider(nullptr));
-    QQmlComponent component(&engine, QUrl(kQml));
+    QQmlComponent component(&engine, QUrl(dot ? kDotQml : kQml));
     auto *win = qobject_cast<QQuickWindow *>(component.create());
     if (!win) {
         std::fputs(component.errorString().toUtf8().constData(), stderr);
@@ -167,8 +221,18 @@ int runOsdHelper(int argc, char *argv[])
     if (target)
         win->setScreen(target);
     win->setFlags(win->flags() | Qt::BypassWindowManagerHint);
-    win->setPosition(sg.x() + (sg.width() - win->width()) / 2, sg.y() + kTop);
-    QObject::connect(win, SIGNAL(done()), &app, SLOT(quit()));
+    if (dot) {
+        // Inside the panels, like layer-shell's exclusive zones and Windows'
+        // availableGeometry, so the dot is never under a taskbar.
+        const QRect area = target ? target->availableGeometry() : logical;
+        const bool top = corner.startsWith(QLatin1String("top"));
+        const bool left = corner.endsWith(QLatin1String("left"));
+        win->setPosition(left ? area.left() + kDotEdge : area.right() + 1 - kDotEdge - win->width(),
+                         top ? area.top() + kDotEdge : area.bottom() + 1 - kDotEdge - win->height());
+    } else {
+        win->setPosition(sg.x() + (sg.width() - win->width()) / 2, sg.y() + kTop);
+        QObject::connect(win, SIGNAL(done()), &app, SLOT(quit()));
+    }
     win->show();
 
     // stdin lines: title \t detail \t tone \t ms \t look. EOF (parent gone) quits.

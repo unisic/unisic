@@ -6,6 +6,7 @@
 #include <QProcess>
 #include <QPointer>
 #include <QFutureWatcher>
+#include <QImage>
 #include <QList>
 #include <functional>
 #include <memory>
@@ -90,7 +91,7 @@ public:
                                        const QList<QPair<qint64, qint64>> &intervalsMs,
                                        bool hasAudio);
     static int replaySegmentCount(int seconds)
-    { return qBound(3, qBound(10, seconds, 600) / 2 + 2, 302); }
+    { return qBound(3, qBound(10, seconds, 3600) / 2 + 2, 1802); }
 
     // cropPhysical: region in stream (physical) pixels; empty = full stream.
     // For Window source the portal picks the window; crop is ignored.
@@ -133,6 +134,9 @@ signals:
     void finished(const QString &filePath, bool fromInstantReplay = false);
     void failed(const QString &error);
     void replayExportFailed(const QString &error);
+    // 0..1 while a stopped recording is converted or a replay is written out.
+    // The receiver resets it on finished/failed/replayExportFailed.
+    void saveProgress(qreal fraction);
     void elapsedChanged();
     void pausedChanged();
 
@@ -282,4 +286,16 @@ private:
     QString m_replaySnapshotDir;
     QString m_replayExportPath;
     QProcess *m_replayExporter = nullptr;
+    QFutureWatcher<QStringList> *m_replaySnapshot = nullptr; // copy phase of a replay save
+    int m_replayWrap = 0;          // segment_wrap of the running ring
+    // The replay watermark, rendered once per ring and cropped to its own
+    // pixels so each frame blends only that rectangle.
+    QImage m_replayStamp;
+    QPoint m_replayStampAt;
+    qint64 m_convertTotalMs = 0;   // recorded length, for conversion progress
+    qreal m_progressFrom = 0;      // where the next conversion pass starts on the bar
+    // Adds the ffmpeg "-progress pipe:1" reader to p (call before start): maps
+    // out_time over totalMs onto [from, to] of saveProgress. Errors stay on stderr.
+    void watchProgress(QProcess *p, qint64 totalMs, qreal from, qreal to);
+    void exportReplaySnapshot(const QString &snapshot, const QStringList &linked);
 };

@@ -37,8 +37,9 @@ Draw on the selection before the shot is taken · polish it in the editor · rec
 - **Capture**: full screen, a region, the active window, or a scrolling page taller than the screen. Draw arrows, shapes, text, blur and numbered steps on the selection before the shot is taken.
 - **Edit**: crop, highlight, pixelate, magnifier, spotlight, stickers, rotate, resize, remove the background on your own computer, and more.
 - **Record**: a region, the full screen or a window as GIF, MP4 or WebM, with system and microphone sound.
+- **Instant replay**: keep the last seconds, or up to an hour, of the screen and save them with one key. It can start with Unisic or only while a game runs (Steam, GameMode).
 - **Read**: copy the text out of any region (OCR) or scan a QR code or barcode. On Linux the text is read by PaddleOCR, shipped with Unisic, for Latin-script languages and Chinese; Tesseract covers the other scripts.
-- **Share**: upload to your own HTTP server, ShareX `.sxcu` destinations, FTP/SFTP, S3 or a built-in host, and the link is copied for you.
+- **Share**: upload to your own HTTP server, ShareX `.sxcu` destinations, FTP/SFTP, S3 or a built-in host. The link can be copied for you (on by default).
 - **Remember**: a history of every capture, themes and a translated interface.
 
 Built for **Linux Wayland** on the system's own APIs (xdg-desktop-portal, KWin ScreenShot2, PipeWire). KDE Plasma gets the silent native path, GNOME and wlroots desktops go through the portals ([compositor support](https://unisic.app/docs/compositors)). No telemetry, no account. The only thing Unisic does online by itself is check GitHub for a new release (and download it, where Unisic updates itself), and one switch turns that off ([privacy policy](PRIVACY.md)).

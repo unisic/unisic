@@ -154,6 +154,10 @@ class Settings : public QObject
     Q_PROPERTY(bool separateAudioTracks READ separateAudioTracks WRITE setSeparateAudioTracks NOTIFY separateAudioTracksChanged)
     Q_PROPERTY(QString videoEncoder READ videoEncoder WRITE setVideoEncoder NOTIFY videoEncoderChanged)
     Q_PROPERTY(int instantReplaySeconds READ instantReplaySeconds WRITE setInstantReplaySeconds NOTIFY instantReplaySecondsChanged)
+    Q_PROPERTY(QString instantReplayAuto READ instantReplayAuto WRITE setInstantReplayAuto NOTIFY instantReplayAutoChanged)
+    Q_PROPERTY(bool replayWatermarkEnabled READ replayWatermarkEnabled WRITE setReplayWatermarkEnabled NOTIFY replayWatermarkEnabledChanged)
+    Q_PROPERTY(QString replayWatermarkText READ replayWatermarkText WRITE setReplayWatermarkText NOTIFY replayWatermarkTextChanged)
+    Q_PROPERTY(QString replayWatermarkPosition READ replayWatermarkPosition WRITE setReplayWatermarkPosition NOTIFY replayWatermarkPositionChanged)
     Q_PROPERTY(QString hotkeyInstantReplay READ hotkeyInstantReplay WRITE setHotkeyInstantReplay NOTIFY hotkeyInstantReplayChanged)
     Q_PROPERTY(QString hotkeyRecord READ hotkeyRecord WRITE setHotkeyRecord NOTIFY hotkeyRecordChanged)
     Q_PROPERTY(QString hotkeyOcr READ hotkeyOcr WRITE setHotkeyOcr NOTIFY hotkeyOcrChanged)
@@ -644,6 +648,16 @@ public:
     U_SETTING(QString, videoEncoder, setVideoEncoder, "video/encoder", QStringLiteral("auto"))
     U_SETTING(int, instantReplaySeconds, setInstantReplaySeconds,
               "video/instantReplaySeconds", 30)
+    // Starts the replay ring by itself: "off", "launch" (with Unisic) or
+    // "game" (while GameDetector sees a game).
+    U_SETTING(QString, instantReplayAuto, setInstantReplayAuto,
+              "video/instantReplayAuto", QStringLiteral("off"))
+    // The instant replay's own text mark, separate from the screenshot
+    // watermark (image/watermark*): burned into the ring's frames.
+    U_SETTING(bool, replayWatermarkEnabled, setReplayWatermarkEnabled, "video/replayWatermarkEnabled", false)
+    U_SETTING(QString, replayWatermarkText, setReplayWatermarkText, "video/replayWatermarkText", QStringLiteral("Unisic"))
+    U_SETTING(QString, replayWatermarkPosition, setReplayWatermarkPosition,
+              "video/replayWatermarkPosition", QStringLiteral("bottom-right"))
     U_SETTING(QString, hotkeyInstantReplay, setHotkeyInstantReplay,
               "hotkeys/instantReplay", QStringLiteral("Meta+Shift+I"))
     U_SETTING(QString, hotkeyRecord, setHotkeyRecord, "hotkeys/record", QStringLiteral(UNISIC_HOTKEY_RECORD))
@@ -819,7 +833,8 @@ public:
         emit recordAppAudioAppsChanged(); emit microphoneSourceChanged();
         emit videoEncoderChanged();
         emit separateAudioTracksChanged();
-        emit instantReplaySecondsChanged(); emit hotkeyInstantReplayChanged();
+        emit instantReplaySecondsChanged(); emit hotkeyInstantReplayChanged(); emit instantReplayAutoChanged();
+        emit replayWatermarkEnabledChanged(); emit replayWatermarkTextChanged(); emit replayWatermarkPositionChanged();
         emit showCapturePopupChanged(); emit capturePopupPositionChanged();
         emit capturePopupDurationSecChanged(); emit capturePopupStyleChanged(); emit capturePopupMarginChanged();
         emit hiddenNotifActionsChanged(); emit notificationActionOrderChanged();
@@ -948,6 +963,10 @@ signals:
     void videoEncoderChanged();
     void separateAudioTracksChanged();
     void instantReplaySecondsChanged();
+    void instantReplayAutoChanged();
+    void replayWatermarkEnabledChanged();
+    void replayWatermarkTextChanged();
+    void replayWatermarkPositionChanged();
     void hotkeyInstantReplayChanged();
     void hotkeyRecordChanged();
     void hotkeyOcrChanged();

@@ -1782,7 +1782,7 @@ Item {
                     SettingRow {
                         label: qsTr("Upload to the active server")
                         help: qsTr("Uploads every capture immediately after taking it.")
-                        helpDetail: qsTr("Uses the server selected on the Servers page. The result link can be auto-copied or opened via the options below.")
+                        helpDetail: qsTr("Uses the server selected on the Servers page. What happens with the link afterwards is set under After upload.")
                         USwitch { checked: App.settings.uploadAfterCapture; onToggled: (c) => App.settings.uploadAfterCapture = c }
                     }
                     SettingRow {
@@ -1800,12 +1800,6 @@ Item {
                     width: parent.width
                     spacing: Theme.spacingS
                     SectionTitle { text: qsTr("After upload") }
-                    SettingRow {
-                        label: qsTr("Copy link to clipboard")
-                        help: qsTr("Copies the upload URL once the upload finishes.")
-                        helpDetail: qsTr("Ready to paste anywhere. Combine with auto-upload for a seamless capture-to-link flow.")
-                        USwitch { checked: App.settings.afterUploadCopyLink; onToggled: (c) => App.settings.afterUploadCopyLink = c }
-                    }
                     SettingRow {
                         label: qsTr("Open link in browser")
                         help: qsTr("Opens the uploaded file's URL in your browser.")
@@ -1841,6 +1835,22 @@ Item {
                         help: qsTr("After a capture or recording uploads on its own, its local file goes to the trash.")
                         helpDetail: qsTr("History keeps the entry and its link. Uploads you start by hand keep their file, and so does every capture while an after-capture program is set, because that program may still be reading it.")
                         USwitch { checked: App.settings.afterUploadTrashFile; onToggled: (c) => App.settings.afterUploadTrashFile = c }
+                    }
+                    // Uploading and copying the link are two decisions: the link
+                    // stays in the toast, the notification and History either way.
+                    DisclosureRow {
+                        id: advancedUpload
+                        label: expanded ? qsTr("Hide advanced options")
+                                        : qsTr("Show advanced options")
+                        summary: qsTr("Copy link to clipboard")
+                    }
+                    SettingRow {
+                        visible: advancedUpload.expanded || page.searchActive
+                        discloser: advancedUpload
+                        label: qsTr("Copy link to clipboard")
+                        help: qsTr("Copies the upload URL once the upload finishes.")
+                        helpDetail: qsTr("Separate from uploading: when off, the link is still shown after the upload and kept in History, and your clipboard keeps what it had.")
+                        USwitch { checked: App.settings.afterUploadCopyLink; onToggled: (c) => App.settings.afterUploadCopyLink = c }
                     }
                 }
             }
@@ -2035,8 +2045,45 @@ Item {
                     SettingRow {
                         label: qsTr("Instant replay length")
                         help: qsTr("Keeps only the most recent encoded seconds while replay is active.")
-                        helpDetail: qsTr("The ring uses fixed-count two-second segments in the disk cache, not raw frames in RAM. Saving snapshots completed segments without stopping the ring.")
-                        UValueCombo { width: 130; values: [10,15,30,60,120,300,600]; from: 10; to: 600; suffix: " s"; value: App.settings.instantReplaySeconds; onChanged: (v) => App.settings.instantReplaySeconds = v }
+                        helpDetail: qsTr("The ring uses fixed-count two-second segments in the disk cache, not raw frames in RAM, and drops the oldest as it goes. Saving snapshots completed segments without stopping the ring. Long replays take gigabytes of disk space, and saving one copies it first.")
+                        UValueCombo { width: 130; values: [10,15,30,60,120,300,600,1800,3600]; from: 10; to: 3600; suffix: " s"; value: App.settings.instantReplaySeconds; onChanged: (v) => App.settings.instantReplaySeconds = v }
+                    }
+                    SettingRow {
+                        label: qsTr("Start instant replay automatically")
+                        help: qsTr("Keeps recording the screen in the background, ready to save the last moments.")
+                        helpDetail: qsTr("When Unisic starts: from launch until you stop it. While a game is running: games started by Steam, and on Linux games using GameMode (Lutris, Heroic, gamemoderun); it stops when the game closes. Starting a recording pauses it, and it comes back afterwards.")
+                        UComboBox {
+                            width: 220
+                            readonly property var ids: ["off", "launch", "game"]
+                            model: [qsTr("Off"), qsTr("When Unisic starts"), qsTr("While a game is running")]
+                            currentIndex: Math.max(0, ids.indexOf(App.settings.instantReplayAuto))
+                            onActivated: (i) => App.settings.instantReplayAuto = ids[i]
+                        }
+                    }
+                    SettingRow {
+                        label: qsTr("Replay watermark")
+                        help: qsTr("Marks every instant replay with its own text, separate from the screenshot watermark.")
+                        helpDetail: qsTr("Burned into the replay while it records, so saving stays a quick copy. A change applies the next time instant replay starts.")
+                        USwitch { checked: App.settings.replayWatermarkEnabled; onToggled: (c) => App.settings.replayWatermarkEnabled = c }
+                    }
+                    SettingRow {
+                        available: App.settings.replayWatermarkEnabled
+                        label: qsTr("Replay watermark text")
+                        UTextField {
+                            width: 220
+                            text: App.settings.replayWatermarkText
+                            onEdited: (t) => App.settings.replayWatermarkText = t
+                        }
+                    }
+                    SettingRow {
+                        available: App.settings.replayWatermarkEnabled
+                        label: qsTr("Replay watermark position")
+                        UComboBox {
+                            width: 180
+                            model: page.watermarkPosNames
+                            currentIndex: Math.max(0, page.watermarkPosIds.indexOf(App.settings.replayWatermarkPosition))
+                            onActivated: (i) => App.settings.replayWatermarkPosition = page.watermarkPosIds[i]
+                        }
                     }
                 }
             }

@@ -1,4 +1,5 @@
 #pragma once
+#include <QHash>
 #include <QObject>
 #include <QVariantList>
 #include <QJsonObject>
@@ -59,6 +60,9 @@ class UploadManager : public QObject
     // True while at least one CAPTURE upload is in flight; the server editor's
     // test upload deliberately does not count (see Purpose).
     Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
+    // Bytes sent over bytes to send across the capture uploads in flight,
+    // 0..1; -1 when none is in flight or no size is known yet.
+    Q_PROPERTY(qreal progress READ progress NOTIFY progressChanged)
 
 public:
     using Callback = std::function<void(const QString &url, const QString &deleteUrl, const QString &error)>;
@@ -237,6 +241,7 @@ public:
 signals:
     void destinationsChanged();
     void busyChanged();
+    void progressChanged();
     // Result of testDestination(). `ok` false carries `error`; `ok` true with an
     // empty `url` is the legitimate curl case (no publicUrlBase configured).
     void testFinished(bool ok, const QString &url, const QString &error);
@@ -289,6 +294,14 @@ private:
     bool m_busy = false;
     QString m_lastImportError;
     int m_active = 0; // in-flight CAPTURE uploads; busy = m_active > 0
+    // Sent/total per capture transfer (QNetworkReply or curl QProcess), keyed
+    // by the object and dropped when it is destroyed: bounded by m_active.
+    QHash<const QObject *, QPair<qint64, qint64>> m_transfers;
+    void trackTransfer(QObject *transfer);
+    void setTransferProgress(const QObject *transfer, qint64 sent, qint64 total);
+public:
+    qreal progress() const;
+private:
     QString m_fallbackFrom, m_fallbackTo, m_fallbackReason;
     // Correlates a testFinished() emission with the QML test that asked for it
     // (see the QML overload in the .cpp): only the newest one may speak.

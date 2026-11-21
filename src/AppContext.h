@@ -30,6 +30,7 @@ class QTranslator;
 class QDBusServiceWatcher;
 class QFileSystemWatcher;
 class FolderWatch;
+class GameDetector;
 class QQuickWindow;
 class QMimeData;
 class QScreen;
@@ -68,6 +69,11 @@ class AppContext : public QObject
     Q_PROPERTY(bool recording READ recording NOTIFY recordingChanged)
     Q_PROPERTY(bool converting READ converting NOTIFY recordingChanged)
     Q_PROPERTY(bool instantReplayActive READ instantReplayActive NOTIFY recordingChanged)
+    // The running ring was started by Settings::instantReplayAuto: the record
+    // controls stay usable, a recording stops it and it comes back afterwards.
+    Q_PROPERTY(bool autoReplayActive READ autoReplayActive NOTIFY recordingChanged)
+    // 0..1 while a recording or a replay is written out, -1 otherwise.
+    Q_PROPERTY(qreal saveProgress READ saveProgress NOTIFY saveProgressChanged)
     // Paused mid-recording; recordingCanPause gates the pause button (off for
     // instant replay and while not actively recording).
     Q_PROPERTY(bool recordingPaused READ recordingPaused NOTIFY recordingChanged)
@@ -238,6 +244,8 @@ public:
     bool recording() const;
     bool converting() const;
     bool instantReplayActive() const { return m_recorder->instantReplayActive(); }
+    bool autoReplayActive() const { return m_replayAuto && instantReplayActive(); }
+    qreal saveProgress() const { return m_saveProgress; }
     bool recordingPaused() const { return m_recorder->paused(); }
     bool recordingCanPause() const { return m_recorder->canPause(); }
     int recordSeconds() const;
@@ -841,6 +849,7 @@ signals:
     void audioApplicationNodesReady(const QVariantList &nodes);
     void audioInputDevicesReady(const QVariantList &devices);
     void recordingChanged();
+    void saveProgressChanged();
     void recordSecondsChanged();
     void toastChanged();
     void showMainWindowRequested();
@@ -1114,6 +1123,17 @@ private:
     // short tail (repaint settled + cue played out, so neither is recorded).
     void commitRecordingAfterCue();
     bool m_recordHoldActive = false; // a hold-for-commit recording is pending
+    // Instant replay started on its own (Settings::instantReplayAuto).
+    GameDetector *m_gameDetector = nullptr; // only while the mode is "game"
+    bool m_replayAuto = false;          // the ring was started by the setting
+    bool m_resumeAutoReplay = false;    // a recording took its place: restart it after
+    std::function<void()> m_afterReplayStops; // the recording waiting for the ring to stop
+    qreal m_saveProgress = -1;
+    void applyInstantReplayAuto();
+    bool yieldAutoReplay(std::function<void()> retry);
+    bool manualRecording() const { return recording() && !autoReplayActive(); }
+    void setSaveProgress(qreal p);
+    void continueAfterRecording();
     bool m_recordBorderCountdownOnly = false; // frame is a bare countdown (full-screen/window)
     int m_pendingCountdownSecs = 0;  // visible countdown length for the hold
     CaptureNotification *showCaptureNotification(const QImage &img, const QString &path,

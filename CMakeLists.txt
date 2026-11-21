@@ -163,6 +163,7 @@ qt_add_executable(unisic
     src/capture/ScrollCaptureController.h src/capture/ScrollCaptureController.cpp
     src/capture/ScrollPreviewProvider.h src/capture/ScrollPreviewProvider.cpp
     src/record/GifRecorder.h src/record/GifRecorder.cpp
+    src/record/GameDetector.h src/record/GameDetector.cpp src/record/GameDetectorSteam.cpp src/record/SteamLaunch.h
     src/record/PwDump.h src/record/PwDump.cpp
     src/record/AudioCapture.h src/record/AudioCapture.cpp
     src/record/VideoQuality.h
@@ -866,6 +867,11 @@ if(BUILD_TESTING)
     target_link_libraries(unisic_stream_geometry_test PRIVATE Qt6::Core Qt6::Test)
     target_include_directories(unisic_stream_geometry_test PRIVATE src)
     add_test(NAME unisic_stream_geometry_test COMMAND unisic_stream_geometry_test)
+
+    qt_add_executable(unisic_steam_launch_test tests/SteamLaunchTest.cpp src/record/SteamLaunch.h)
+    target_link_libraries(unisic_steam_launch_test PRIVATE Qt6::Core Qt6::Test)
+    target_include_directories(unisic_steam_launch_test PRIVATE src)
+    add_test(NAME unisic_steam_launch_test COMMAND unisic_steam_launch_test)
 
     # The recorder's stdin framing, read back by the real ffmpeg when present.
     qt_add_executable(unisic_matroska_raw_stream_test

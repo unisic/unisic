@@ -25,6 +25,8 @@ class CaptureNotification : public QObject
     Q_PROPERTY(QString fileName READ fileName NOTIFY stateChanged)
     Q_PROPERTY(QString url READ url NOTIFY stateChanged)
     Q_PROPERTY(bool uploading READ uploading NOTIFY stateChanged)
+    // UploadManager::progress while this card uploads, -1 otherwise.
+    Q_PROPERTY(qreal uploadProgress READ uploadProgress NOTIFY uploadProgressChanged)
     // Why the last upload failed; empty while none has. The card says so in
     // place - the main window, where toasts live, is usually hidden by then.
     Q_PROPERTY(QString uploadError READ uploadError NOTIFY stateChanged)
@@ -42,6 +44,7 @@ public:
     QString fileName() const;
     QString url() const { return m_url; }
     bool uploading() const { return m_uploading; }
+    qreal uploadProgress() const;
     QString uploadError() const { return m_uploadError; }
     QStringList destinations() const;
     QString thumbFilePath() const { return m_thumbFile; } // local path for the notification image
@@ -85,6 +88,7 @@ public:
 
 signals:
     void stateChanged();
+    void uploadProgressChanged();
     void closeRequested();
     void menuClosed();
 

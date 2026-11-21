@@ -139,7 +139,7 @@ Window {
 
     function quitApp() {
         // Never yank an in-flight recording/encode out from under the user.
-        if (App.recording || App.converting) {
+        if ((App.recording && !App.autoReplayActive) || App.converting) {
             App.showToast(qsTr("Recording in progress. Stop it before closing"), true)
             return
         }
@@ -199,7 +199,7 @@ Window {
             // close would just leave a hidden resident process. Quit — but
             // never kill an in-flight recording/encode or open editors with
             // unsaved annotations.
-            if (App.recording || App.converting) {
+            if ((App.recording && !App.autoReplayActive) || App.converting) {
                 close.accepted = false
                 App.showToast(qsTr("Recording in progress. Stop it before closing"), true)
             } else if (App.editorWindowsOpen > 0) {
@@ -220,7 +220,7 @@ Window {
         function onEditorWindowsOpenChanged() {
             if (App.editorWindowsOpen === 0 && !window.visible
                     && !(App.settings.minimizeToTrayOnClose && App.trayAvailable)
-                    && !App.recording && !App.converting)
+                    && (!App.recording || App.autoReplayActive) && !App.converting)
                 App.quitApp("last editor closed with no window and no tray")
         }
     }
@@ -451,9 +451,10 @@ Window {
             anchors.verticalCenter: parent.verticalCenter
             spacing: 2
 
-            // Recording pill
+            // Recording pill. While a stopped recording is written out, the
+            // activity pill below takes its place.
             Rectangle {
-                visible: App.recording || App.converting
+                visible: App.recording && !App.converting
                 width: recRow.width + Theme.spacingS + 4
                 height: 30
                 radius: Theme.radiusS
@@ -494,9 +495,8 @@ Window {
                             function p(v) { return (v < 10 ? "0" : "") + v }
                             return (h > 0 ? h + ":" + p(m) : p(m)) + ":" + p(sec)
                         }
-                        text: App.converting ? qsTr("Encoding…")
-                              : (fmtElapsed(App.recordSeconds)
-                                 + (App.recordingPaused ? " " + qsTr("(paused)") : ""))
+                        text: fmtElapsed(App.recordSeconds)
+                              + (App.recordingPaused ? " " + qsTr("(paused)") : "")
                         color: Theme.textPrimary
                         font.pixelSize: Theme.fontS
                         font.family: "monospace"
@@ -527,6 +527,51 @@ Window {
                             onClicked: App.stopRecording()
                         }
                     }
+                }
+            }
+
+            // Activity pill: a recording or replay being saved, or a capture
+            // being uploaded, with its progress as a bar along the bottom.
+            Rectangle {
+                id: activityPill
+                // Stopping a replay ring "converts" nothing, so it is not saving.
+                readonly property bool saving: (App.converting && !App.instantReplayActive) || App.saveProgress >= 0
+                readonly property real value: saving ? App.saveProgress : App.uploads.progress
+                visible: saving || App.uploads.busy
+                // Sized for "100%" so the pill does not twitch as digits change.
+                width: Math.max(activityLabel.implicitWidth, activityWidest.width) + 2 * Theme.spacingS + 4
+                height: 30
+                radius: Theme.radiusS
+                clip: true
+                anchors.verticalCenter: parent.verticalCenter
+                color: Theme.alpha(Theme.accent, 0.12)
+                border.width: 1
+                border.color: Theme.alpha(Theme.accent, 0.28)
+                Accessible.role: Accessible.ProgressBar
+                Accessible.name: activityLabel.text
+
+                TextMetrics {
+                    id: activityWidest
+                    font: activityLabel.font
+                    text: (activityPill.saving ? qsTr("Saving…") : qsTr("Uploading…")) + " 100%"
+                }
+                Rectangle {
+                    visible: activityPill.value >= 0
+                    anchors.left: parent.left
+                    anchors.bottom: parent.bottom
+                    height: 3
+                    width: parent.width * Math.max(0, activityPill.value)
+                    color: Theme.accent
+                }
+                Text {
+                    id: activityLabel
+                    anchors.centerIn: parent
+                    text: (activityPill.saving ? qsTr("Saving…") : qsTr("Uploading…"))
+                          + (activityPill.value >= 0 ? " " + Math.round(activityPill.value * 100) + "%" : "")
+                    color: Theme.textPrimary
+                    font.pixelSize: Theme.fontS
+                    font.weight: Font.DemiBold
+                    Accessible.ignored: true
                 }
             }
 

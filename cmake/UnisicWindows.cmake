@@ -18,6 +18,7 @@ set(_unisic_linux_only
     src/capture/KWinWindowGeometry.cpp
     src/hotkeys/PrintKeyRelay.cpp
     src/record/AudioCapture.cpp
+    src/record/GameDetectorSteam.cpp
     src/record/ClickCapture.cpp
     src/record/KeyCapture.cpp
     src/record/InputPermission.cpp
@@ -36,6 +37,7 @@ target_sources(unisic PRIVATE
     src/capture/KWinWindowGeometry_win.cpp
     src/hotkeys/PrintKeyRelay_win.cpp
     src/record/AudioCapture_win.cpp
+    src/record/GameDetectorSteam_win.cpp
     src/record/ClickCapture_win.cpp
     src/record/KeyCapture_win.cpp
     src/record/InputPermission_win.cpp

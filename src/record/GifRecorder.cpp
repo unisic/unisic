@@ -13,6 +13,7 @@
 #include "record/IScreenGrabber.h"
 #include "record/PipeWireGrabber.h"
 #include "media/FfmpegUtil.h"
+#include "editor/ImageEffects.h"
 #include "record/X11ShmGrabber.h"
 #include "record/PwDump.h"
 #include "capture/KWinScreencasting.h"
@@ -79,7 +80,29 @@ GifRecorder::GifRecorder(Settings *settings, QObject *parent)
 
 GifRecorder::~GifRecorder()
 {
+    // The copy worker writes into the snapshot dir; join it before the
+    // members it reports to go away.
+    if (m_replaySnapshot) {
+        m_replaySnapshot->future().cancel();
+        m_replaySnapshot->waitForFinished();
+    }
     abort();
+}
+
+void GifRecorder::watchProgress(QProcess *p, qint64 totalMs, qreal from, qreal to)
+{
+    p->setProcessChannelMode(QProcess::SeparateChannels);
+    emit saveProgress(from);
+    // Read even without a length: an unread stdout pipe fills and stalls ffmpeg.
+    connect(p, &QProcess::readyReadStandardOutput, this, [this, p, totalMs, from, to] {
+        while (p->canReadLine()) {
+            const QByteArray line = p->readLine().trimmed();
+            if (totalMs > 0 && line.startsWith("out_time_us=")) {
+                const qreal done = qBound(0.0, line.mid(12).toLongLong() / (totalMs * 1000.0), 1.0);
+                emit saveProgress(from + (to - from) * done);
+            }
+        }
+    });
 }
 
 static QString restoreTokenKey(GifRecorder::SourceType source, QScreen *screen)
@@ -225,7 +248,8 @@ QByteArray GifRecorder::compositeCursorOverlay(const QByteArray &encoded, qint64
 {
     const bool wantCursor = m_cursorOverlayActive && m_cursorOverlay.hasContent(nowNs);
     const bool wantKeys = m_keystrokeOverlayActive && m_keystrokes.hasContent(nowNs);
-    if (encoded.isEmpty() || (!wantCursor && !wantKeys))
+    const bool wantStamp = !m_replayStamp.isNull();
+    if (encoded.isEmpty() || (!wantCursor && !wantKeys && !wantStamp))
         return encoded;
 
     // The frames are kept in the stream's native byte order (see
@@ -253,6 +277,8 @@ QByteArray GifRecorder::compositeCursorOverlay(const QByteArray &encoded, qint64
                m_encodeSize.width(), m_encodeSize.height(),
                m_encodeSize.width() * 4, fmt);
     QPainter p(&img);
+    if (wantStamp)
+        p.drawImage(m_replayStampAt, m_replayStamp);
     if (wantCursor)
         m_cursorOverlay.paint(p, nowNs);
     if (wantKeys)
@@ -742,6 +768,31 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
     }
     m_encodeCrop = c;
     m_encodeSize = c.size();
+    m_replayStamp = {};
+    if (m_output == Replay && m_settings->replayWatermarkEnabled()) {
+        QImage canvas(m_encodeSize, QImage::Format_ARGB32_Premultiplied);
+        canvas.fill(Qt::transparent);
+        canvas = UnisicImageEffects::watermarkText(canvas, m_settings->replayWatermarkText(), 80,
+                                                   m_settings->replayWatermarkPosition(),
+                                                   QStringLiteral("single"));
+        int left = canvas.width(), top = canvas.height(), right = -1, bottom = -1;
+        for (int y = 0; y < canvas.height(); ++y) {
+            const QRgb *row = reinterpret_cast<const QRgb *>(canvas.constScanLine(y));
+            for (int x = 0; x < canvas.width(); ++x) {
+                if (qAlpha(row[x])) {
+                    left = qMin(left, x);
+                    right = qMax(right, x);
+                    top = qMin(top, y);
+                    bottom = y;
+                }
+            }
+        }
+        const QRect box = right < 0 ? QRect() : QRect(QPoint(left, top), QPoint(right, bottom));
+        if (!box.isEmpty()) {
+            m_replayStamp = canvas.copy(box);
+            m_replayStampAt = box.topLeft();
+        }
+    }
 
     const int fps = qBound(1, m_output == Gif ? m_settings->gifFps() : m_settings->videoFps(), 60);
     m_fps = fps;
@@ -1051,6 +1102,7 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
     }
     if (m_output == Replay) {
         const int segments = replaySegmentCount(m_settings->instantReplaySeconds());
+        m_replayWrap = segments;
         // The segment muxer can only cut on a keyframe. libx264(rgb) at
         // -preset ultrafast has no forced GOP, so keyint defaults to 250 frames
         // (~4-8s) and every "2s" segment is really ~8s - the ring then holds far
@@ -1258,7 +1310,7 @@ void GifRecorder::sampleFrame()
             m_cursorOverlay.setCursor(sm - QPointF(m_encodeCrop.topLeft()), s.visible, s.shapeId);
         }
     }
-    if (m_cursorOverlayActive || m_keystrokeOverlayActive)
+    if (m_cursorOverlayActive || m_keystrokeOverlayActive || !m_replayStamp.isNull())
         encoded = compositeCursorOverlay(encoded, monoNowNs());
 
     // Pacing: the timer interval truncates (1000/30 = 33 ms -> 30.3 fps) and
@@ -1301,6 +1353,8 @@ void GifRecorder::stop()
             fail(QStringLiteral("cancelled"));
         return;
     }
+    m_convertTotalMs = qMax<qint64>(0, (m_paused ? m_pauseStartMs : m_elapsed.elapsed()) - m_pausedTotalMs);
+    m_progressFrom = 0;
     // Stopped while paused: close the open span so its frozen tail (and the audio
     // that kept flowing under it) is excised like any other pause.
     if (m_paused) {
@@ -1444,7 +1498,7 @@ bool GifRecorder::devFreezeEncoderForTest()
 
 void GifRecorder::saveInstantReplay()
 {
-    if (m_state != Recording || m_output != Replay || m_replayExporter)
+    if (m_state != Recording || m_output != Replay || m_replayExporter || m_replaySnapshot)
         return;
     QDir ring(m_replayDir);
     QFileInfoList segments = ring.entryInfoList({QStringLiteral("segment-*.mkv")},
@@ -1460,17 +1514,51 @@ void GifRecorder::saveInstantReplay()
     // would then read a truncated/mutating file. Only a byte copy isolates the
     // export from the live ring.
     segments.removeLast();
+    // A full ring's oldest file is the next one segment_wrap truncates, maybe
+    // while the copy below reads it: leave it out.
+    if (segments.size() > 1 && segments.size() + 1 >= m_replayWrap)
+        segments.removeFirst();
     const QString snapshot = QStandardPaths::writableLocation(QStandardPaths::CacheLocation)
                              + QStringLiteral("/unisic-replay-save-")
                              + QUuid::createUuid().toString(QUuid::WithoutBraces);
     QDir().mkpath(snapshot);
-    QStringList linked;
-    int number = 0;
-    for (const QFileInfo &source : std::as_const(segments)) {
-        const QString target = snapshot + QStringLiteral("/%1.mkv").arg(number++, 4, 10, QLatin1Char('0'));
-        if (QFile::copy(source.absoluteFilePath(), target))
-            linked << target;
-    }
+    QStringList sources;
+    for (const QFileInfo &source : std::as_const(segments))
+        sources << source.absoluteFilePath();
+    // Off the GUI thread: an hour-long ring is gigabytes. Oldest first, which
+    // stays ahead of the writer (one new segment every 2 s). Joined in the
+    // destructor; IO = one read + one write of the ring, RAM = Qt's copy buffer.
+    auto *watcher = new QFutureWatcher<QStringList>(this);
+    m_replaySnapshot = watcher;
+    const int count = int(sources.size());
+    connect(watcher, &QFutureWatcherBase::progressValueChanged, this, [this, count](int done) {
+        emit saveProgress(0.4 * done / count);
+    });
+    connect(watcher, &QFutureWatcherBase::finished, this, [this, watcher, snapshot] {
+        const QStringList linked = watcher->future().resultCount() > 0 ? watcher->result() : QStringList();
+        watcher->deleteLater();
+        m_replaySnapshot = nullptr;
+        exportReplaySnapshot(snapshot, linked);
+    });
+    emit saveProgress(0);
+    watcher->setFuture(QtConcurrent::run([sources, snapshot](QPromise<QStringList> &promise) {
+        promise.setProgressRange(0, int(sources.size()));
+        QStringList linked;
+        int number = 0;
+        for (const QString &source : sources) {
+            if (promise.isCanceled())
+                return;
+            const QString target = snapshot + QStringLiteral("/%1.mkv").arg(number++, 4, 10, QLatin1Char('0'));
+            if (QFile::copy(source, target))
+                linked << target;
+            promise.setProgressValue(number);
+        }
+        promise.addResult(linked);
+    }));
+}
+
+void GifRecorder::exportReplaySnapshot(const QString &snapshot, const QStringList &linked)
+{
     if (linked.isEmpty()) {
         QDir(snapshot).removeRecursively();
         emit replayExportFailed(tr("Could not snapshot the replay segments"));
@@ -1506,13 +1594,13 @@ void GifRecorder::saveInstantReplay()
     m_replaySnapshotDir = snapshot;
     m_replayExportPath = out;
     const auto completed = std::make_shared<bool>(false);
-    process->setProcessChannelMode(QProcess::MergedChannels);
+    watchProgress(process, qint64(linked.size()) * 2000, 0.4, 1); // 2 s segments
     connect(process, &QProcess::finished, this,
             [this, process, snapshot, out, completed](int code, QProcess::ExitStatus status) {
         if (*completed)
             return;
         *completed = true;
-        const QString diagnostic = QString::fromUtf8(process->readAll()).trimmed();
+        const QString diagnostic = QString::fromUtf8(process->readAllStandardError()).trimmed();
         if (m_replayExporter == process)
             m_replayExporter = nullptr;
         process->deleteLater();
@@ -1543,6 +1631,7 @@ void GifRecorder::saveInstantReplay()
     });
     QStringList exportArgs{QStringLiteral("-y"), QStringLiteral("-nostats"),
                            QStringLiteral("-loglevel"), QStringLiteral("error"),
+                           QStringLiteral("-progress"), QStringLiteral("pipe:1"),
                            QStringLiteral("-f"), QStringLiteral("concat"),
                            QStringLiteral("-safe"), QStringLiteral("0"),
                            QStringLiteral("-i"), concatPath,
@@ -1745,16 +1834,17 @@ void GifRecorder::maybeExcisePauses(std::function<void()> thenConvert)
         if (iv.second > origin)
             spans.append({qMax<qint64>(0, iv.first - origin), iv.second - origin});
     }
-    const QStringList args = pauseExciseArgs(m_tempPath, excised, spans, m_hasAudio);
+    const QStringList args = QStringList{QStringLiteral("-progress"), QStringLiteral("pipe:1")}
+                             + pauseExciseArgs(m_tempPath, excised, spans, m_hasAudio);
 
     auto *conv = new QProcess(this);
     m_converter = conv;
-    conv->setProcessChannelMode(QProcess::MergedChannels);
+    watchProgress(conv, m_convertTotalMs, 0, 0.3);
     connect(conv, &QProcess::finished, this,
             [this, conv, excised, thenConvert](int code, QProcess::ExitStatus status) {
         if (m_converter != conv)
             return;
-        const QByteArray out = conv->readAll();
+        const QByteArray out = conv->readAllStandardError();
         m_converter = nullptr;
         conv->deleteLater();
         if (code != 0 || status == QProcess::CrashExit || !QFile::exists(excised)) {
@@ -1766,6 +1856,7 @@ void GifRecorder::maybeExcisePauses(std::function<void()> thenConvert)
         }
         QFile::remove(m_tempPath);
         m_tempPath = excised; // conversion now reads the paused-sections-removed file
+        m_progressFrom = 0.3;
         thenConvert();
     });
     connect(conv, &QProcess::errorOccurred, this,
@@ -1804,11 +1895,12 @@ void GifRecorder::convertToGif()
 
     auto *conv = new QProcess(this);
     m_converter = conv;
-    conv->setProcessChannelMode(QProcess::MergedChannels);
+    // palettegen emits its one frame at EOF, so this pass only moves at the end.
+    watchProgress(conv, m_convertTotalMs, m_progressFrom, m_progressFrom + (1 - m_progressFrom) * 0.25);
     connect(conv, &QProcess::finished, this, [this, conv, fps, dither](int code, QProcess::ExitStatus) {
         if (m_converter != conv)
             return;
-        const QByteArray out = conv->readAll();
+        const QByteArray out = conv->readAllStandardError();
         m_converter = nullptr;
         conv->deleteLater();
         if (code != 0) {
@@ -1831,6 +1923,7 @@ void GifRecorder::convertToGif()
     conv->start(QStringLiteral("ffmpeg"),
                 {QStringLiteral("-y"), QStringLiteral("-nostats"),
                  QStringLiteral("-loglevel"), QStringLiteral("error"),
+                 QStringLiteral("-progress"), QStringLiteral("pipe:1"),
                  QStringLiteral("-i"), m_tempPath,
                  QStringLiteral("-vf"), vf, m_palettePath});
     // FailedToStart lands in the errorOccurred handler above - no blocking wait.
@@ -1842,11 +1935,11 @@ void GifRecorder::convertToGifRender(int fps, const QString &paletteUse)
 
     auto *conv = new QProcess(this);
     m_converter = conv;
-    conv->setProcessChannelMode(QProcess::MergedChannels);
+    watchProgress(conv, m_convertTotalMs, m_progressFrom + (1 - m_progressFrom) * 0.25, 1);
     connect(conv, &QProcess::finished, this, [this, conv](int code, QProcess::ExitStatus) {
         if (m_converter != conv)
             return;
-        const QByteArray out = conv->readAll();
+        const QByteArray out = conv->readAllStandardError();
         m_converter = nullptr;
         conv->deleteLater();
         QFile::remove(m_tempPath);
@@ -1872,6 +1965,7 @@ void GifRecorder::convertToGifRender(int fps, const QString &paletteUse)
     conv->start(QStringLiteral("ffmpeg"),
                 {QStringLiteral("-y"), QStringLiteral("-nostats"),
                  QStringLiteral("-loglevel"), QStringLiteral("error"),
+                 QStringLiteral("-progress"), QStringLiteral("pipe:1"),
                  QStringLiteral("-i"), m_tempPath,
                  QStringLiteral("-i"), m_palettePath,
                  QStringLiteral("-lavfi"), lavfi, m_outPath});
@@ -1926,6 +2020,7 @@ void GifRecorder::convertVideoWith(const QString &encoder)
     const int crf = UnisicVideo::crfFromPercent(m_settings->videoQualityPercent());
     QStringList args{QStringLiteral("-y"), QStringLiteral("-nostats"),
                      QStringLiteral("-loglevel"), QStringLiteral("error"),
+                     QStringLiteral("-progress"), QStringLiteral("pipe:1"),
                      QStringLiteral("-i"), m_tempPath};
     if (m_output == WebM && encoder == QLatin1String("av1-nvenc")
         && FfmpegUtil::hardwareEncoderAvailable(QStringLiteral("av1-nvenc"))) {
@@ -1997,11 +2092,11 @@ void GifRecorder::convertVideoWith(const QString &encoder)
 
     auto *conv = new QProcess(this);
     m_converter = conv;
-    conv->setProcessChannelMode(QProcess::MergedChannels);
+    watchProgress(conv, m_convertTotalMs, m_progressFrom, 1);
     connect(conv, &QProcess::finished, this, [this, conv](int c, QProcess::ExitStatus) {
         if (m_converter != conv)
             return;
-        const QByteArray out = conv->readAll();
+        const QByteArray out = conv->readAllStandardError();
         m_converter = nullptr;
         conv->deleteLater();
         QFile::remove(m_tempPath);
@@ -2111,7 +2206,7 @@ void GifRecorder::cleanup()
     // path reaches cleanup() via the segment-muxer finished handler while a Save
     // may still be running. Its own finished/errorOccurred handlers own the
     // snapshot dir + output file; only reclaim them here when no exporter is live.
-    if (!m_replayExporter) {
+    if (!m_replayExporter && !m_replaySnapshot) {
         if (!m_replayExportPath.isEmpty())
             QFile::remove(m_replayExportPath);
         if (!m_replaySnapshotDir.isEmpty())
@@ -2125,6 +2220,7 @@ void GifRecorder::cleanup()
     m_replayDir.clear();
     m_encodeCrop = {};
     m_encodeSize = {};
+    m_replayStamp = {};
     m_targetScreen = nullptr;
     m_hasAudio = false;
     m_audioTrackTitles.clear();

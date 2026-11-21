@@ -24,7 +24,8 @@ Item {
 
     // Same rule as the Capture page, for three tiles instead of four.
     readonly property bool compact: height < 760 || width - aside.width - 2 * 40 < 3 * 200 + 2 * 14
-    readonly property bool idle: App.recordingAvailable && !App.recording && !App.converting
+    // An automatic replay ring gives way to a recording, so it does not lock the tiles.
+    readonly property bool idle: App.recordingAvailable && (!App.recording || App.autoReplayActive) && !App.converting
 
     signal openPage(int index)
     signal openSettings(int tab, string query)
@@ -508,8 +509,8 @@ Item {
                     id: replayRow
                     label: qsTr("Replay length")
                     UValueCombo {
-                        width: 104; values: [10, 15, 30, 60, 120, 300, 600]
-                        from: 10; to: 600; suffix: " s"
+                        width: 104; values: [10, 15, 30, 60, 120, 300, 600, 1800, 3600]
+                        from: 10; to: 3600; suffix: " s"
                         accessibleName: replayRow.label
                         value: App.settings.instantReplaySeconds
                         onChanged: (v) => App.settings.instantReplaySeconds = v

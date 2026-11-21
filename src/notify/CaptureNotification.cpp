@@ -1,6 +1,7 @@
 #include "CaptureNotification.h"
 #include "AppContext.h"
 #include "NotifCard.h"
+#include "upload/UploadManager.h"
 #include <QCoreApplication>
 #include <QStandardPaths>
 #include <QDir>
@@ -16,6 +17,11 @@ CaptureNotification::CaptureNotification(AppContext *app, const QImage &img,
 {
     // Thumbnails are only removed in the destructor, so a crash/SIGKILL leaves
     // them behind forever — sweep leftovers once per process.
+    if (m_app)
+        connect(m_app->uploads(), &UploadManager::progressChanged, this, [this] {
+            if (m_uploading)
+                emit uploadProgressChanged();
+        });
     static bool sweepDone = false;
     if (!sweepDone) {
         sweepDone = true;
@@ -94,6 +100,11 @@ void CaptureNotification::setUrl(const QString &url)
     m_uploadError.clear();
     if (changed)
         emit stateChanged();
+}
+
+qreal CaptureNotification::uploadProgress() const
+{
+    return m_uploading && m_app ? m_app->uploads()->progress() : -1;
 }
 
 void CaptureNotification::setUploading(bool on)

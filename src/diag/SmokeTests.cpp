@@ -6933,7 +6933,7 @@ void AppContext::runSmokeTest()
                          .arg(audioInputDevices().size()));
         const int segments = GifRecorder::replaySegmentCount(m_settings->instantReplaySeconds());
         smokeLog(QStringLiteral("instant replay ring: ")
-                 + (segments >= 3 && segments <= 302
+                 + (segments >= 3 && segments <= 1802
                         ? QStringLiteral("PASS (%1 bounded segments)").arg(segments)
                         : QStringLiteral("FAIL")));
         const bool trimTools = !QStandardPaths::findExecutable(QStringLiteral("ffmpeg")).isEmpty()

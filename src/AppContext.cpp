@@ -262,6 +262,7 @@ AppContext::AppContext(QObject *parent)
     });
     // Badge/unbadge the tray icon as recording starts and stops.
     connect(this, &AppContext::recordingChanged, this, &AppContext::applyTrayIcon);
+    connect(this, &AppContext::recordingChanged, this, &AppContext::updateGameDetector);
     connect(m_recorder, &GifRecorder::started, this, [this] {
         // Region recordings carry a pending rect. Gate on the LIVE recording
         // actually being a Region one: a stale pending rect (set by a region
@@ -1782,6 +1783,24 @@ void AppContext::startVideoWindow()
 // at the trigger, before the countdown can take the foreground.
 // shortcut: the area is fixed at the start, so moving the window or covering
 // it shows in the recording; Windows.Graphics.Capture would follow the window.
+// A window's logical rect as the region recorder wants it: physical pixels
+// relative to the screen holding its centre, clipped to that screen. Empty
+// when it is on no screen or too small to record.
+static QRect windowCrop(const QRect &logical, QScreen **screenOut, qreal *dprOut)
+{
+    QScreen *screen = logical.isEmpty() ? nullptr : QGuiApplication::screenAt(logical.center());
+    *screenOut = screen;
+    if (!screen)
+        return {};
+    const QRect g = screen->geometry();
+    const qreal dpr = screen->devicePixelRatio();
+    *dprOut = dpr;
+    const QRect phys = QRect(qRound((logical.x() - g.x()) * dpr), qRound((logical.y() - g.y()) * dpr),
+                             qRound(logical.width() * dpr), qRound(logical.height() * dpr))
+                           .intersected(QRect(0, 0, qRound(g.width() * dpr), qRound(g.height() * dpr)));
+    return phys.width() < 2 || phys.height() < 2 ? QRect() : phys;
+}
+
 void AppContext::startVideoWindowArea()
 {
     KWinWindowGeometry geom;
@@ -1792,19 +1811,11 @@ void AppContext::startVideoWindowArea()
         logical = r;
         error = e;
     });
-    QScreen *screen = logical.isEmpty() ? nullptr : QGuiApplication::screenAt(logical.center());
-    if (!screen) {
+    QScreen *screen = nullptr;
+    qreal dpr = 1;
+    const QRect phys = windowCrop(logical, &screen, &dpr);
+    if (phys.isEmpty()) {
         qWarning() << "Window recording: no target window:" << error;
-        showToast(tr("No window to record. Click the window first, then start the recording."), true);
-        return;
-    }
-    // Screen-relative physical pixels, the contract of the region recorder.
-    const QRect g = screen->geometry();
-    const qreal dpr = screen->devicePixelRatio();
-    const QRect phys = QRect(qRound((logical.x() - g.x()) * dpr), qRound((logical.y() - g.y()) * dpr),
-                             qRound(logical.width() * dpr), qRound(logical.height() * dpr))
-                           .intersected(QRect(0, 0, qRound(g.width() * dpr), qRound(g.height() * dpr)));
-    if (phys.width() < 2 || phys.height() < 2) {
         showToast(tr("No window to record. Click the window first, then start the recording."), true);
         return;
     }
@@ -1837,9 +1848,7 @@ void AppContext::startInstantReplay()
     m_replayAuto = false;
     m_pendingRecordRegion = {};
     m_pendingRecordScreen = nullptr;
-    startRecorderCountdown([this](bool hold) {
-        m_recorder->start(GifRecorder::Replay, GifRecorder::Screen, {}, nullptr, hold);
-    });
+    startRecorderCountdown([this](bool hold) { startReplayRing(hold); });
 }
 
 void AppContext::saveInstantReplay()
@@ -1892,30 +1901,113 @@ void AppContext::continueAfterRecording()
 // stopped stays stopped until the mode changes or the next game starts.
 // Cost while on: the replay encode itself (one ffmpeg, the ring on disk in
 // the cache dir, up to an hour of video), plus GameDetector's 5 s poll.
-void AppContext::applyInstantReplayAuto()
+void AppContext::updateGameDetector()
 {
-    const QString mode = m_settings->instantReplayAuto();
-    if (mode == QLatin1String("game")) {
-        if (!m_gameDetector) {
-            m_gameDetector = new GameDetector(this);
-            connect(m_gameDetector, &GameDetector::runningChanged, this, &AppContext::applyInstantReplayAuto);
-        }
-    } else if (m_gameDetector) {
+    const bool need = m_settings->instantReplayAuto() == QLatin1String("game") || instantReplayActive();
+    if (need == bool(m_gameDetector))
+        return;
+    if (need) {
+        m_gameDetector = new GameDetector(this);
+        connect(m_gameDetector, &GameDetector::runningChanged, this, &AppContext::applyInstantReplayAuto);
+        connect(m_gameDetector, &GameDetector::gameChanged, this, &AppContext::onGameChanged);
+    } else {
         m_gameDetector->deleteLater();
         m_gameDetector = nullptr;
     }
+    onGameChanged(currentGame());
+}
+
+QString AppContext::currentGame() const
+{
+    return m_gameDetector ? m_gameDetector->game() : QString();
+}
+
+// Names the files the ring writes, and puts the game on top of "Recently
+// played" (Settings::recentGames, at most 12, one entry per name).
+void AppContext::onGameChanged(const QString &name)
+{
+    m_recorder->setReplayGame(name);
+    emit currentGameChanged();
+    if (name.isEmpty())
+        return;
+    QStringList games = m_settings->recentGames();
+    games.removeIf([&name](const QString &entry) { return entry.section(QLatin1Char('\t'), 1) == name; });
+    games.prepend(QString::number(QDateTime::currentSecsSinceEpoch()) + QLatin1Char('\t') + name);
+    m_settings->setRecentGames(games.mid(0, 12));
+}
+
+void AppContext::applyInstantReplayAuto()
+{
+    const QString mode = m_settings->instantReplayAuto();
+    updateGameDetector();
     const bool want = mode == QLatin1String("launch") || (m_gameDetector && m_gameDetector->running());
     if (!want) {
         if (autoReplayActive())
             stopRecording();
         return;
     }
-    if (recording() || m_converting || m_recordHoldActive || m_afterReplayStops || !recordingAvailable())
+    if (recording() || m_converting || m_recordHoldActive || m_afterReplayStops || m_replayStarting
+        || !recordingAvailable())
         return;
     m_pendingRecordRegion = {};
     m_pendingRecordScreen = nullptr;
     m_replayAuto = true;
-    m_recorder->start(GifRecorder::Replay, GifRecorder::Screen, {}, nullptr, false);
+    startReplayRing(false);
+}
+
+// Settings::clipSource "window": the game's window when GameDetector knows
+// the game's processes, else the window in front. On KDE a KWin window
+// stream follows that window wherever it moves and whatever covers it; on
+// Windows its area is recorded as a region; with no way to find a window
+// (no KWin, a sandbox) the screen is. An automatic start waits up to 30 s
+// for a game still loading to open its window, then records the screen.
+// Cost: one throwaway KWin script per start (KWinWindowGeometry).
+void AppContext::startReplayRing(bool hold)
+{
+    if (m_settings->clipSource() != QLatin1String("window") || !KWinWindowGeometry::isAvailable()) {
+        m_recorder->start(GifRecorder::Replay, GifRecorder::Screen, {}, nullptr, hold);
+        return;
+    }
+    const QList<qint64> pids = m_gameDetector && m_gameDetector->running() ? m_gameDetector->gamePids()
+                                                                            : QList<qint64>();
+    // No game and Unisic itself in front (Start pressed in this window): the
+    // "window in front" would be Unisic, so the screen is recorded instead.
+    if (pids.isEmpty() && QGuiApplication::focusWindow()) {
+        showToast(tr("No game window found: recording the whole screen"));
+        m_recorder->start(GifRecorder::Replay, GifRecorder::Screen, {}, nullptr, hold);
+        return;
+    }
+    m_replayStarting = true;
+    auto *geom = new KWinWindowGeometry(this);
+    geom->queryWindow(pids, [this, geom, hold, pids](const QRect &logical, const QString &uuid,
+                                                     const QString &error) {
+        geom->deleteLater();
+        m_replayStarting = false;
+        if (recording())
+            return; // something else started while KWin answered
+        if (!uuid.isEmpty() && m_recorder->canStreamWindow()) {
+            m_replayWindowTries = 0;
+            m_recorder->setWindowUuid(uuid);
+            m_recorder->start(GifRecorder::Replay, GifRecorder::Window, {}, nullptr, hold);
+            return;
+        }
+        QScreen *screen = nullptr;
+        qreal dpr = 1;
+        const QRect phys = windowCrop(logical, &screen, &dpr);
+        if (!phys.isEmpty()) {
+            m_replayWindowTries = 0;
+            m_recorder->start(GifRecorder::Replay, GifRecorder::Region, phys, screen, hold, dpr);
+            return;
+        }
+        if (m_replayAuto && !pids.isEmpty() && m_replayWindowTries < 10) {
+            ++m_replayWindowTries;
+            QTimer::singleShot(3000, this, &AppContext::applyInstantReplayAuto);
+            return;
+        }
+        m_replayWindowTries = 0;
+        qWarning() << "Instant replay: no window to record, recording the screen:" << error;
+        m_recorder->start(GifRecorder::Replay, GifRecorder::Screen, {}, nullptr, hold);
+    });
 }
 
 void AppContext::startRecorderCountdown(std::function<void(bool)> begin)
@@ -3387,12 +3479,14 @@ void AppContext::hideRecordBorder()
     }
 }
 
-void AppContext::onRecordingFinished(const QString &path, bool fromInstantReplay)
+void AppContext::onRecordingFinished(const QString &path, const QString &origin)
 {
     m_converting = false;
     setSaveProgress(-1);
     emit recordingChanged();
-    if (!fromInstantReplay) // a replay save leaves the ring running
+    // A clip leaves the ring running; a session or a trim lands after the
+    // recording that made it was already over.
+    if (origin.isEmpty())
         continueAfterRecording();
     if (path.isEmpty())
         return; // stopping the rolling replay ring creates no output by itself
@@ -3405,23 +3499,23 @@ void AppContext::onRecordingFinished(const QString &path, bool fromInstantReplay
         auto *proc = new QProcess(this);
         const auto completed = std::make_shared<bool>(false);
         connect(proc, &QProcess::finished, this,
-                [this, proc, path, kind, posterPath, completed, fromInstantReplay](int, QProcess::ExitStatus) {
+                [this, proc, path, kind, posterPath, completed, origin](int, QProcess::ExitStatus) {
             if (*completed)
                 return;
             *completed = true;
             proc->deleteLater();
             QImage thumb(posterPath);
             QFile::remove(posterPath);
-            finishRecordingEntry(path, thumb, kind, fromInstantReplay);
+            finishRecordingEntry(path, thumb, kind, origin);
         });
         connect(proc, &QProcess::errorOccurred, this,
-                [this, proc, path, kind, posterPath, completed, fromInstantReplay](QProcess::ProcessError e) {
+                [this, proc, path, kind, posterPath, completed, origin](QProcess::ProcessError e) {
             if (e != QProcess::FailedToStart || *completed)
                 return;
             *completed = true;
             proc->deleteLater();
             QFile::remove(posterPath);
-            finishRecordingEntry(path, QImage(), kind, fromInstantReplay);
+            finishRecordingEntry(path, QImage(), kind, origin);
         });
         // Extract the poster already downscaled to thumbnail size: the only
         // consumer is a history/popup thumbnail (≤480 px), so a full-res 4K PNG
@@ -3455,26 +3549,27 @@ void AppContext::onRecordingFinished(const QString &path, bool fromInstantReplay
     QImage thumb = reader.read();
     if (thumb.isNull())
         thumb = QImage(path); // fall back to a full decode if the scaled read failed
-    finishRecordingEntry(path, thumb, kind);
+    finishRecordingEntry(path, thumb, kind, origin);
 }
 
 void AppContext::finishRecordingEntry(const QString &path, const QImage &thumb, const QString &kind,
-                                      bool fromInstantReplay)
+                                      const QString &origin)
 {
     // Audible cue that the (possibly long) encode is done and the file exists -
     // the screenshot pipeline plays its own cue in finishCapture.
     playRecordingSound();
 
-    const quint64 historyId = m_history->addEntry(path, thumb, kind, {}, {},
-                        fromInstantReplay ? QStringLiteral("replay") : QString());
+    const quint64 historyId = m_history->addEntry(path, thumb, kind, {}, {}, origin);
     showToast(tr("Saved %1").arg(path));
     if (m_settings->copyToClipboard())
         copyFileToClipboard(path);
     runExternalAction(thumb, path);
-    if (fromInstantReplay) {
+    if (origin == QLatin1String("replay")) {
         showClipIndicator(tr("Clip saved"), QFileInfo(path).fileName(), QStringLiteral("ok"), 3500);
         if (m_settings->clipOpenReplay())
             openTrimRecording(path);
+    } else if (origin == QLatin1String("session")) {
+        showClipIndicator(tr("Session saved"), QFileInfo(path).fileName(), QStringLiteral("ok"), 3500);
     }
 
     // Inhibition is sampled NOW, not at recording start: a recording can run
@@ -4404,13 +4499,18 @@ void AppContext::exportClip(const QVariantMap &options)
                    ? GifRecorder::audioRemixArgs(webm, gains, mixTrack, tr("Mix"))
                    : GifRecorder::audioEditArgs(webm, gains);
     };
-    const auto finish = [this, output](bool ok, const QString &diagnostic) {
+    // Cut from a clip or a session, the result is a clip too: it stays on
+    // the Clips page instead of turning into a plain video.
+    const QString category = m_history->categoryOfFile(path);
+    const QString origin = category == QLatin1String("replay") || category == QLatin1String("session")
+                               ? QStringLiteral("clip") : QString();
+    const auto finish = [this, output, origin](bool ok, const QString &diagnostic) {
         if (!ok) {
             QFile::remove(output);
             showToast(tr("Trim failed: %1").arg(diagnostic), true);
             return;
         }
-        onRecordingFinished(output);
+        onRecordingFinished(output, origin);
     };
 
     const QPointF first = segments.first();

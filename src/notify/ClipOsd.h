@@ -34,6 +34,6 @@ private:
 };
 
 // `unisic --osd-helper <screen> <x> <y> <w> <h>`: the XWayland/X11 host of
-// ClipOsd.qml. Reads "title\tdetail\ttone\tms" lines on stdin, quits once the
+// ClipOsd.qml. Reads "title\tdetail\ttone\tms\tlook" lines on stdin, quits once the
 // pill fades out or stdin closes, so it never outlives the parent.
 int runOsdHelper(int argc, char *argv[]);

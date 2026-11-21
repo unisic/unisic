@@ -120,6 +120,20 @@ public:
     bool devFreezeEncoderForTest();
     void abort();    // discard everything
     void saveInstantReplay();
+    // The game being played, for the names of the files the ring writes.
+    // Empty when none; the session keeps the last game seen while it ran.
+    void setReplayGame(const QString &name);
+    // The next Window-source start streams this KWin window (a uuid from
+    // KWinWindowGeometry::queryWindow) without asking anyone to pick one.
+    // Used once, then forgotten.
+    void setWindowUuid(const QString &uuid) { m_windowUuid = uuid; }
+    // KWin can stream a given window: KDE, outside a sandbox, with the
+    // screencast protocol granted to the installed desktop file.
+    bool canStreamWindow();
+    // How much a ring that keeps the whole session holds: past it the oldest
+    // two seconds go, as in the short ring. Disk, at the replay encode's
+    // bitrate: about 2-15 GB per hour.
+    static constexpr int kSessionSeconds = 4 * 3600;
 
 signals:
     // Portal sharing approved and the stream is live, but encoding is HELD until
@@ -128,10 +142,11 @@ signals:
     void armed();
     void started();
     void converting();
-    // fromInstantReplay: the file came out of the replay ring's export, not a
-    // recording the user started and stopped. Both produce an .mp4, so the path
-    // alone cannot tell them apart, and history categorizes them separately.
-    void finished(const QString &filePath, bool fromInstantReplay = false);
+    // origin: "replay" for a clip out of the replay ring, "session" for the
+    // whole ring written out when it stops (Settings::clipKeepSession), empty
+    // for a recording the user started and stopped. All three produce an .mp4,
+    // so the path alone cannot tell them apart, and history files them apart.
+    void finished(const QString &filePath, const QString &origin = {});
     void failed(const QString &error);
     void replayExportFailed(const QString &error);
     // 0..1 while a stopped recording is converted or a replay is written out.
@@ -288,6 +303,10 @@ private:
     QProcess *m_replayExporter = nullptr;
     QFutureWatcher<QStringList> *m_replaySnapshot = nullptr; // copy phase of a replay save
     int m_replayWrap = 0;          // segment_wrap of the running ring
+    bool m_keepSession = false;    // this ring keeps the whole session
+    QString m_replayGame;          // see setReplayGame
+    QString m_sessionGame;
+    QString m_windowUuid;
     // The replay watermark, rendered once per ring and cropped to its own
     // pixels so each frame blends only that rectangle.
     QImage m_replayStamp;
@@ -297,5 +316,6 @@ private:
     // Adds the ffmpeg "-progress pipe:1" reader to p (call before start): maps
     // out_time over totalMs onto [from, to] of saveProgress. Errors stay on stderr.
     void watchProgress(QProcess *p, qint64 totalMs, qreal from, qreal to);
-    void exportReplaySnapshot(const QString &snapshot, const QStringList &linked);
+    void exportReplaySnapshot(const QString &snapshot, const QStringList &linked, bool session = false);
+    QString replayStem(const QString &kind, const QString &game) const;
 };

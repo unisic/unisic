@@ -18,10 +18,37 @@ Item {
     signal openPage(int index)
     signal openSettings(int tab, string query)
 
+    // Clips and whole sessions, apart. A game chip in "Recently played"
+    // narrows both to the files named after that game.
+    property string gameFilter: ""
     HistoryFilterModel {
         id: recentModel
         sourceModel: App.history
         kindFilter: "replay"
+        searchText: page.gameFilter
+    }
+    HistoryFilterModel {
+        id: sessionModel
+        sourceModel: App.history
+        kindFilter: "session"
+        searchText: page.gameFilter
+    }
+
+    // Settings::recentGames, "<epoch seconds>\t<name>" newest first.
+    readonly property var games: App.settings.recentGames.map(function (entry) {
+        var tab = entry.indexOf("\t")
+        return { name: entry.slice(tab + 1), when: new Date(parseInt(entry.slice(0, tab)) * 1000) }
+    })
+    // The game's part of a file name, as GifRecorder::replayStem writes it.
+    // "Unisic_Session_2026-01-01_20-00-00_Hades II.mp4" -> "Hades II · 20:00";
+    // any other name (a renamed or cut clip) stays as it is.
+    function tileName(path) {
+        var file = path.split("/").pop()
+        var m = /^Unisic_(?:Replay|Session)_\d{4}-\d\d-\d\d_(\d\d)-(\d\d)-\d\d(?:-\d+)?(?:_(.+?))?(?:-\d+)?\.\w+$/.exec(file)
+        return m && m[3] ? m[3] + " · " + m[1] + ":" + m[2] : file
+    }
+    function fileTag(name) {
+        return name.replace(/[\/\\:*?"<>|\x00-\x1f]/g, "-").trim().slice(0, 60)
     }
 
     Flickable {
@@ -114,16 +141,72 @@ Item {
                 }
             }
 
+            Column {
+                width: parent.width
+                spacing: 10
+
+                SectionLabel { text: qsTr("Recently played") }
+                Text {
+                    width: parent.width
+                    wrapMode: Text.WordWrap
+                    visible: App.currentGame !== "" || page.games.length === 0
+                    text: App.currentGame !== ""
+                          //: %1 is the game's name.
+                          ? qsTr("Playing now: %1. Clips and sessions are named after it.").arg(App.currentGame)
+                          : App.settings.instantReplayAuto === "game" || App.instantReplayActive
+                          ? qsTr("No game seen yet. Games from Steam, Proton launchers, GameMode and cloud gaming apps show up here.")
+                          : qsTr("Games are looked for while instant replay runs, or all the time with Start automatically set to While a game is running.")
+                    color: Theme.textSecondary
+                    font.pixelSize: 13
+                }
+                Flow {
+                    width: parent.width
+                    spacing: 8
+                    visible: page.games.length > 0
+                    Repeater {
+                        model: page.games
+                        UFilterChip {
+                            required property var modelData
+                            text: modelData.name
+                            checked: page.gameFilter !== "" && page.gameFilter === page.fileTag(modelData.name)
+                            accessibleName: modelData.name
+                            //: %1 is a date and time.
+                            accessibleDescription: qsTr("Last played %1").arg(modelData.when.toLocaleString(Qt.locale(), Locale.ShortFormat))
+                            onClicked: page.gameFilter = checked ? "" : page.fileTag(modelData.name)
+                        }
+                    }
+                }
+            }
+
+            RecentStrip {
+                id: sessionSection
+                width: parent.width
+                model: sessionModel
+                gridName: "clipsSessionGrid"
+                title: qsTr("Recordings")
+                // Half of what is left; the clips below take the rest.
+                available: (pageFlick.height - 2 * col.y - sessionSection.y - col.spacing) / 2
+                listName: qsTr("Session recordings")
+                emptyText: App.settings.clipKeepSession
+                           ? qsTr("Every instant replay session is saved here when it stops. Click one to cut clips from it.")
+                           : qsTr("Turn on Keep the whole session to save every instant replay session here and cut clips from it later.")
+                openToEdit: true
+                nameOf: page.tileName
+                onOpenHistory: page.openPage(3)
+            }
+
             RecentStrip {
                 id: recentSection
                 width: parent.width
                 model: recentModel
                 gridName: "clipsRecentGrid"
+                title: qsTr("Clips")
                 available: pageFlick.height - 2 * col.y - recentSection.y
                 listName: qsTr("Recent clips")
                 emptyText: qsTr("Saved clips show up here. Click one to cut it.")
                 // A clip opens in the clip editor, not the player.
                 openToEdit: true
+                nameOf: page.tileName
                 onOpenHistory: page.openPage(3)
             }
         }
@@ -164,6 +247,18 @@ Item {
                     accessibleName: lengthRow.label
                     value: App.settings.instantReplaySeconds
                     onChanged: (v) => App.settings.instantReplaySeconds = v
+                }
+            }
+            InspectorRow {
+                id: sourceRow
+                label: qsTranslate("SettingsPage", "Record")
+                UComboBox {
+                    width: 150
+                    accessibleName: sourceRow.label
+                    readonly property var ids: ["screen", "window"]
+                    model: [qsTranslate("SettingsPage", "Whole screen"), qsTranslate("SettingsPage", "Game window")]
+                    currentIndex: Math.max(0, ids.indexOf(App.settings.clipSource))
+                    onActivated: (i) => App.settings.clipSource = ids[i]
                 }
             }
             Column {
@@ -212,6 +307,29 @@ Item {
                     checked: App.settings.clipIndicator
                     accessibleName: osdRow.label
                     onToggled: (c) => App.settings.clipIndicator = c
+                }
+            }
+            InspectorRow {
+                id: styleRow
+                label: qsTranslate("SettingsPage", "Indicator style")
+                enabled: App.settings.clipIndicator
+                UComboBox {
+                    width: 104
+                    accessibleName: styleRow.label
+                    readonly property var ids: ["pill", "compact", "dot", "tinted"]
+                    model: [qsTranslate("SettingsPage", "Pill"), qsTranslate("SettingsPage", "Compact"),
+                            qsTranslate("SettingsPage", "Dot"), qsTranslate("SettingsPage", "Tinted")]
+                    currentIndex: Math.max(0, ids.indexOf(App.settings.clipIndicatorStyle))
+                    onActivated: (i) => App.settings.clipIndicatorStyle = ids[i]
+                }
+            }
+            InspectorRow {
+                id: sessionRow
+                label: qsTranslate("SettingsPage", "Keep the whole session")
+                MiniSwitch {
+                    checked: App.settings.clipKeepSession
+                    accessibleName: sessionRow.label
+                    onToggled: (c) => App.settings.clipKeepSession = c
                 }
             }
         }

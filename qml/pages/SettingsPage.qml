@@ -2322,6 +2322,18 @@ Item {
                         helpDetail: qsTr("Shown over fullscreen games too, and never takes a click. Instant replay records the screen, so a clip that covers the moment the sign was up shows it.")
                         USwitch { checked: App.settings.clipIndicator; onToggled: (c) => App.settings.clipIndicator = c }
                     }
+                    SettingRow {
+                        available: App.settings.clipIndicator
+                        label: qsTr("Indicator style")
+                        help: qsTr("Pill: icon, title and the file name. Compact: icon and title. Dot: the icon alone. Tinted: the pill with its edge and title in the colour of what happened.")
+                        UComboBox {
+                            width: 220
+                            readonly property var ids: ["pill", "compact", "dot", "tinted"]
+                            model: [qsTr("Pill"), qsTr("Compact"), qsTr("Dot"), qsTr("Tinted")]
+                            currentIndex: Math.max(0, ids.indexOf(App.settings.clipIndicatorStyle))
+                            onActivated: (i) => App.settings.clipIndicatorStyle = ids[i]
+                        }
+                    }
                     Text {
                         id: clipDirLabel
                         text: qsTr("Clips folder")
@@ -2353,9 +2365,27 @@ Item {
                         UValueCombo { width: 130; values: [10,15,30,60,120,300,600,1800,3600]; from: 10; to: 3600; suffix: " s"; value: App.settings.instantReplaySeconds; onChanged: (v) => App.settings.instantReplaySeconds = v }
                     }
                     SettingRow {
+                        label: qsTr("Record")
+                        help: qsTr("Whole screen: the monitor under the pointer. Game window: only the game, even when something covers it.")
+                        helpDetail: qsTr("Game window finds the running game's window, or takes the window in front when no game is detected. On KDE Plasma the recording follows that window; on Windows its area is recorded; elsewhere the whole screen is. A change applies the next time instant replay starts.")
+                        UComboBox {
+                            width: 220
+                            readonly property var ids: ["screen", "window"]
+                            model: [qsTr("Whole screen"), qsTr("Game window")]
+                            currentIndex: Math.max(0, ids.indexOf(App.settings.clipSource))
+                            onActivated: (i) => App.settings.clipSource = ids[i]
+                        }
+                    }
+                    SettingRow {
+                        label: qsTr("Keep the whole session")
+                        help: qsTr("Stopping instant replay saves everything it recorded as one session recording, to cut clips from later on the Clips page.")
+                        helpDetail: qsTr("Up to the last 4 hours of a session, on disk in the cache while it runs: about 2 to 15 GB per hour, depending on the screen and the quality. Save clip still saves only the replay length. A change applies the next time instant replay starts.")
+                        USwitch { checked: App.settings.clipKeepSession; onToggled: (c) => App.settings.clipKeepSession = c }
+                    }
+                    SettingRow {
                         label: qsTr("Start instant replay automatically")
                         help: qsTr("Keeps recording the screen in the background, ready to save the last moments.")
-                        helpDetail: qsTr("When Unisic starts: from launch until you stop it. While a game is running: games started by Steam, and on Linux games using GameMode (Lutris, Heroic, gamemoderun); it stops when the game closes. Starting a recording pauses it, and it comes back afterwards.")
+                        helpDetail: qsTr("When Unisic starts: from launch until you stop it. While a game is running: games started by Steam, and on Linux also Proton games from Heroic, Lutris or Bottles, games using GameMode, and cloud gaming in the GeForce NOW, Steam Link, Moonlight, Boosteroid or Greenlight app, or in a browser app window; it stops when the game closes. Starting a recording pauses it, and it comes back afterwards.")
                         UComboBox {
                             width: 220
                             readonly property var ids: ["off", "launch", "game"]

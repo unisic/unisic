@@ -72,6 +72,9 @@ class AppContext : public QObject
     Q_PROPERTY(bool recording READ recording NOTIFY recordingChanged)
     Q_PROPERTY(bool converting READ converting NOTIFY recordingChanged)
     Q_PROPERTY(bool instantReplayActive READ instantReplayActive NOTIFY recordingChanged)
+    // The game GameDetector sees right now, empty when none (or it has no
+    // name). The detector runs only while it is needed, see updateGameDetector.
+    Q_PROPERTY(QString currentGame READ currentGame NOTIFY currentGameChanged)
     // The running ring was started by Settings::instantReplayAuto: the record
     // controls stay usable, a recording stops it and it comes back afterwards.
     Q_PROPERTY(bool autoReplayActive READ autoReplayActive NOTIFY recordingChanged)
@@ -248,6 +251,7 @@ public:
     bool converting() const;
     bool instantReplayActive() const { return m_recorder->instantReplayActive(); }
     bool autoReplayActive() const { return m_replayAuto && instantReplayActive(); }
+    QString currentGame() const;
     qreal saveProgress() const { return m_saveProgress; }
     bool recordingPaused() const { return m_recorder->paused(); }
     bool recordingCanPause() const { return m_recorder->canPause(); }
@@ -861,6 +865,7 @@ signals:
     void audioApplicationNodesReady(const QVariantList &nodes);
     void audioInputDevicesReady(const QVariantList &devices);
     void recordingChanged();
+    void currentGameChanged();
     void saveProgressChanged();
     void recordSecondsChanged();
     void toastChanged();
@@ -1138,10 +1143,18 @@ private:
     // Instant replay started on its own (Settings::instantReplayAuto).
     GameDetector *m_gameDetector = nullptr; // only while the mode is "game"
     bool m_replayAuto = false;          // the ring was started by the setting
+    bool m_replayStarting = false;      // startReplayRing is looking for the window
+    int m_replayWindowTries = 0;        // auto start waiting for the game's window
     bool m_resumeAutoReplay = false;    // a recording took its place: restart it after
     std::function<void()> m_afterReplayStops; // the recording waiting for the ring to stop
     qreal m_saveProgress = -1;
     void applyInstantReplayAuto();
+    // GameDetector lives while the auto mode is "game" or a replay ring runs
+    // (the clips and the session are named after the game); otherwise there
+    // is no 5 s poll at all.
+    void updateGameDetector();
+    void startReplayRing(bool hold);
+    void onGameChanged(const QString &name);
     bool yieldAutoReplay(std::function<void()> retry);
     bool manualRecording() const { return recording() && !autoReplayActive(); }
     void setSaveProgress(qreal p);
@@ -1166,12 +1179,13 @@ private:
     bool nowInhibited() const;
     void setupTray();
     void defineHotkeys();
-    // fromInstantReplay travels from GifRecorder::finished down to the history
-    // entry's origin: the file is an .mp4 either way, so nothing downstream can
-    // work out which clips came out of the replay ring.
-    void onRecordingFinished(const QString &path, bool fromInstantReplay = false);
+    // origin ("" | "replay" | "session" | "clip") travels from
+    // GifRecorder::finished or the clip export down to the history entry: the
+    // file is an .mp4 either way, so nothing downstream can work out where it
+    // came from.
+    void onRecordingFinished(const QString &path, const QString &origin = {});
     void finishRecordingEntry(const QString &path, const QImage &thumb, const QString &kind,
-                              bool fromInstantReplay = false);
+                              const QString &origin = {});
     // Region recording marker: a transparent, click-through fullscreen surface
     // that draws a frame just OUTSIDE the recorded rect (physRegion, physical
     // px on screen) so the user sees what is being captured without the frame

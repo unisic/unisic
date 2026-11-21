@@ -77,7 +77,16 @@ void KWinWindowGeometry::queryActiveWindow(Callback cb)
     cb(rect, QString());
 }
 
+// shortcut: the active window, whatever pids says; a process-tree window
+// search (EnumWindows) would find a game that is not in front.
+void KWinWindowGeometry::queryWindow(const QList<qint64> &, WindowCallback cb)
+{
+    if (!cb)
+        return;
+    queryActiveWindow([cb](const QRect &rect, const QString &error) { cb(rect, {}, error); });
+}
+
 // Only the KWin script calls this, over D-Bus; moc still needs a definition.
-void KWinWindowGeometry::report(int, int, int, int)
+void KWinWindowGeometry::report(int, int, int, int, const QString &)
 {
 }

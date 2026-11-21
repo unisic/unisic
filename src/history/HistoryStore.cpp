@@ -241,8 +241,10 @@ int HistoryStore::rowCount(const QModelIndex &parent) const
 
 QString HistoryStore::categoryOf(const Entry &e)
 {
-    if (e.origin == QLatin1String("replay"))
+    if (e.origin == QLatin1String("replay") || e.origin == QLatin1String("clip"))
         return QStringLiteral("replay");
+    if (e.origin == QLatin1String("session"))
+        return QStringLiteral("session");
     // Pre-0.7.1 entries have no origin: fall back to the name every replay
     // export is given (GifRecorder writes "Unisic_Replay_<stamp>.mp4"), so the
     // clips already in someone's history land in the right chip too.
@@ -482,6 +484,15 @@ void HistoryStore::setFavorite(int row, bool favorite)
     m_entries[row].favorite = favorite;
     emit dataChanged(index(row), index(row), {FavoriteRole});
     persist();
+}
+
+QString HistoryStore::categoryOfFile(const QString &filePath) const
+{
+    for (const Entry &e : m_entries) {
+        if (e.filePath == filePath)
+            return categoryOf(e);
+    }
+    return {};
 }
 
 QVariantMap HistoryStore::entryById(quint64 id) const

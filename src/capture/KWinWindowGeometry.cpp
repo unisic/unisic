@@ -38,12 +38,19 @@ void KWinWindowGeometry::queryActiveWindow(Callback cb)
 {
     if (!cb)
         return;
+    queryWindow({}, [cb](const QRect &rect, const QString &, const QString &error) { cb(rect, error); });
+}
+
+void KWinWindowGeometry::queryWindow(const QList<qint64> &pids, WindowCallback cb)
+{
+    if (!cb)
+        return;
     if (m_cb) {
-        cb({}, QStringLiteral("a window query is already running"));
+        cb({}, {}, QStringLiteral("a window query is already running"));
         return;
     }
     if (!isAvailable()) {
-        cb({}, QStringLiteral("KWin is not on the session bus"));
+        cb({}, {}, QStringLiteral("KWin is not on the session bus"));
         return;
     }
     m_cb = std::move(cb);
@@ -67,13 +74,30 @@ void KWinWindowGeometry::queryActiveWindow(Callback cb)
         finish({}, QStringLiteral("could not write the KWin helper script"));
         return;
     }
+    QStringList pidList;
+    for (qint64 p : pids)
+        pidList << QString::number(p);
+    // windowList() is Plasma 6, clientList() Plasma 5. A game's window is a
+    // normal one (not its splash or a tooltip), the biggest when it has several.
     const QString js = QStringLiteral(
-        "const w = workspace.activeWindow || workspace.activeClient;\n"
+        "const pids = [%3];\n"
+        "let w = null;\n"
+        "if (pids.length) {\n"
+        "    const all = workspace.windowList ? workspace.windowList() : workspace.clientList();\n"
+        "    for (const c of all) {\n"
+        "        if (!c.normalWindow || c.minimized || pids.indexOf(c.pid) < 0) continue;\n"
+        "        const a = c.frameGeometry.width * c.frameGeometry.height;\n"
+        "        if (!w || a > w.frameGeometry.width * w.frameGeometry.height) w = c;\n"
+        "    }\n"
+        "} else {\n"
+        "    w = workspace.activeWindow || workspace.activeClient;\n"
+        "}\n"
         "const g = w ? w.frameGeometry : null;\n"
         "callDBus(\"%1\", \"%2\", \"app.unisic.KWinWindowGeometry\", \"report\",\n"
         "         g ? Math.round(g.x) : 0, g ? Math.round(g.y) : 0,\n"
-        "         g ? Math.round(g.width) : 0, g ? Math.round(g.height) : 0);\n")
-                           .arg(m_serviceName, m_objectPath);
+        "         g ? Math.round(g.width) : 0, g ? Math.round(g.height) : 0,\n"
+        "         w ? String(w.internalId) : \"\");\n")
+                           .arg(m_serviceName, m_objectPath, pidList.join(QLatin1Char(',')));
     m_script->write(js.toUtf8());
     m_script->flush();
 
@@ -108,20 +132,20 @@ void KWinWindowGeometry::queryActiveWindow(Callback cb)
             });
 }
 
-void KWinWindowGeometry::report(int x, int y, int w, int h)
+void KWinWindowGeometry::report(int x, int y, int w, int h, const QString &uuid)
 {
     if (!m_cb)
         return;
     if (w <= 0 || h <= 0) {
-        finish({}, QStringLiteral("no active window"));
+        finish({}, QStringLiteral("no matching window"));
         return;
     }
-    finish(QRect(x, y, w, h), QString());
+    finish(QRect(x, y, w, h), QString(), uuid);
 }
 
-void KWinWindowGeometry::finish(const QRect &rect, const QString &error)
+void KWinWindowGeometry::finish(const QRect &rect, const QString &error, const QString &uuid)
 {
-    Callback cb = std::move(m_cb);
+    WindowCallback cb = std::move(m_cb);
     m_cb = nullptr;
     if (m_timeout)
         m_timeout->stop();
@@ -134,7 +158,7 @@ void KWinWindowGeometry::finish(const QRect &rect, const QString &error)
             cleanup();
     }, Qt::QueuedConnection);
     if (cb)
-        cb(rect, error);
+        cb(rect, uuid, error);
 }
 
 void KWinWindowGeometry::cleanup()

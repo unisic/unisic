@@ -17,6 +17,8 @@ Column {
     property var model
     property real available: 0
     property string listName
+    // The heading over the tiles; the Clips page has two strips.
+    property string title: qsTranslate("CapturePage", "Recent")
     property string emptyText
     // capturePageCheck() (F8) finds the Capture page's grid by this name.
     property string gridName: ""
@@ -24,6 +26,9 @@ Column {
     // the one router, so a still lands in the editor and a recording in the
     // trim window. Off on Capture and Record, where a still opens the preview.
     property bool openToEdit: false
+    // Optional: filePath -> the name a tile shows (the Clips page turns
+    // "Unisic_Replay_<stamp>_<game>.mp4" into the game and the time).
+    property var nameOf: null
     signal openHistory()
 
     spacing: 12
@@ -64,7 +69,7 @@ Column {
             id: recentLabel
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
-            text: qsTranslate("CapturePage", "Recent")
+            text: root.title
         }
         Link {
             id: historyLink
@@ -130,7 +135,8 @@ Column {
                 required property var timestamp
                 required property string dimensions
                 required property string fileSizeText
-                readonly property string fileName: filePath !== "" ? filePath.split("/").pop()
+                readonly property string fileName: filePath !== "" && root.nameOf ? root.nameOf(filePath)
+                                                 : filePath !== "" ? filePath.split("/").pop()
                                                  : url !== "" ? url : qsTranslate("CapturePage", "(not saved)")
                 readonly property string meta: {
                     var parts = [root.ago(timestamp), dimensions !== "" ? dimensions : fileSizeText]

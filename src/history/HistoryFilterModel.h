@@ -19,7 +19,8 @@ class HistoryFilterModel : public QSortFilterProxyModel
     // upload URL. Empty = no text filter.
     Q_PROPERTY(QString searchText READ searchText WRITE setSearchText NOTIFY filterChanged)
     // Matched against HistoryStore::CategoryRole, so the values are the page's
-    // chips: "" (all) | "image" | "gif" | "video" | "replay". A clip out of the
+    // chips: "" (all) | "image" | "gif" | "video" | "replay" | "session"
+    // (a whole replay session, Settings::clipKeepSession). A clip out of the
     // instant-replay ring is its own category, not a "video" — that is the one
     // thing the file itself cannot tell you.
     Q_PROPERTY(QString kindFilter READ kindFilter WRITE setKindFilter NOTIFY filterChanged)

@@ -24,19 +24,22 @@ const QString kQml = QStringLiteral("qrc:/qt/qml/Unisic/qml/ClipOsd.qml");
 constexpr int kTop = 32; // px below the top edge, clear of a panel's shadow
 
 // One protocol line; tabs and newlines inside a field would split it.
-QByteArray osdLine(const QString &title, const QString &detail, const QString &tone, int ms)
+QByteArray osdLine(const QString &title, const QString &detail, const QString &tone, int ms,
+                   const QString &look)
 {
     const auto clean = [](QString s) {
         return s.replace(QLatin1Char('\t'), QLatin1Char(' ')).replace(QLatin1Char('\n'), QLatin1Char(' '));
     };
     return (clean(title) + QLatin1Char('\t') + clean(detail) + QLatin1Char('\t') + tone
-            + QLatin1Char('\t') + QString::number(ms) + QLatin1Char('\n')).toUtf8();
+            + QLatin1Char('\t') + QString::number(ms) + QLatin1Char('\t') + clean(look)
+            + QLatin1Char('\n')).toUtf8();
 }
 
-void flash(QQuickWindow *win, const QString &title, const QString &detail, const QString &tone, int ms)
+void flash(QQuickWindow *win, const QString &title, const QString &detail, const QString &tone, int ms,
+           const QString &look)
 {
     QMetaObject::invokeMethod(win, "flash", Q_ARG(QVariant, title), Q_ARG(QVariant, detail),
-                              Q_ARG(QVariant, tone), Q_ARG(QVariant, ms));
+                              Q_ARG(QVariant, tone), Q_ARG(QVariant, ms), Q_ARG(QVariant, look));
 }
 } // namespace
 
@@ -57,6 +60,7 @@ ClipOsd::~ClipOsd()
 
 void ClipOsd::show(const QString &title, const QString &detail, const QString &tone, int ms)
 {
+    const QString look = m_app->settings()->clipIndicatorStyle();
     if (m_layerShell || LayerShellNotifier::placesCardItself()) {
         if (!m_win) {
             QQmlEngine *engine = m_app->qmlEngine();
@@ -82,14 +86,14 @@ void ClipOsd::show(const QString &title, const QString &detail, const QString &t
             win->show();
             m_win = win;
         }
-        flash(m_win, title, detail, tone, ms);
+        flash(m_win, title, detail, tone, ms, look);
         return;
     }
 
     if (m_helper && m_helper->state() == QProcess::Running) {
         // shortcut: a line written while the helper is already fading out is
         // lost; the pill is a hint, and the next event shows again.
-        m_helper->write(osdLine(title, detail, tone, ms));
+        m_helper->write(osdLine(title, detail, tone, ms, look));
         return;
     }
     const bool x11 = QGuiApplication::platformName() == QLatin1String("xcb");
@@ -123,7 +127,7 @@ void ClipOsd::show(const QString &title, const QString &detail, const QString &t
         proc->deleteLater();
     });
     proc->start();
-    proc->write(osdLine(title, detail, tone, ms)); // buffered until the helper reads
+    proc->write(osdLine(title, detail, tone, ms, look)); // buffered until the helper reads
     m_helper = proc;
 }
 
@@ -167,7 +171,7 @@ int runOsdHelper(int argc, char *argv[])
     QObject::connect(win, SIGNAL(done()), &app, SLOT(quit()));
     win->show();
 
-    // stdin lines: title \t detail \t tone \t ms. EOF (parent gone) quits.
+    // stdin lines: title \t detail \t tone \t ms \t look. EOF (parent gone) quits.
     static QByteArray inbuf;
     auto *stdinWatch = new QSocketNotifier(0, QSocketNotifier::Read, &app);
     QObject::connect(stdinWatch, &QSocketNotifier::activated, &app, [win, &app] {
@@ -184,8 +188,8 @@ int runOsdHelper(int argc, char *argv[])
         while ((nl = inbuf.indexOf('\n')) >= 0) {
             const QStringList f = QString::fromUtf8(inbuf.left(nl)).split(QLatin1Char('\t'));
             inbuf.remove(0, nl + 1);
-            if (f.size() == 4)
-                flash(win, f[0], f[1], f[2], f[3].toInt());
+            if (f.size() == 5)
+                flash(win, f[0], f[1], f[2], f[3].toInt(), f[4]);
         }
     });
     return app.exec();

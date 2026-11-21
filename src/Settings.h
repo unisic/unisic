@@ -163,6 +163,10 @@ class Settings : public QObject
     Q_PROPERTY(int clipShortSide READ clipShortSide WRITE setClipShortSide NOTIFY clipShortSideChanged)
     Q_PROPERTY(QString clipSaveDirectory READ clipSaveDirectory WRITE setClipSaveDirectory NOTIFY clipSaveDirectoryChanged)
     Q_PROPERTY(bool clipIndicator READ clipIndicator WRITE setClipIndicator NOTIFY clipIndicatorChanged)
+    Q_PROPERTY(QString clipIndicatorStyle READ clipIndicatorStyle WRITE setClipIndicatorStyle NOTIFY clipIndicatorStyleChanged)
+    Q_PROPERTY(QString clipSource READ clipSource WRITE setClipSource NOTIFY clipSourceChanged)
+    Q_PROPERTY(bool clipKeepSession READ clipKeepSession WRITE setClipKeepSession NOTIFY clipKeepSessionChanged)
+    Q_PROPERTY(QStringList recentGames READ recentGames WRITE setRecentGames NOTIFY recentGamesChanged)
     Q_PROPERTY(QString hotkeyReplayToggle READ hotkeyReplayToggle WRITE setHotkeyReplayToggle NOTIFY hotkeyReplayToggleChanged)
     Q_PROPERTY(QString hotkeyInstantReplay READ hotkeyInstantReplay WRITE setHotkeyInstantReplay NOTIFY hotkeyInstantReplayChanged)
     Q_PROPERTY(QString hotkeyRecord READ hotkeyRecord WRITE setHotkeyRecord NOTIFY hotkeyRecordChanged)
@@ -674,6 +678,20 @@ public:
     U_SETTING(QString, clipSaveDirectory, setClipSaveDirectory, "clips/saveDirectory", QString())
     // The on-screen pill (ClipOsd) for replay on/off, saving and saved.
     U_SETTING(bool, clipIndicator, setClipIndicator, "clips/indicator", true)
+    // Its look: "pill" (icon, title, detail), "compact" (icon and title),
+    // "dot" (the icon alone) or "tinted" (edge and title in the tone colour).
+    U_SETTING(QString, clipIndicatorStyle, setClipIndicatorStyle, "clips/indicatorStyle", QStringLiteral("pill"))
+    // The replay ring keeps the whole session (up to GifRecorder::kSessionSeconds) instead
+    // of the last instantReplaySeconds, and stopping it saves the session as
+    // one recording to cut clips from later.
+    // What instant replay records: "screen" (the monitor under the pointer)
+    // or "window" (the game's window, else the window in front when it starts;
+    // AppContext::startReplayRing).
+    U_SETTING(QString, clipSource, setClipSource, "clips/source", QStringLiteral("screen"))
+    U_SETTING(bool, clipKeepSession, setClipKeepSession, "clips/keepSession", false)
+    // Games GameDetector saw, newest first, "<epoch seconds>\t<name>", at
+    // most 12 (AppContext::noteRecentGame).
+    U_SETTING(QStringList, recentGames, setRecentGames, "clips/recentGames", QStringList())
     // Turns the replay ring on or off; hotkeyInstantReplay saves (or starts).
     U_SETTING(QString, hotkeyReplayToggle, setHotkeyReplayToggle, "hotkeys/replayToggle", QString())
     U_SETTING(QString, hotkeyInstantReplay, setHotkeyInstantReplay,
@@ -855,6 +873,7 @@ public:
         emit replayWatermarkEnabledChanged(); emit replayWatermarkTextChanged(); emit replayWatermarkPositionChanged();
         emit clipOpenReplayChanged(); emit clipAspectChanged(); emit clipShortSideChanged();
         emit clipSaveDirectoryChanged(); emit clipIndicatorChanged(); emit hotkeyReplayToggleChanged();
+        emit clipIndicatorStyleChanged(); emit clipKeepSessionChanged(); emit clipSourceChanged(); emit recentGamesChanged();
         emit showCapturePopupChanged(); emit capturePopupPositionChanged();
         emit capturePopupDurationSecChanged(); emit capturePopupStyleChanged(); emit capturePopupMarginChanged();
         emit hiddenNotifActionsChanged(); emit notificationActionOrderChanged();
@@ -993,6 +1012,10 @@ signals:
     void clipShortSideChanged();
     void clipSaveDirectoryChanged();
     void clipIndicatorChanged();
+    void clipIndicatorStyleChanged();
+    void clipKeepSessionChanged();
+    void clipSourceChanged();
+    void recentGamesChanged();
     void hotkeyReplayToggleChanged();
     void hotkeyRecordChanged();
     void hotkeyOcrChanged();

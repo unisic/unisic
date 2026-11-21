@@ -169,10 +169,11 @@ Item {
         { label: qsTr("Images"),     kind: "image" },
         { label: qsTr("GIFs"),       kind: "gif" },
         { label: qsTr("Recordings"), kind: "video" },
-        { label: qsTr("Clips"),      kind: "replay" }
+        { label: qsTr("Clips"),      kind: "replay" },
+        { label: qsTr("Sessions"),   kind: "session" }
     ]
     // The kind filter's segments share one width, the widest label's, so a
-    // longer translation widens all five instead of eliding one.
+    // longer translation widens all six instead of eliding one.
     FontMetrics { id: segMetrics; font.pixelSize: Theme.fontS; font.weight: Font.DemiBold }
     readonly property int segWidth: {
         var w = 0

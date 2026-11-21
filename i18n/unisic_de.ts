@@ -4,30 +4,30 @@
 <context>
     <name>AppContext</name>
     <message>
-        <location filename="../src/AppContext.cpp" line="304"/>
+        <location filename="../src/AppContext.cpp" line="305"/>
         <source>Encoding…</source>
         <translation>Wird kodiert…</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="332"/>
+        <location filename="../src/AppContext.cpp" line="333"/>
         <source>Recording failed: %1</source>
         <translation>Aufnahme fehlgeschlagen: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="338"/>
+        <location filename="../src/AppContext.cpp" line="339"/>
         <source>Could not move %1 to trash; the file is still on disk</source>
         <translation>%1 konnte nicht in den Papierkorb verschoben werden; die Datei liegt weiterhin auf der Festplatte</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3729"/>
-        <location filename="../src/AppContext.cpp" line="5716"/>
-        <location filename="../src/AppContext.cpp" line="5736"/>
+        <location filename="../src/AppContext.cpp" line="3817"/>
+        <location filename="../src/AppContext.cpp" line="5809"/>
+        <location filename="../src/AppContext.cpp" line="5829"/>
         <source>Copied to clipboard</source>
         <translation>In die Zwischenablage kopiert</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="882"/>
-        <location filename="../src/AppContext.cpp" line="907"/>
+        <location filename="../src/AppContext.cpp" line="883"/>
+        <location filename="../src/AppContext.cpp" line="908"/>
         <source>Nothing to recognize</source>
         <translation>Nichts zu erkennen</translation>
     </message>
@@ -37,32 +37,32 @@
         <translation>Unisic %1 wurde installiert - es startet beim nächsten Start</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="885"/>
+        <location filename="../src/AppContext.cpp" line="886"/>
         <source>Recognizing text…</source>
         <translation>Text wird erkannt…</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="890"/>
+        <location filename="../src/AppContext.cpp" line="891"/>
         <source>No text found</source>
         <translation>Kein Text gefunden</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="893"/>
+        <location filename="../src/AppContext.cpp" line="894"/>
         <source>Text copied</source>
         <translation>Text kopiert</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1101"/>
+        <location filename="../src/AppContext.cpp" line="1102"/>
         <source>Capture failed: %1</source>
         <translation>Aufnahme fehlgeschlagen: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1108"/>
+        <location filename="../src/AppContext.cpp" line="1109"/>
         <source>. Install Unisic (sudo cmake --install build) and launch it from the application menu so KDE authorizes it, and check that xdg-desktop-portal-kde is running.</source>
         <translation>. Installieren Sie Unisic (sudo cmake --install build) und starten Sie es aus dem Anwendungsmenü, damit KDE ihm die Rechte erteilt, und prüfen Sie, ob xdg-desktop-portal-kde läuft.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1121"/>
+        <location filename="../src/AppContext.cpp" line="1122"/>
         <source>. Install &apos;grim&apos; (works on sway/niri/Hyprland-style compositors) or an xdg-desktop-portal backend for your desktop.</source>
         <translation>. Installieren Sie „grim“ (für Compositors wie sway/niri/Hyprland) oder das xdg-desktop-portal-Backend Ihrer Arbeitsumgebung.</translation>
     </message>
@@ -82,7 +82,7 @@
         <translation>Dev: Form bearbeiten: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6645"/>
+        <location filename="../src/AppContext.cpp" line="6738"/>
         <location filename="../src/diag/SmokeTests.cpp" line="2849"/>
         <location filename="../src/diag/SmokeTests.cpp" line="6429"/>
         <source>Quit</source>
@@ -124,46 +124,46 @@
         <translation>Die Aktualisierung konnte nicht gestartet werden: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1188"/>
+        <location filename="../src/AppContext.cpp" line="1189"/>
         <source>Reading key presses needs access to input devices. Run “%1”, then log out and back in.</source>
         <translation>Zum Mitlesen von Tastendrücken wird Zugriff auf die Eingabegeräte benötigt. Führen Sie „%1“ aus und melden Sie sich danach ab und wieder an.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1537"/>
-        <location filename="../src/AppContext.cpp" line="1539"/>
-        <location filename="../src/AppContext.cpp" line="1626"/>
-        <location filename="../src/AppContext.cpp" line="1628"/>
-        <location filename="../src/AppContext.cpp" line="1638"/>
+        <location filename="../src/AppContext.cpp" line="1538"/>
+        <location filename="../src/AppContext.cpp" line="1540"/>
+        <location filename="../src/AppContext.cpp" line="1627"/>
+        <location filename="../src/AppContext.cpp" line="1629"/>
+        <location filename="../src/AppContext.cpp" line="1639"/>
         <source>Empty capture</source>
         <translation>Leere Aufnahme</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1596"/>
+        <location filename="../src/AppContext.cpp" line="1597"/>
         <source>No region to re-capture</source>
         <translation>Kein Bereich zum erneuten Aufnehmen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1597"/>
+        <location filename="../src/AppContext.cpp" line="1598"/>
         <source>No region to re-capture yet - take a region screenshot first</source>
         <translation>Es gibt noch keinen Bereich zum erneuten Aufnehmen - nehmen Sie zuerst einen Bereich auf</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1606"/>
+        <location filename="../src/AppContext.cpp" line="1607"/>
         <source>Region&apos;s screen is no longer connected</source>
         <translation>Der Bildschirm dieses Bereichs ist nicht mehr angeschlossen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1607"/>
+        <location filename="../src/AppContext.cpp" line="1608"/>
         <source>The screen that region was on is no longer connected</source>
         <translation>Der Bildschirm, auf dem dieser Bereich lag, ist nicht mehr angeschlossen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1639"/>
+        <location filename="../src/AppContext.cpp" line="1640"/>
         <source>The stored region no longer fits that screen</source>
         <translation>Der gespeicherte Bereich passt nicht mehr auf diesen Bildschirm</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1764"/>
+        <location filename="../src/AppContext.cpp" line="1765"/>
         <source>Recording a single window needs a window picker this desktop does not provide - record the screen or a region instead.</source>
         <translation>Das Aufzeichnen eines einzelnen Fensters setzt eine Fensterauswahl voraus, die diese Arbeitsumgebung nicht anbietet - nehmen Sie stattdessen den Bildschirm oder einen Bereich auf.</translation>
     </message>
@@ -189,7 +189,7 @@
         <translation type="vanished">Das aktive Fenster liegt außerhalb des Bildschirms - nichts aufzunehmen.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2229"/>
+        <location filename="../src/AppContext.cpp" line="2314"/>
         <source>No log file was opened for this run</source>
         <translation>Für diesen Start wurde keine Protokolldatei geöffnet</translation>
     </message>
@@ -218,27 +218,27 @@
         <translation type="vanished">Optional. Installieren Sie „wl-clipboard“ für das zuverlässigste Kopieren in die Zwischenablage unter Wayland.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2280"/>
+        <location filename="../src/AppContext.cpp" line="2365"/>
         <source>OCR language pack</source>
         <translation>OCR-Sprachpaket</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2281"/>
+        <location filename="../src/AppContext.cpp" line="2366"/>
         <source>Found - text recognition (OCR) is ready.</source>
         <translation>Gefunden - die Texterkennung (OCR) ist einsatzbereit.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2282"/>
+        <location filename="../src/AppContext.cpp" line="2367"/>
         <source>Missing. OCR is built in but no Tesseract language pack is installed. Install one, e.g. &quot;tesseract-langpack-eng&quot;.</source>
         <translation>Fehlt. OCR ist eingebaut, aber es ist kein Tesseract-Sprachpaket installiert. Installieren Sie eines, zum Beispiel „tesseract-langpack-eng“.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2285"/>
+        <location filename="../src/AppContext.cpp" line="2370"/>
         <source>OCR auto-language (osd)</source>
         <translation>OCR-Sprachautomatik (osd)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2286"/>
+        <location filename="../src/AppContext.cpp" line="2371"/>
         <source>Found - OCR detects the script of each capture automatically.</source>
         <translation>Gefunden - OCR erkennt die Schrift jeder Aufnahme selbst.</translation>
     </message>
@@ -399,76 +399,76 @@
         <translation>Tastenkürzel: %1 von %2 waren verloren und wurden neu registriert (Einzelheiten im Protokoll)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3470"/>
-        <location filename="../src/AppContext.cpp" line="3687"/>
-        <location filename="../src/AppContext.cpp" line="5308"/>
+        <location filename="../src/AppContext.cpp" line="3556"/>
+        <location filename="../src/AppContext.cpp" line="3775"/>
+        <location filename="../src/AppContext.cpp" line="5401"/>
         <source>Saved %1</source>
         <translation>Gespeichert: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3496"/>
-        <location filename="../src/AppContext.cpp" line="3673"/>
-        <location filename="../src/AppContext.cpp" line="4902"/>
-        <location filename="../src/AppContext.cpp" line="4919"/>
-        <location filename="../src/AppContext.cpp" line="5107"/>
+        <location filename="../src/AppContext.cpp" line="3584"/>
+        <location filename="../src/AppContext.cpp" line="3761"/>
+        <location filename="../src/AppContext.cpp" line="4995"/>
+        <location filename="../src/AppContext.cpp" line="5012"/>
+        <location filename="../src/AppContext.cpp" line="5200"/>
         <location filename="../src/upload/UploadSources.cpp" line="130"/>
         <source>Upload failed: %1</source>
         <translation>Hochladen fehlgeschlagen: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3617"/>
+        <location filename="../src/AppContext.cpp" line="3705"/>
         <source>Could not save to %1. Check the save folder in Settings</source>
         <translation>Speichern unter %1 nicht möglich. Prüfen Sie den Speicherordner in den Einstellungen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3918"/>
+        <location filename="../src/AppContext.cpp" line="4006"/>
         <source>Images (*.png *.jpg *.jpeg *.webp *.bmp *.tif *.tiff *.avif)</source>
         <translation>Bilder (*.png *.jpg *.jpeg *.webp *.bmp *.tif *.tiff *.avif)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3919"/>
+        <location filename="../src/AppContext.cpp" line="4007"/>
         <source>Recordings (*.mp4 *.webm *.gif *.mkv *.mov)</source>
         <translation>Aufnahmen (*.mp4 *.webm *.gif *.mkv *.mov)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3920"/>
+        <location filename="../src/AppContext.cpp" line="4008"/>
         <source>Images and recordings (*.png *.jpg *.jpeg *.webp *.bmp *.tif *.tiff *.avif *.mp4 *.webm *.gif *.mkv *.mov)</source>
         <translation>Bilder und Aufnahmen (*.png *.jpg *.jpeg *.webp *.bmp *.tif *.tiff *.avif *.mp4 *.webm *.gif *.mkv *.mov)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3922"/>
+        <location filename="../src/AppContext.cpp" line="4010"/>
         <location filename="../src/upload/UploadSources.cpp" line="51"/>
         <source>All files (*)</source>
         <translation>Alle Dateien (*)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3927"/>
+        <location filename="../src/AppContext.cpp" line="4015"/>
         <source>Open an image to edit</source>
         <translation>Bild zum Bearbeiten öffnen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3930"/>
+        <location filename="../src/AppContext.cpp" line="4018"/>
         <source>Open a recording to trim</source>
         <translation>Aufnahme zum Zuschneiden öffnen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5865"/>
-        <location filename="../src/AppContext.cpp" line="5899"/>
+        <location filename="../src/AppContext.cpp" line="5958"/>
+        <location filename="../src/AppContext.cpp" line="5992"/>
         <source>None of the selected captures are saved on disk.</source>
         <translation>Keine der ausgewählten Aufnahmen liegt auf der Festplatte.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5869"/>
+        <location filename="../src/AppContext.cpp" line="5962"/>
         <source>Export captures to ZIP</source>
         <translation>Aufnahmen als ZIP exportieren</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5871"/>
+        <location filename="../src/AppContext.cpp" line="5964"/>
         <source>ZIP archive (*.zip)</source>
         <translation>ZIP-Archiv (*.zip)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5874"/>
+        <location filename="../src/AppContext.cpp" line="5967"/>
         <source>Exporting %1 captures…</source>
         <translation>%1 Aufnahmen werden exportiert…</translation>
     </message>
@@ -483,7 +483,7 @@
         <translation>Temporärer Ordner konnte nicht angelegt werden: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5928"/>
+        <location filename="../src/AppContext.cpp" line="6021"/>
         <source>Exported %1 captures to %2</source>
         <translation>%1 Aufnahmen nach %2 exportiert</translation>
     </message>
@@ -504,14 +504,14 @@
         <translation>Das Programm „zip“ konnte nicht gestartet werden.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6059"/>
-        <location filename="../src/AppContext.cpp" line="6354"/>
-        <location filename="../src/AppContext.cpp" line="6640"/>
+        <location filename="../src/AppContext.cpp" line="6152"/>
+        <location filename="../src/AppContext.cpp" line="6447"/>
+        <location filename="../src/AppContext.cpp" line="6733"/>
         <source>Copy last capture</source>
         <translation>Letzte Aufnahme kopieren</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3774"/>
+        <location filename="../src/AppContext.cpp" line="3862"/>
         <source>Uploaded, link copied</source>
         <translation>Hochgeladen, Link kopiert</translation>
     </message>
@@ -527,63 +527,63 @@
         <translation>Unisic %1 ist verfügbar</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="319"/>
+        <location filename="../src/AppContext.cpp" line="320"/>
         <source>Instant replay failed: %1</source>
         <translation>Die Sofortwiedergabe konnte nicht gespeichert werden: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1079"/>
-        <location filename="../src/AppContext.cpp" line="1084"/>
+        <location filename="../src/AppContext.cpp" line="1080"/>
+        <location filename="../src/AppContext.cpp" line="1085"/>
         <source>Capture in %1…</source>
         <translation>Aufnahme in %1…</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1115"/>
+        <location filename="../src/AppContext.cpp" line="1116"/>
         <source>. GNOME is blocking silent screenshots for Unisic - run &quot;flatpak permission-reset screenshot&quot; and retry, and check that xdg-desktop-portal-gnome is running.</source>
         <translation>. GNOME blockiert stille Bildschirmfotos für Unisic - führen Sie „flatpak permission-reset screenshot“ aus, versuchen Sie es erneut und prüfen Sie, ob xdg-desktop-portal-gnome läuft.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1176"/>
+        <location filename="../src/AppContext.cpp" line="1177"/>
         <source>Reading mouse clicks needs access to input devices. Run “%1”, then log out and back in.</source>
         <translation>Zum Mitlesen von Mausklicks wird Zugriff auf die Eingabegeräte benötigt. Führen Sie „%1“ aus und melden Sie sich danach ab und wieder an.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1325"/>
-        <location filename="../src/AppContext.cpp" line="1338"/>
-        <location filename="../src/AppContext.cpp" line="1370"/>
-        <location filename="../src/AppContext.cpp" line="1380"/>
-        <location filename="../src/AppContext.cpp" line="1465"/>
-        <location filename="../src/AppContext.cpp" line="1476"/>
-        <location filename="../src/AppContext.cpp" line="1518"/>
-        <location filename="../src/AppContext.cpp" line="1529"/>
-        <location filename="../src/AppContext.cpp" line="1574"/>
-        <location filename="../src/AppContext.cpp" line="1618"/>
-        <location filename="../src/AppContext.cpp" line="1674"/>
-        <location filename="../src/AppContext.cpp" line="1685"/>
+        <location filename="../src/AppContext.cpp" line="1326"/>
+        <location filename="../src/AppContext.cpp" line="1339"/>
+        <location filename="../src/AppContext.cpp" line="1371"/>
+        <location filename="../src/AppContext.cpp" line="1381"/>
+        <location filename="../src/AppContext.cpp" line="1466"/>
+        <location filename="../src/AppContext.cpp" line="1477"/>
+        <location filename="../src/AppContext.cpp" line="1519"/>
+        <location filename="../src/AppContext.cpp" line="1530"/>
+        <location filename="../src/AppContext.cpp" line="1575"/>
+        <location filename="../src/AppContext.cpp" line="1619"/>
+        <location filename="../src/AppContext.cpp" line="1675"/>
+        <location filename="../src/AppContext.cpp" line="1686"/>
         <location filename="../src/main.cpp" line="358"/>
         <source>Another capture is already active</source>
         <translation>Es läuft bereits eine andere Aufnahme</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1401"/>
-        <location filename="../src/AppContext.cpp" line="1432"/>
-        <location filename="../src/AppContext.cpp" line="1496"/>
+        <location filename="../src/AppContext.cpp" line="1402"/>
+        <location filename="../src/AppContext.cpp" line="1433"/>
+        <location filename="../src/AppContext.cpp" line="1497"/>
         <source>Capture canceled</source>
         <translation>Aufnahme abgebrochen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1848"/>
+        <location filename="../src/AppContext.cpp" line="1857"/>
         <source>Start instant replay first</source>
         <translation>Starten Sie zuerst die Sofortwiedergabe</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1856"/>
+        <location filename="../src/AppContext.cpp" line="1865"/>
         <source>Saving instant replay…</source>
         <translation>Sofortwiedergabe wird gespeichert…</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1993"/>
-        <location filename="../src/AppContext.cpp" line="2003"/>
+        <location filename="../src/AppContext.cpp" line="2078"/>
+        <location filename="../src/AppContext.cpp" line="2088"/>
         <source>Recording in %1…</source>
         <translation>Aufnahme in %1…</translation>
     </message>
@@ -859,27 +859,27 @@
         <translation>Dev: Scroll-Zusammenfügung: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2411"/>
+        <location filename="../src/AppContext.cpp" line="2496"/>
         <source>recording</source>
         <translation>Aufnahme läuft</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2413"/>
+        <location filename="../src/AppContext.cpp" line="2498"/>
         <source>capture in progress</source>
         <translation>Aufnahme wird erstellt</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2415"/>
+        <location filename="../src/AppContext.cpp" line="2500"/>
         <source>selection overlay open</source>
         <translation>Auswahlebene offen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2417"/>
+        <location filename="../src/AppContext.cpp" line="2502"/>
         <source>editor windows open</source>
         <translation>Editorfenster offen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2419"/>
+        <location filename="../src/AppContext.cpp" line="2504"/>
         <source>main window visible</source>
         <translation>Hauptfenster sichtbar</translation>
     </message>
@@ -958,7 +958,7 @@
         <translation>Aufnahme speichern (Entwicklertest)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3605"/>
+        <location filename="../src/AppContext.cpp" line="3693"/>
         <location filename="../src/diag/SmokeTests.cpp" line="3174"/>
         <source>Images (*.png *.jpg *.jpeg *.webp)</source>
         <translation>Bilder (*.png *.jpg *.jpeg *.webp)</translation>
@@ -1071,13 +1071,13 @@
         <translation>Dev: Schutz vor eingebauter Imgur-Client-ID: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3603"/>
+        <location filename="../src/AppContext.cpp" line="3691"/>
         <source>Save capture</source>
         <translation>Aufnahme speichern</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3590"/>
-        <location filename="../src/AppContext.cpp" line="3609"/>
+        <location filename="../src/AppContext.cpp" line="3678"/>
+        <location filename="../src/AppContext.cpp" line="3697"/>
         <source>Could not save to %1</source>
         <translation>Speichern unter %1 nicht möglich</translation>
     </message>
@@ -1087,104 +1087,104 @@
         <translation>Dev: während der Aufnahme ausblenden: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3725"/>
+        <location filename="../src/AppContext.cpp" line="3813"/>
         <source>No capture to copy yet</source>
         <translation>Noch keine Aufnahme zum Kopieren</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3765"/>
+        <location filename="../src/AppContext.cpp" line="3853"/>
         <source>%1 failed, uploaded to %2. %3</source>
         <translation>%1 fehlgeschlagen, zu %2 hochgeladen. %3</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3776"/>
+        <location filename="../src/AppContext.cpp" line="3864"/>
         <source>%1 failed, uploaded to %2, link copied. %3</source>
         <translation>%1 fehlgeschlagen, zu %2 hochgeladen, Link kopiert. %3</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3778"/>
+        <location filename="../src/AppContext.cpp" line="3866"/>
         <source>Uploaded: %1</source>
         <translation>Hochgeladen: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3780"/>
+        <location filename="../src/AppContext.cpp" line="3868"/>
         <source>%1 failed, uploaded to %2: %3. %4</source>
         <translation>%1 fehlgeschlagen, zu %2 hochgeladen: %3. %4</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4584"/>
+        <location filename="../src/AppContext.cpp" line="4677"/>
         <source>Can&apos;t open %1 for editing</source>
         <translation>%1 kann nicht zum Bearbeiten geöffnet werden</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4594"/>
+        <location filename="../src/AppContext.cpp" line="4687"/>
         <source>Can&apos;t open %1 for preview</source>
         <translation>%1 kann nicht für die Vorschau geöffnet werden</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4764"/>
+        <location filename="../src/AppContext.cpp" line="4857"/>
         <source>Sounds (*.wav *.ogg *.oga)</source>
         <translation>Klänge (*.wav *.ogg *.oga)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4765"/>
+        <location filename="../src/AppContext.cpp" line="4858"/>
         <source>Sounds (*.wav)</source>
         <translation>Klänge (*.wav)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4767"/>
+        <location filename="../src/AppContext.cpp" line="4860"/>
         <source>Add capture sound</source>
         <translation>Aufnahmeklang hinzufügen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4774"/>
+        <location filename="../src/AppContext.cpp" line="4867"/>
         <source>Unsupported sound format (use WAV or OGG)</source>
         <translation>Nicht unterstütztes Klangformat (WAV oder OGG verwenden)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4783"/>
+        <location filename="../src/AppContext.cpp" line="4876"/>
         <source>Could not copy the sound file</source>
         <translation>Die Klangdatei konnte nicht kopiert werden</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4787"/>
+        <location filename="../src/AppContext.cpp" line="4880"/>
         <source>Added capture sound &quot;%1&quot;</source>
         <translation>Aufnahmeklang „%1“ hinzugefügt</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4795"/>
+        <location filename="../src/AppContext.cpp" line="4888"/>
         <source>Can&apos;t open %1 to copy</source>
         <translation>%1 kann nicht zum Kopieren geöffnet werden</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4799"/>
+        <location filename="../src/AppContext.cpp" line="4892"/>
         <source>Image copied</source>
         <translation>Bild kopiert</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4806"/>
-        <location filename="../src/AppContext.cpp" line="5728"/>
+        <location filename="../src/AppContext.cpp" line="4899"/>
+        <location filename="../src/AppContext.cpp" line="5821"/>
         <source>Save the capture first to copy its file path</source>
         <translation>Speichern Sie die Aufnahme zuerst, um ihren Dateipfad zu kopieren</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4877"/>
+        <location filename="../src/AppContext.cpp" line="4970"/>
         <source>Uploading %1…</source>
         <translation>%1 wird hochgeladen…</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3763"/>
+        <location filename="../src/AppContext.cpp" line="3851"/>
         <source>Uploaded</source>
         <translation>Hochgeladen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5045"/>
+        <location filename="../src/AppContext.cpp" line="5138"/>
         <source>Couldn&apos;t open preview</source>
         <translation>Die Vorschau konnte nicht geöffnet werden</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5463"/>
-        <location filename="../src/AppContext.cpp" line="5549"/>
+        <location filename="../src/AppContext.cpp" line="5556"/>
+        <location filename="../src/AppContext.cpp" line="5642"/>
         <source>Saved as PNG to keep transparency</source>
         <translation>Als PNG gespeichert, um die Transparenz zu erhalten</translation>
     </message>
@@ -1193,22 +1193,22 @@
         <translation type="vanished">Kein gültiger Link für einen QR-Code</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5704"/>
+        <location filename="../src/AppContext.cpp" line="5797"/>
         <source>Could not create QR code</source>
         <translation>Der QR-Code konnte nicht erstellt werden</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5708"/>
+        <location filename="../src/AppContext.cpp" line="5801"/>
         <source>QR code preview</source>
         <translation>QR-Code-Vorschau</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5748"/>
+        <location filename="../src/AppContext.cpp" line="5841"/>
         <source>Save or upload the capture first to copy it as a link</source>
         <translation>Speichern Sie die Aufnahme zuerst oder laden Sie sie hoch, um sie als Link zu kopieren</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3697"/>
+        <location filename="../src/AppContext.cpp" line="3785"/>
         <source>Could not encode the capture</source>
         <translation>Die Aufnahme konnte nicht kodiert werden</translation>
     </message>
@@ -1218,132 +1218,136 @@
         <translation>Die Aktualisierung wird im Hintergrund installiert. Klicken, um Unisic zu öffnen.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/ClipsPage.qml" line="134"/>
-        <location filename="../src/AppContext.cpp" line="285"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="208"/>
+        <location filename="../src/AppContext.cpp" line="286"/>
         <source>%1 s</source>
         <translation>%1 s</translation>
     </message>
     <message>
-        <location filename="../qml/pages/ClipsPage.qml" line="135"/>
-        <location filename="../src/AppContext.cpp" line="285"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="209"/>
+        <location filename="../src/AppContext.cpp" line="286"/>
         <source>%1 min</source>
         <translation>%1 min</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="287"/>
+        <location filename="../src/AppContext.cpp" line="288"/>
         <source>Instant replay on</source>
         <translation>Sofortwiedergabe an</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="289"/>
+        <location filename="../src/AppContext.cpp" line="290"/>
         <source>Keeping the last %1</source>
         <translation>Behält die letzten %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="290"/>
+        <location filename="../src/AppContext.cpp" line="291"/>
         <source>%1 saves the last %2</source>
         <translation>%1 speichert die letzten %2</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="306"/>
+        <location filename="../src/AppContext.cpp" line="307"/>
         <source>Instant replay off</source>
         <translation>Sofortwiedergabe aus</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="320"/>
+        <location filename="../src/AppContext.cpp" line="321"/>
         <source>Clip not saved</source>
         <translation>Clip nicht gespeichert</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1412"/>
         <location filename="../src/AppContext.cpp" line="1413"/>
+        <location filename="../src/AppContext.cpp" line="1414"/>
         <source>Selection is too small for scrolling capture</source>
         <translation>Die Auswahl ist zu klein für die Aufnahme mit Scrollen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1798"/>
-        <location filename="../src/AppContext.cpp" line="1808"/>
+        <location filename="../src/AppContext.cpp" line="1819"/>
         <source>No window to record. Click the window first, then start the recording.</source>
         <translation>Kein Fenster zum Aufnehmen. Klicke zuerst auf das Fenster und starte dann die Aufnahme.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1854"/>
+        <location filename="../src/AppContext.cpp" line="1863"/>
         <source>Saving clip…</source>
         <translation>Clip wird gespeichert…</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2264"/>
-        <location filename="../src/AppContext.cpp" line="2275"/>
+        <location filename="../src/AppContext.cpp" line="2349"/>
+        <location filename="../src/AppContext.cpp" line="2360"/>
         <source>Found.</source>
         <translation>Gefunden.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2265"/>
-        <location filename="../src/AppContext.cpp" line="2276"/>
+        <location filename="../src/AppContext.cpp" line="2350"/>
+        <location filename="../src/AppContext.cpp" line="2361"/>
         <source>Missing from this install: %1.</source>
         <translation>In dieser Installation fehlt: %1.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3475"/>
+        <location filename="../src/AppContext.cpp" line="3561"/>
         <source>Clip saved</source>
         <translation>Clip gespeichert</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3842"/>
+        <location filename="../src/AppContext.cpp" line="3565"/>
+        <source>Session saved</source>
+        <translation>Sitzung gespeichert</translation>
+    </message>
+    <message>
+        <location filename="../src/AppContext.cpp" line="3930"/>
         <source>Choose watermark image</source>
         <translation>Bild für das Wasserzeichen wählen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3843"/>
+        <location filename="../src/AppContext.cpp" line="3931"/>
         <source>Images (*.png *.svg *.svgz *.jpg *.jpeg *.webp)</source>
         <translation>Bilder (*.png *.svg *.svgz *.jpg *.jpeg *.webp)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3851"/>
+        <location filename="../src/AppContext.cpp" line="3939"/>
         <source>The watermark image is invalid or too large</source>
         <translation>Das Wasserzeichenbild ist ungültig oder zu groß</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3856"/>
+        <location filename="../src/AppContext.cpp" line="3944"/>
         <source>Could not load the watermark image</source>
         <translation>Das Wasserzeichenbild konnte nicht geladen werden</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3934"/>
+        <location filename="../src/AppContext.cpp" line="4022"/>
         <source>Open image or recording</source>
         <translation>Bild oder Aufnahme öffnen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3968"/>
-        <location filename="../src/AppContext.cpp" line="4011"/>
+        <location filename="../src/AppContext.cpp" line="4056"/>
+        <location filename="../src/AppContext.cpp" line="4099"/>
         <source>Unisic cannot edit this file type</source>
         <translation>Unisic kann diesen Dateityp nicht bearbeiten</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4104"/>
+        <location filename="../src/AppContext.cpp" line="4192"/>
         <source>Recording file not found</source>
         <translation>Aufnahmedatei nicht gefunden</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4109"/>
-        <location filename="../src/AppContext.cpp" line="4165"/>
+        <location filename="../src/AppContext.cpp" line="4197"/>
+        <location filename="../src/AppContext.cpp" line="4253"/>
         <source>Trimming requires ffprobe from the ffmpeg package</source>
         <translation>Zum Zuschneiden wird ffprobe aus dem Paket ffmpeg benötigt</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4154"/>
+        <location filename="../src/AppContext.cpp" line="4242"/>
         <source>Could not read the recording duration</source>
         <translation>Die Länge der Aufnahme konnte nicht gelesen werden</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4353"/>
+        <location filename="../src/AppContext.cpp" line="4441"/>
         <source>Invalid trim range</source>
         <translation>Ungültiger Zuschneidebereich</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4213"/>
-        <location filename="../src/AppContext.cpp" line="4259"/>
-        <location filename="../src/AppContext.cpp" line="4357"/>
+        <location filename="../src/AppContext.cpp" line="4301"/>
+        <location filename="../src/AppContext.cpp" line="4347"/>
+        <location filename="../src/AppContext.cpp" line="4445"/>
         <source>Trimming requires ffmpeg</source>
         <translation>Zum Zuschneiden wird ffmpeg benötigt</translation>
     </message>
@@ -1383,8 +1387,8 @@
         <translation>Mikrofon</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4404"/>
-        <location filename="../src/AppContext.cpp" line="4519"/>
+        <location filename="../src/AppContext.cpp" line="4492"/>
+        <location filename="../src/AppContext.cpp" line="4612"/>
         <location filename="../src/diag/SmokeTests.cpp" line="1610"/>
         <source>Mix</source>
         <translation>Mix</translation>
@@ -1524,231 +1528,231 @@
         <translation type="vanished">Dev: X11-Tastenkürzel: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3950"/>
-        <location filename="../src/AppContext.cpp" line="5271"/>
+        <location filename="../src/AppContext.cpp" line="4038"/>
+        <location filename="../src/AppContext.cpp" line="5364"/>
         <location filename="../src/upload/UploadSources.cpp" line="61"/>
         <source>Can&apos;t find %1</source>
         <translation>%1 wurde nicht gefunden</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3957"/>
-        <location filename="../src/AppContext.cpp" line="4010"/>
+        <location filename="../src/AppContext.cpp" line="4045"/>
+        <location filename="../src/AppContext.cpp" line="4098"/>
         <source>Unisic opens files, not folders</source>
         <translation>Unisic öffnet Dateien, keine Ordner</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3987"/>
+        <location filename="../src/AppContext.cpp" line="4075"/>
         <source>Unisic can only open files from this computer</source>
         <translation>Unisic kann nur Dateien von diesem Rechner öffnen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3988"/>
+        <location filename="../src/AppContext.cpp" line="4076"/>
         <source>Nothing to open in that drop</source>
         <translation>In dem Abgelegten gibt es nichts zu öffnen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4031"/>
+        <location filename="../src/AppContext.cpp" line="4119"/>
         <source>Opened %1. Drop one file at a time to open the others.</source>
         <translation>%1 geöffnet. Legen Sie die Dateien einzeln ab, um die übrigen zu öffnen.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4033"/>
+        <location filename="../src/AppContext.cpp" line="4121"/>
         <source>Opened %1. Nothing else in that drop is a file Unisic can open.</source>
         <translation>%1 geöffnet. Sonst ist in dem Abgelegten keine Datei, die Unisic öffnen kann.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4063"/>
+        <location filename="../src/AppContext.cpp" line="4151"/>
         <location filename="../src/upload/UploadSources.cpp" line="137"/>
         <source>The clipboard is empty</source>
         <translation>Die Zwischenablage ist leer</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4098"/>
+        <location filename="../src/AppContext.cpp" line="4186"/>
         <source>The clipboard holds no image to paste</source>
         <translation>In der Zwischenablage ist kein Bild zum Einfügen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4304"/>
-        <location filename="../src/AppContext.cpp" line="4319"/>
-        <location filename="../src/AppContext.cpp" line="4410"/>
+        <location filename="../src/AppContext.cpp" line="4392"/>
+        <location filename="../src/AppContext.cpp" line="4407"/>
+        <location filename="../src/AppContext.cpp" line="4503"/>
         <source>Trim failed: %1</source>
         <translation>Zuschneiden fehlgeschlagen: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4383"/>
+        <location filename="../src/AppContext.cpp" line="4471"/>
         <source>Trimming recording…</source>
         <translation>Aufnahme wird zugeschnitten…</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4544"/>
+        <location filename="../src/AppContext.cpp" line="4637"/>
         <source>External action failed: %1</source>
         <translation>Externe Aktion fehlgeschlagen: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4550"/>
+        <location filename="../src/AppContext.cpp" line="4643"/>
         <source>External action created %1</source>
         <translation>Externe Aktion hat %1 erstellt</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4552"/>
+        <location filename="../src/AppContext.cpp" line="4645"/>
         <source>External action finished</source>
         <translation>Externe Aktion beendet</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4570"/>
+        <location filename="../src/AppContext.cpp" line="4663"/>
         <source>Could not prepare the external action input</source>
         <translation>Die Eingabe für die externe Aktion konnte nicht vorbereitet werden</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4893"/>
+        <location filename="../src/AppContext.cpp" line="4986"/>
         <source>Could not encode %1 for upload</source>
         <translation>%1 konnte für den Upload nicht kodiert werden</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5108"/>
+        <location filename="../src/AppContext.cpp" line="5201"/>
         <source>Upload to %1 failed: %2</source>
         <translation>Hochladen zu %1 fehlgeschlagen: %2</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5275"/>
+        <location filename="../src/AppContext.cpp" line="5368"/>
         <source>Already a %1 file</source>
         <translation>Ist bereits eine %1-Datei</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5284"/>
+        <location filename="../src/AppContext.cpp" line="5377"/>
         <source>%1 is animated. Trim it instead</source>
         <translation>%1 ist animiert. Schneide es stattdessen zu</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5289"/>
+        <location filename="../src/AppContext.cpp" line="5382"/>
         <source>Can&apos;t read %1</source>
         <translation>%1 kann nicht gelesen werden</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5302"/>
+        <location filename="../src/AppContext.cpp" line="5395"/>
         <source>Couldn&apos;t convert %1</source>
         <translation>%1 konnte nicht konvertiert werden</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5397"/>
+        <location filename="../src/AppContext.cpp" line="5490"/>
         <source>Over %1 MB, so it was converted to %2 (%3 instead of %4)</source>
         <translation>Über %1 MB, deshalb nach %2 konvertiert (%3 statt %4)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5416"/>
+        <location filename="../src/AppContext.cpp" line="5509"/>
         <source>GIF needs ffmpeg. Use Save as to write another format</source>
         <translation>GIF braucht ffmpeg. Nutze Speichern unter für ein anderes Format</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5417"/>
+        <location filename="../src/AppContext.cpp" line="5510"/>
         <source>Can&apos;t write %1 back as %2. Use Save as</source>
         <translation>%1 lässt sich nicht wieder als %2 schreiben. Nutze Speichern unter</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5427"/>
-        <location filename="../src/AppContext.cpp" line="5432"/>
-        <location filename="../src/AppContext.cpp" line="5492"/>
-        <location filename="../src/AppContext.cpp" line="5497"/>
+        <location filename="../src/AppContext.cpp" line="5520"/>
+        <location filename="../src/AppContext.cpp" line="5525"/>
+        <location filename="../src/AppContext.cpp" line="5585"/>
+        <location filename="../src/AppContext.cpp" line="5590"/>
         <source>Can&apos;t write %1</source>
         <translation>%1 lässt sich nicht schreiben</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5465"/>
-        <location filename="../src/AppContext.cpp" line="5551"/>
+        <location filename="../src/AppContext.cpp" line="5558"/>
+        <location filename="../src/AppContext.cpp" line="5644"/>
         <source>GIF needs ffmpeg. Saved as PNG</source>
         <translation>GIF braucht ffmpeg. Als PNG gespeichert</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5467"/>
-        <location filename="../src/AppContext.cpp" line="5553"/>
+        <location filename="../src/AppContext.cpp" line="5560"/>
+        <location filename="../src/AppContext.cpp" line="5646"/>
         <source>%1 could not hold this image. Saved as PNG</source>
         <translation>%1 konnte dieses Bild nicht aufnehmen. Als PNG gespeichert</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5758"/>
+        <location filename="../src/AppContext.cpp" line="5851"/>
         <source>Unknown copy format</source>
         <translation>Unbekanntes Kopierformat</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5833"/>
+        <location filename="../src/AppContext.cpp" line="5926"/>
         <source>Export Unisic settings</source>
         <translation>Unisic-Einstellungen exportieren</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5835"/>
-        <location filename="../src/AppContext.cpp" line="5846"/>
+        <location filename="../src/AppContext.cpp" line="5928"/>
+        <location filename="../src/AppContext.cpp" line="5939"/>
         <source>Unisic settings (*.json)</source>
         <translation>Unisic-Einstellungen (*.json)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5839"/>
+        <location filename="../src/AppContext.cpp" line="5932"/>
         <source>Settings exported</source>
         <translation>Einstellungen exportiert</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5845"/>
+        <location filename="../src/AppContext.cpp" line="5938"/>
         <source>Import Unisic settings</source>
         <translation>Unisic-Einstellungen importieren</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5850"/>
-        <location filename="../src/AppContext.cpp" line="6043"/>
+        <location filename="../src/AppContext.cpp" line="5943"/>
+        <location filename="../src/AppContext.cpp" line="6136"/>
         <source>Settings imported</source>
         <translation>Einstellungen importiert</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5940"/>
+        <location filename="../src/AppContext.cpp" line="6033"/>
         <source>No file selected</source>
         <translation>Keine Datei ausgewählt</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5971"/>
-        <location filename="../src/AppContext.cpp" line="5982"/>
+        <location filename="../src/AppContext.cpp" line="6064"/>
+        <location filename="../src/AppContext.cpp" line="6075"/>
         <source>Cannot write %1</source>
         <translation>%1 kann nicht geschrieben werden</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5985"/>
+        <location filename="../src/AppContext.cpp" line="6078"/>
         <source>Settings exported to %1</source>
         <translation>Einstellungen nach %1 exportiert</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5994"/>
+        <location filename="../src/AppContext.cpp" line="6087"/>
         <source>Cannot read %1</source>
         <translation>%1 kann nicht gelesen werden</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5997"/>
+        <location filename="../src/AppContext.cpp" line="6090"/>
         <source>Not a Unisic settings file</source>
         <translation>Keine Unisic-Einstellungsdatei</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6042"/>
+        <location filename="../src/AppContext.cpp" line="6135"/>
         <source>Settings imported. The external action is off: check its command, then switch it on</source>
         <translation>Einstellungen importiert. Die externe Aktion ist aus: Befehl prüfen und dann einschalten</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6052"/>
-        <location filename="../src/AppContext.cpp" line="6623"/>
+        <location filename="../src/AppContext.cpp" line="6145"/>
+        <location filename="../src/AppContext.cpp" line="6716"/>
         <location filename="../src/diag/SmokeTests.cpp" line="6428"/>
         <source>Capture full screen</source>
         <translation>Ganzen Bildschirm aufnehmen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6053"/>
-        <location filename="../src/AppContext.cpp" line="6622"/>
+        <location filename="../src/AppContext.cpp" line="6146"/>
+        <location filename="../src/AppContext.cpp" line="6715"/>
         <location filename="../src/diag/SmokeTests.cpp" line="6427"/>
         <source>Capture region</source>
         <translation>Bereich aufnehmen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6054"/>
-        <location filename="../src/AppContext.cpp" line="6628"/>
+        <location filename="../src/AppContext.cpp" line="6147"/>
+        <location filename="../src/AppContext.cpp" line="6721"/>
         <source>Capture scrolling region</source>
         <translation>Scrollenden Bereich aufnehmen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6055"/>
+        <location filename="../src/AppContext.cpp" line="6148"/>
         <source>Capture active window</source>
         <translation>Aktives Fenster aufnehmen</translation>
     </message>
@@ -1757,17 +1761,17 @@
         <translation type="vanished">Aktives Fenster aufnehmen (Start/Stopp)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6114"/>
+        <location filename="../src/AppContext.cpp" line="6207"/>
         <source>This desktop can&apos;t be set up automatically - use the commands below.</source>
         <translation>Diese Arbeitsumgebung lässt sich nicht automatisch einrichten - verwenden Sie die Befehle unten.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6119"/>
+        <location filename="../src/AppContext.cpp" line="6212"/>
         <source>Could not add shortcuts: %1</source>
         <translation>Tastenkürzel konnten nicht hinzugefügt werden: %1</translation>
     </message>
     <message numerus="yes">
-        <location filename="../src/AppContext.cpp" line="6123"/>
+        <location filename="../src/AppContext.cpp" line="6216"/>
         <source>Added %n shortcut(s) to %1</source>
         <translation>
             <numerusform>%n Tastenkürzel zu %1 hinzugefügt</numerusform>
@@ -1775,22 +1779,22 @@
         </translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6127"/>
+        <location filename="../src/AppContext.cpp" line="6220"/>
         <source>(skipped, no mappable key: %1)</source>
         <translation>(übersprungen, keine passende Taste: %1)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6134"/>
+        <location filename="../src/AppContext.cpp" line="6227"/>
         <source>%1 already uses these keys - change them in Hotkeys: %2</source>
         <translation>%1 belegt diese Tasten bereits - ändern Sie sie unter Tastenkürzel: %2</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6145"/>
+        <location filename="../src/AppContext.cpp" line="6238"/>
         <source>Could not remove shortcuts: %1</source>
         <translation>Tastenkürzel konnten nicht entfernt werden: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6148"/>
+        <location filename="../src/AppContext.cpp" line="6241"/>
         <source>Removed Unisic shortcuts from %1</source>
         <translation>Unisic-Tastenkürzel aus %1 entfernt</translation>
     </message>
@@ -1800,34 +1804,34 @@
         <translation>Dev: Tastenkürzel der Arbeitsumgebung: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6367"/>
-        <location filename="../src/AppContext.cpp" line="6624"/>
+        <location filename="../src/AppContext.cpp" line="6460"/>
+        <location filename="../src/AppContext.cpp" line="6717"/>
         <source>Capture screen under cursor</source>
         <translation>Bildschirm unter dem Mauszeiger aufnehmen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6369"/>
-        <location filename="../src/AppContext.cpp" line="6629"/>
+        <location filename="../src/AppContext.cpp" line="6462"/>
+        <location filename="../src/AppContext.cpp" line="6722"/>
         <source>Re-capture last region</source>
         <translation>Letzten Bereich erneut aufnehmen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6056"/>
+        <location filename="../src/AppContext.cpp" line="6149"/>
         <source>Record GIF (start/stop)</source>
         <translation>GIF aufnehmen (Start/Stopp)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6057"/>
+        <location filename="../src/AppContext.cpp" line="6150"/>
         <source>Record video (start/stop)</source>
         <translation>Video aufnehmen (Start/Stopp)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6058"/>
+        <location filename="../src/AppContext.cpp" line="6151"/>
         <source>OCR region (copy text)</source>
         <translation>Bereich per OCR lesen (Text kopieren)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6360"/>
+        <location filename="../src/AppContext.cpp" line="6453"/>
         <source>Open quick task chooser</source>
         <translation>Schnellauswahl für Aufgaben öffnen</translation>
     </message>
@@ -1840,12 +1844,12 @@
         <translation type="vanished">Fehlt in dieser Installation. Das Paket „wl-clipboard“ ist für zuverlässiges Kopieren in die Zwischenablage unter Wayland erforderlich.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2287"/>
+        <location filename="../src/AppContext.cpp" line="2372"/>
         <source>Missing from this install. The Tesseract &quot;osd&quot; pack is required for OCR script detection.</source>
         <translation>Fehlt in dieser Installation. Das Tesseract-Paket „osd“ ist für die OCR-Schrifterkennung erforderlich.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3521"/>
+        <location filename="../src/AppContext.cpp" line="3609"/>
         <source>Better Blur blurs the screen under Unisic&apos;s capture frame, so this capture came out blurred. Exclude Unisic in Better Blur&apos;s window list (System Settings › Desktop Effects) or turn the effect off.</source>
         <translation>Better Blur verwischt den Bildschirm unter dem Aufnahmerahmen von Unisic, deshalb ist diese Aufnahme unscharf. Schließe Unisic in der Fensterliste von Better Blur aus (Systemeinstellungen › Arbeitsflächen-Effekte) oder schalte den Effekt ab.</translation>
     </message>
@@ -1858,8 +1862,8 @@
         <translation type="vanished">%1 fehlgeschlagen, zu %2 hochgeladen: %3</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6335"/>
-        <location filename="../src/AppContext.cpp" line="6454"/>
+        <location filename="../src/AppContext.cpp" line="6428"/>
+        <location filename="../src/AppContext.cpp" line="6547"/>
         <source>Stop recording (emergency)</source>
         <translation>Aufnahme stoppen (Notfall)</translation>
     </message>
@@ -1868,7 +1872,7 @@
         <translation type="vanished">Der Notfall-Stopp mit Ctrl+Esc ist nicht verfügbar: die Taste ist vom System belegt (Systemeinstellungen → Kurzbefehle, um sie freizugeben)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6348"/>
+        <location filename="../src/AppContext.cpp" line="6441"/>
         <source>Developer smoke test</source>
         <translation>Entwickler-Testlauf</translation>
     </message>
@@ -1885,109 +1889,109 @@
         <translation type="vanished">Einige Tastenkürzel konnten nicht belegt werden (Tasten belegt); angezeigt wird der tatsächliche Stand</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6627"/>
+        <location filename="../src/AppContext.cpp" line="6720"/>
         <source>Capture window</source>
         <translation>Fenster aufnehmen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6065"/>
-        <location filename="../src/AppContext.cpp" line="6630"/>
+        <location filename="../src/AppContext.cpp" line="6158"/>
+        <location filename="../src/AppContext.cpp" line="6723"/>
         <source>Measure</source>
         <translation>Messen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6631"/>
+        <location filename="../src/AppContext.cpp" line="6724"/>
         <location filename="../src/diag/SmokeTests.cpp" line="6427"/>
         <source>Select text…</source>
         <translation>Text auswählen…</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6632"/>
+        <location filename="../src/AppContext.cpp" line="6725"/>
         <source>Record video (region)</source>
         <translation>Video aufnehmen (Bereich)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6061"/>
-        <location filename="../src/AppContext.cpp" line="6633"/>
+        <location filename="../src/AppContext.cpp" line="6154"/>
+        <location filename="../src/AppContext.cpp" line="6726"/>
         <source>Record video (full screen)</source>
         <translation>Video aufnehmen (Vollbild)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6063"/>
-        <location filename="../src/AppContext.cpp" line="6634"/>
+        <location filename="../src/AppContext.cpp" line="6156"/>
+        <location filename="../src/AppContext.cpp" line="6727"/>
         <source>Record video (window)</source>
         <translation>Video aufnehmen (Fenster)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6635"/>
+        <location filename="../src/AppContext.cpp" line="6728"/>
         <source>Record GIF (region)</source>
         <translation>GIF aufnehmen (Bereich)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6062"/>
-        <location filename="../src/AppContext.cpp" line="6636"/>
+        <location filename="../src/AppContext.cpp" line="6155"/>
+        <location filename="../src/AppContext.cpp" line="6729"/>
         <source>Record GIF (full screen)</source>
         <translation>GIF aufnehmen (Vollbild)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6637"/>
+        <location filename="../src/AppContext.cpp" line="6730"/>
         <source>Start instant replay</source>
         <translation>Sofortwiedergabe starten</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6638"/>
+        <location filename="../src/AppContext.cpp" line="6731"/>
         <source>Save instant replay</source>
         <translation>Sofortwiedergabe speichern</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6639"/>
+        <location filename="../src/AppContext.cpp" line="6732"/>
         <source>Stop recording</source>
         <translation>Aufnahme stoppen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6715"/>
+        <location filename="../src/AppContext.cpp" line="6808"/>
         <source>Restart to update to Unisic %1</source>
         <translation>Neu starten, um auf Unisic %1 zu aktualisieren</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6721"/>
+        <location filename="../src/AppContext.cpp" line="6814"/>
         <source>Install update to Unisic %1</source>
         <translation>Aktualisierung auf Unisic %1 installieren</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6725"/>
+        <location filename="../src/AppContext.cpp" line="6818"/>
         <source>Update available - Unisic %1</source>
         <translation>Aktualisierung verfügbar - Unisic %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6644"/>
+        <location filename="../src/AppContext.cpp" line="6737"/>
         <location filename="../src/diag/SmokeTests.cpp" line="6429"/>
         <source>Open Unisic</source>
         <translation>Unisic öffnen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6968"/>
+        <location filename="../src/AppContext.cpp" line="7061"/>
         <source>Images (*.png *.svg *.svgz *.xpm *.ico *.jpg *.jpeg *.webp)</source>
         <translation>Bilder (*.png *.svg *.svgz *.xpm *.ico *.jpg *.jpeg *.webp)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6967"/>
+        <location filename="../src/AppContext.cpp" line="7060"/>
         <source>Add a tray icon</source>
         <translation>Symbol für den Systembereich hinzufügen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6973"/>
-        <location filename="../src/AppContext.cpp" line="7012"/>
+        <location filename="../src/AppContext.cpp" line="7066"/>
+        <location filename="../src/AppContext.cpp" line="7105"/>
         <source>Could not load that image as an icon</source>
         <translation>Dieses Bild konnte nicht als Symbol geladen werden</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6993"/>
+        <location filename="../src/AppContext.cpp" line="7086"/>
         <source>Could not copy the icon into %1</source>
         <translation>Das Symbol konnte nicht nach %1 kopiert werden</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6999"/>
+        <location filename="../src/AppContext.cpp" line="7092"/>
         <source>Icon added to your tray icons</source>
         <translation>Symbol zu Ihren Symbolen im Systembereich hinzugefügt</translation>
     </message>
@@ -2078,81 +2082,81 @@
         <translation type="vanished">Hochgeladen, aber is.gd konnte den Link nicht kürzen (%1). Der vollständige Link wird verwendet.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1563"/>
+        <location filename="../src/AppContext.cpp" line="1564"/>
         <source>No monitor named %1. Connected: %2</source>
         <translation>Kein Monitor mit dem Namen %1. Angeschlossen: %2</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3742"/>
+        <location filename="../src/AppContext.cpp" line="3830"/>
         <source>Uploaded, but %1 could not be moved to the trash</source>
         <translation>Hochgeladen, aber %1 konnte nicht in den Papierkorb verschoben werden</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3806"/>
+        <location filename="../src/AppContext.cpp" line="3894"/>
         <source>Uploaded, but %1 could not shorten the link (%2). The full link is used.</source>
         <translation>Hochgeladen, aber %1 konnte den Link nicht kürzen (%2). Der vollständige Link wird verwendet.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4816"/>
+        <location filename="../src/AppContext.cpp" line="4909"/>
         <source>Can&apos;t open %1 to print</source>
         <translation>%1 kann zum Drucken nicht geöffnet werden</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5693"/>
+        <location filename="../src/AppContext.cpp" line="5786"/>
         <source>Nothing to turn into a QR code</source>
         <translation>Nichts, woraus ein QR-Code werden kann</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5697"/>
+        <location filename="../src/AppContext.cpp" line="5790"/>
         <source>Too long for a QR code: %1 bytes, at most %2</source>
         <translation>Zu lang für einen QR-Code: %1 Bytes, höchstens %2</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6060"/>
+        <location filename="../src/AppContext.cpp" line="6153"/>
         <source>Save clip (instant replay)</source>
         <translation>Clip speichern (Sofortwiedergabe)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6064"/>
+        <location filename="../src/AppContext.cpp" line="6157"/>
         <source>Pause/resume recording</source>
         <translation>Aufnahme anhalten/fortsetzen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6066"/>
+        <location filename="../src/AppContext.cpp" line="6159"/>
         <source>Edit an image</source>
         <translation>Bild bearbeiten</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6067"/>
+        <location filename="../src/AppContext.cpp" line="6160"/>
         <source>Trim a video</source>
         <translation>Video zuschneiden</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6071"/>
+        <location filename="../src/AppContext.cpp" line="6164"/>
         <source>Instant replay on/off</source>
         <translation>Sofortwiedergabe an/aus</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6626"/>
+        <location filename="../src/AppContext.cpp" line="6719"/>
         <location filename="../src/diag/SmokeTests.cpp" line="6398"/>
         <source>Capture monitor</source>
         <translation>Monitor aufnehmen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6068"/>
-        <location filename="../src/AppContext.cpp" line="6641"/>
+        <location filename="../src/AppContext.cpp" line="6161"/>
+        <location filename="../src/AppContext.cpp" line="6734"/>
         <source>Upload a file…</source>
         <translation>Datei hochladen…</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6069"/>
-        <location filename="../src/AppContext.cpp" line="6642"/>
+        <location filename="../src/AppContext.cpp" line="6162"/>
+        <location filename="../src/AppContext.cpp" line="6735"/>
         <source>Upload clipboard</source>
         <translation>Zwischenablage hochladen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6070"/>
-        <location filename="../src/AppContext.cpp" line="6643"/>
+        <location filename="../src/AppContext.cpp" line="6163"/>
+        <location filename="../src/AppContext.cpp" line="6736"/>
         <source>QR code of copied text</source>
         <translation>QR-Code des kopierten Texts</translation>
     </message>
@@ -2433,24 +2437,24 @@
         <translation>Editor öffnen</translation>
     </message>
     <message>
-        <location filename="../qml/components/RecentStrip.qml" line="46"/>
+        <location filename="../qml/components/RecentStrip.qml" line="48"/>
         <source>Just now</source>
         <translation>Gerade eben</translation>
     </message>
     <message>
-        <location filename="../qml/components/RecentStrip.qml" line="49"/>
+        <location filename="../qml/components/RecentStrip.qml" line="51"/>
         <source>%1 min ago</source>
         <extracomment>Age of a capture in Recent, minutes. Short form, no plural.</extracomment>
         <translation>vor %1 Min.</translation>
     </message>
     <message>
-        <location filename="../qml/components/RecentStrip.qml" line="52"/>
+        <location filename="../qml/components/RecentStrip.qml" line="54"/>
         <source>%1 h ago</source>
         <extracomment>Age of a capture in Recent, hours. Short form, no plural.</extracomment>
         <translation>vor %1 Std.</translation>
     </message>
     <message>
-        <location filename="../qml/components/RecentStrip.qml" line="54"/>
+        <location filename="../qml/components/RecentStrip.qml" line="56"/>
         <source>Yesterday</source>
         <translation>Gestern</translation>
     </message>
@@ -2522,12 +2526,12 @@
         <translation>Video aufnehmen</translation>
     </message>
     <message>
-        <location filename="../qml/components/RecentStrip.qml" line="67"/>
+        <location filename="../qml/components/RecentStrip.qml" line="21"/>
         <source>Recent</source>
         <translation>Zuletzt</translation>
     </message>
     <message>
-        <location filename="../qml/components/RecentStrip.qml" line="73"/>
+        <location filename="../qml/components/RecentStrip.qml" line="75"/>
         <source>Open History</source>
         <translation>Verlauf öffnen</translation>
     </message>
@@ -2538,7 +2542,7 @@
         <translation>Letzte Aufnahmen</translation>
     </message>
     <message>
-        <location filename="../qml/components/RecentStrip.qml" line="134"/>
+        <location filename="../qml/components/RecentStrip.qml" line="136"/>
         <source>(not saved)</source>
         <translation>(nicht gespeichert)</translation>
     </message>
@@ -2616,7 +2620,7 @@
         <translation>Bereich, %1</translation>
     </message>
     <message>
-        <location filename="../qml/components/RecentStrip.qml" line="143"/>
+        <location filename="../qml/components/RecentStrip.qml" line="145"/>
         <source>Uploaded</source>
         <translation>Hochgeladen</translation>
     </message>
@@ -2725,99 +2729,147 @@
 <context>
     <name>ClipsPage</name>
     <message>
-        <location filename="../qml/pages/ClipsPage.qml" line="52"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="72"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="195"/>
         <source>Clips</source>
         <translation>Clips</translation>
     </message>
     <message>
-        <location filename="../qml/pages/ClipsPage.qml" line="58"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="78"/>
         <source>Instant replay is unavailable: this desktop has no ScreenCast portal backend, so nothing can hand Unisic the screen.</source>
         <translation>Die Sofortwiedergabe ist nicht verfügbar: Diese Arbeitsumgebung hat kein ScreenCast-Portal-Backend, also kann Unisic den Bildschirm nicht erhalten.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/ClipsPage.qml" line="60"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="80"/>
         <source>Instant replay is running and keeps the last %1. Save a clip when something worth keeping happens.</source>
         <translation>Die Sofortwiedergabe läuft und behält die letzten %1. Speichere einen Clip, wenn etwas Sehenswertes passiert.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/ClipsPage.qml" line="61"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="81"/>
         <source>Instant replay keeps the last moments of the screen in the background. Start it, then save a clip after the moment happened.</source>
         <translation>Die Sofortwiedergabe behält im Hintergrund die letzten Momente des Bildschirms. Starte sie und speichere einen Clip, nachdem es passiert ist.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/ClipsPage.qml" line="71"/>
-        <location filename="../qml/pages/ClipsPage.qml" line="154"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="91"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="228"/>
         <source>Instant replay</source>
         <translation>Sofortwiedergabe</translation>
     </message>
     <message>
-        <location filename="../qml/pages/ClipsPage.qml" line="88"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="108"/>
         <source>Stop replay</source>
         <translation>Wiedergabe stoppen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/ClipsPage.qml" line="88"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="108"/>
         <source>Start replay</source>
         <translation>Wiedergabe starten</translation>
     </message>
     <message>
-        <location filename="../qml/pages/ClipsPage.qml" line="89"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="109"/>
         <source>Running</source>
         <translation>Läuft</translation>
     </message>
     <message>
-        <location filename="../qml/pages/ClipsPage.qml" line="89"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="109"/>
         <source>Off</source>
         <translation>Aus</translation>
     </message>
     <message>
-        <location filename="../qml/pages/ClipsPage.qml" line="98"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="118"/>
         <source>Save clip</source>
         <translation>Clip speichern</translation>
     </message>
     <message>
-        <location filename="../qml/pages/ClipsPage.qml" line="100"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="120"/>
         <source>The last %1</source>
         <extracomment>%1 is the replay length, e.g. &quot;30 s&quot; or &quot;2 min&quot;.</extracomment>
         <translation>Die letzten %1</translation>
     </message>
     <message>
-        <location filename="../qml/pages/ClipsPage.qml" line="109"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="129"/>
         <source>Edit a clip</source>
         <translation>Clip bearbeiten</translation>
     </message>
     <message>
-        <location filename="../qml/pages/ClipsPage.qml" line="110"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="130"/>
         <source>Cut any recording</source>
         <translation>Beliebige Aufnahme schneiden</translation>
     </message>
     <message>
-        <location filename="../qml/pages/ClipsPage.qml" line="123"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="141"/>
+        <source>Recently played</source>
+        <translation>Zuletzt gespielt</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="148"/>
+        <source>Playing now: %1. Clips and sessions are named after it.</source>
+        <extracomment>%1 is the game&apos;s name.</extracomment>
+        <translation>Gerade gespielt: %1. Clips und Sitzungen werden danach benannt.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="150"/>
+        <source>No game seen yet. Games from Steam, Proton launchers, GameMode and cloud gaming apps show up here.</source>
+        <translation>Noch kein Spiel erkannt. Spiele aus Steam, Proton-Launchern, GameMode und Cloud-Gaming-Apps erscheinen hier.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="151"/>
+        <source>Games are looked for while instant replay runs, or all the time with Start automatically set to While a game is running.</source>
+        <translation>Spiele werden gesucht, solange die Sofortwiedergabe läuft, oder ständig, wenn Automatisch starten auf Während ein Spiel läuft steht.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="167"/>
+        <source>Last played %1</source>
+        <extracomment>%1 is a date and time.</extracomment>
+        <translation>Zuletzt gespielt %1</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="179"/>
+        <source>Recordings</source>
+        <translation>Aufnahmen</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="182"/>
+        <source>Session recordings</source>
+        <translation>Sitzungsaufnahmen</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="184"/>
+        <source>Every instant replay session is saved here when it stops. Click one to cut clips from it.</source>
+        <translation>Jede Sitzung der Sofortwiedergabe wird hier gespeichert, wenn sie stoppt. Klicke auf eine, um Clips daraus zu schneiden.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="185"/>
+        <source>Turn on Keep the whole session to save every instant replay session here and cut clips from it later.</source>
+        <translation>Schalte Ganze Sitzung behalten ein, um jede Sitzung der Sofortwiedergabe hier zu speichern und später Clips daraus zu schneiden.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="197"/>
         <source>Recent clips</source>
         <translation>Letzte Clips</translation>
     </message>
     <message>
-        <location filename="../qml/pages/ClipsPage.qml" line="124"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="198"/>
         <source>Saved clips show up here. Click one to cut it.</source>
         <translation>Gespeicherte Clips erscheinen hier. Klicke einen an, um ihn zu schneiden.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/ClipsPage.qml" line="144"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="218"/>
         <source>Clip options</source>
         <translation>Clip-Optionen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/ClipsPage.qml" line="174"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="260"/>
         <source>Start automatically</source>
         <translation>Automatisch starten</translation>
     </message>
     <message>
-        <location filename="../qml/pages/ClipsPage.qml" line="231"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="340"/>
         <source>Open saved clips in the editor</source>
         <translation>Gespeicherte Clips im Editor öffnen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/ClipsPage.qml" line="266"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="375"/>
         <source>All clip settings</source>
         <translation>Alle Clip-Einstellungen</translation>
     </message>
@@ -4248,63 +4300,63 @@
 <context>
     <name>GifRecorder</name>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="502"/>
-        <location filename="../src/record/GifRecorder.cpp" line="555"/>
+        <location filename="../src/record/GifRecorder.cpp" line="521"/>
+        <location filename="../src/record/GifRecorder.cpp" line="574"/>
         <source>Screen sharing was stopped</source>
         <translation>Die Bildschirmfreigabe wurde beendet</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="527"/>
+        <location filename="../src/record/GifRecorder.cpp" line="546"/>
         <source>No window was picked</source>
         <translation>Es wurde kein Fenster ausgewählt</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="533"/>
+        <location filename="../src/record/GifRecorder.cpp" line="552"/>
         <source>Failed to start the window recording</source>
         <translation>Die Fensteraufnahme konnte nicht gestartet werden</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="621"/>
+        <location filename="../src/record/GifRecorder.cpp" line="640"/>
         <source>The shared screen doesn&apos;t match the one the region was selected on - pick &quot;%1&quot; in the sharing dialog</source>
         <translation>Der freigegebene Bildschirm ist nicht der, auf dem der Bereich ausgewählt wurde - wählen Sie „%1“ im Freigabedialog</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="666"/>
+        <location filename="../src/record/GifRecorder.cpp" line="685"/>
         <source>Failed to connect to the PipeWire stream</source>
         <translation>Die Verbindung zum PipeWire-Stream ist fehlgeschlagen</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="679"/>
+        <location filename="../src/record/GifRecorder.cpp" line="698"/>
         <source>No screen is available to record</source>
         <translation>Es ist kein Bildschirm zum Aufnehmen verfügbar</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="698"/>
+        <location filename="../src/record/GifRecorder.cpp" line="717"/>
         <source>Failed to start X11 screen capture</source>
         <translation>Die X11-Bildschirmaufnahme konnte nicht gestartet werden</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="727"/>
+        <location filename="../src/record/GifRecorder.cpp" line="746"/>
         <source>PipeWire returned an invalid stream size</source>
         <translation>PipeWire hat eine ungültige Streamgröße geliefert</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="765"/>
+        <location filename="../src/record/GifRecorder.cpp" line="784"/>
         <source>Selected recording region is outside the chosen screen stream</source>
         <translation>Der gewählte Aufnahmebereich liegt außerhalb des gewählten Bildschirmstreams</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="766"/>
+        <location filename="../src/record/GifRecorder.cpp" line="785"/>
         <source>Recording stream is too small</source>
         <translation>Der Aufnahmestream ist zu klein</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="888"/>
+        <location filename="../src/record/GifRecorder.cpp" line="916"/>
         <source>System audio</source>
         <translation>Systemton</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="890"/>
+        <location filename="../src/record/GifRecorder.cpp" line="918"/>
         <source>Microphone</source>
         <translation>Mikrofon</translation>
     </message>
@@ -4313,84 +4365,84 @@
         <translation type="vanished">Anwendungston</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="1039"/>
+        <location filename="../src/record/GifRecorder.cpp" line="1067"/>
         <source>Mix</source>
         <translation>Mix</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="1126"/>
-        <location filename="../src/record/GifRecorder.cpp" line="1872"/>
-        <location filename="../src/record/GifRecorder.cpp" line="1923"/>
+        <location filename="../src/record/GifRecorder.cpp" line="1155"/>
         <location filename="../src/record/GifRecorder.cpp" line="1965"/>
-        <location filename="../src/record/GifRecorder.cpp" line="2120"/>
+        <location filename="../src/record/GifRecorder.cpp" line="2016"/>
+        <location filename="../src/record/GifRecorder.cpp" line="2058"/>
+        <location filename="../src/record/GifRecorder.cpp" line="2213"/>
         <source>ffmpeg could not be started. Is it installed?</source>
         <translation>ffmpeg konnte nicht gestartet werden. Ist es installiert?</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="1143"/>
+        <location filename="../src/record/GifRecorder.cpp" line="1172"/>
         <source>Recording encoder crashed</source>
         <translation>Der Aufnahme-Encoder ist abgestürzt</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="1144"/>
+        <location filename="../src/record/GifRecorder.cpp" line="1173"/>
         <source>Recording encoder stopped unexpectedly (code %1)</source>
         <translation>Der Aufnahme-Encoder hat unerwartet gestoppt (Code %1)</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="1161"/>
+        <location filename="../src/record/GifRecorder.cpp" line="1190"/>
         <source>Recording encoder failed (code %1)</source>
         <translation>Der Aufnahme-Encoder ist fehlgeschlagen (Code %1)</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="1207"/>
+        <location filename="../src/record/GifRecorder.cpp" line="1257"/>
         <source>pw-record could not capture the selected application audio</source>
         <translation>pw-record konnte den Ton der gewählten Anwendung nicht aufnehmen</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="1403"/>
+        <location filename="../src/record/GifRecorder.cpp" line="1453"/>
         <source>Recording encoder is not running</source>
         <translation>Der Aufnahme-Encoder läuft nicht</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="1480"/>
+        <location filename="../src/record/GifRecorder.cpp" line="1530"/>
         <source>Recording encoder hung and nothing could be salvaged</source>
         <translation>Der Aufnahme-Encoder hängt und es konnte nichts gerettet werden</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="1507"/>
+        <location filename="../src/record/GifRecorder.cpp" line="1557"/>
         <source>Instant replay needs at least one completed segment</source>
         <translation>Die Sofortwiedergabe braucht mindestens einen fertigen Abschnitt</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="1564"/>
+        <location filename="../src/record/GifRecorder.cpp" line="1651"/>
         <source>Could not snapshot the replay segments</source>
         <translation>Die Abschnitte der Wiedergabe konnten nicht gesichert werden</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="1570"/>
-        <location filename="../src/record/GifRecorder.cpp" line="1580"/>
+        <location filename="../src/record/GifRecorder.cpp" line="1657"/>
+        <location filename="../src/record/GifRecorder.cpp" line="1667"/>
         <source>Could not prepare the replay export</source>
         <translation>Der Export der Wiedergabe konnte nicht vorbereitet werden</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="1614"/>
-        <location filename="../src/record/GifRecorder.cpp" line="1632"/>
+        <location filename="../src/record/GifRecorder.cpp" line="1706"/>
+        <location filename="../src/record/GifRecorder.cpp" line="1725"/>
         <source>Instant replay export failed</source>
         <translation>Der Export der Sofortwiedergabe ist fehlgeschlagen</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="1856"/>
+        <location filename="../src/record/GifRecorder.cpp" line="1949"/>
         <source>Removing the paused sections failed</source>
         <translation>Das Entfernen der pausierten Abschnitte ist fehlgeschlagen</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="1912"/>
-        <location filename="../src/record/GifRecorder.cpp" line="1951"/>
+        <location filename="../src/record/GifRecorder.cpp" line="2005"/>
+        <location filename="../src/record/GifRecorder.cpp" line="2044"/>
         <source>GIF conversion failed</source>
         <translation>Die GIF-Umwandlung ist fehlgeschlagen</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="2107"/>
+        <location filename="../src/record/GifRecorder.cpp" line="2200"/>
         <source>Video conversion failed</source>
         <translation>Die Videoumwandlung ist fehlgeschlagen</translation>
     </message>
@@ -4610,13 +4662,13 @@
 <context>
     <name>HistoryPage</name>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="241"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="242"/>
         <source>History</source>
         <translation>Verlauf</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="193"/>
-        <location filename="../qml/pages/HistoryPage.qml" line="293"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="194"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="294"/>
         <source>Clear all</source>
         <translation>Alles löschen</translation>
     </message>
@@ -4664,12 +4716,12 @@
         <translation>Früher diese Woche</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="191"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="192"/>
         <source>Clear the whole history?</source>
         <translation>Den ganzen Verlauf löschen?</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="192"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="193"/>
         <source>This removes every history entry AND moves the capture files to the trash.
 
 Starred (favorite) captures are kept, both the entry and the file.</source>
@@ -4678,12 +4730,12 @@ Starred (favorite) captures are kept, both the entry and the file.</source>
 Mit Stern markierte (favorisierte) Aufnahmen bleiben erhalten, Eintrag und Datei.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="199"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="200"/>
         <source>Delete the selected captures?</source>
         <translation>Die ausgewählten Aufnahmen löschen?</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="200"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="201"/>
         <source>This moves the selected capture files to the trash.
 
 Starred (favorite) captures in the selection are kept - un-star them first.</source>
@@ -4692,28 +4744,28 @@ Starred (favorite) captures in the selection are kept - un-star them first.</sou
 Mit Stern markierte (favorisierte) Aufnahmen in der Auswahl bleiben erhalten - entfernen Sie zuerst den Stern.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="201"/>
-        <location filename="../qml/pages/HistoryPage.qml" line="424"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="202"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="425"/>
         <source>Delete</source>
         <translation>Löschen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="250"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="251"/>
         <source>%1 of %2</source>
         <translation>%1 von %2</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="251"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="252"/>
         <source>%1 items</source>
         <translation>%1 Einträge</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="275"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="276"/>
         <source>Search name or link</source>
         <translation>Name oder Link suchen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="287"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="288"/>
         <source>Clear search</source>
         <translation>Suche leeren</translation>
     </message>
@@ -4733,170 +4785,175 @@ Mit Stern markierte (favorisierte) Aufnahmen in der Auswahl bleiben erhalten - e
         <translation>Aufnahmen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="324"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="173"/>
+        <source>Sessions</source>
+        <translation>Sitzungen</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/HistoryPage.qml" line="325"/>
         <source>Capture type</source>
         <translation>Aufnahmetyp</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="333"/>
-        <location filename="../qml/pages/HistoryPage.qml" line="622"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="334"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="623"/>
         <source>Starred</source>
         <translation>Markiert</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="339"/>
-        <location filename="../qml/pages/HistoryPage.qml" line="781"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="340"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="782"/>
         <source>Uploaded</source>
         <translation>Hochgeladen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="367"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="368"/>
         <source>%1 selected</source>
         <translation>%1 ausgewählt</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="379"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="380"/>
         <source>Star</source>
         <translation>Markieren</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="384"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="385"/>
         <source>Unstar</source>
         <translation>Markierung entfernen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="389"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="390"/>
         <source>Copy paths</source>
         <translation>Pfade kopieren</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="397"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="398"/>
         <source>Nothing to copy: the selected captures were never saved</source>
         <translation>Nichts zu kopieren: die ausgewählten Aufnahmen wurden nie gespeichert</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="401"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="402"/>
         <source>Copied %1 file paths</source>
         <translation>%1 Dateipfade kopiert</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="414"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="415"/>
         <source>Nothing to upload: the selected captures were never saved</source>
         <translation>Nichts hochzuladen: die ausgewählten Aufnahmen wurden nie gespeichert</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="419"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="420"/>
         <source>Export ZIP</source>
         <translation>ZIP exportieren</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="434"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="435"/>
         <source>Cancel</source>
         <translation>Abbrechen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="497"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="498"/>
         <source>Nothing here yet. Captures and recordings will appear here with thumbnails.</source>
         <translation>Hier ist noch nichts. Aufnahmen erscheinen hier mit Vorschaubildern.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="498"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="499"/>
         <source>No capture matches the current search and filters.</source>
         <translation>Keine Aufnahme passt zur aktuellen Suche und den Filtern.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="506"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="507"/>
         <source>Reset filters</source>
         <translation>Filter zurücksetzen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="554"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="555"/>
         <source>Capture history</source>
         <translation>Aufnahmeverlauf</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="555"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="556"/>
         <source>Arrow keys move, Space selects, Return opens, Delete removes</source>
         <translation>Pfeiltasten bewegen, Leertaste wählt aus, Eingabe öffnet, Entf löscht</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="839"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="840"/>
         <source>Select this capture</source>
         <translation>Diese Aufnahme auswählen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="869"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="870"/>
         <source>Star this capture</source>
         <translation>Diese Aufnahme markieren</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="870"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="871"/>
         <source>Starred captures survive Clear all</source>
         <translation>Markierte Aufnahmen überstehen „Alles löschen“</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="930"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="931"/>
         <source>Copy image</source>
         <translation>Bild kopieren</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="930"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="931"/>
         <source>Copy file</source>
         <translation>Datei kopieren</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="979"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="980"/>
         <source>File path</source>
         <translation>Dateipfad</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="981"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="982"/>
         <source>Markdown image</source>
         <translation>Markdown-Bild</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="983"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="984"/>
         <source>HTML image</source>
         <translation>HTML-Bild</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="1019"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="1020"/>
         <source>Convert to %1</source>
         <translation>Nach %1 konvertieren</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="938"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="939"/>
         <source>Copy link</source>
         <translation>Link kopieren</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="941"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="942"/>
         <source>Link copied</source>
         <translation>Link kopiert</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="990"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="991"/>
         <source>Show QR code</source>
         <translation>QR-Code anzeigen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="406"/>
-        <location filename="../qml/pages/HistoryPage.qml" line="987"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="407"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="988"/>
         <source>Upload</source>
         <translation>Hochladen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="946"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="947"/>
         <source>Open file</source>
         <translation>Datei öffnen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="962"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="963"/>
         <source>Trim recording</source>
         <translation>Aufnahme zuschneiden</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="954"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="955"/>
         <source>Edit (overwrites the file on save)</source>
         <translation>Bearbeiten (überschreibt beim Speichern die Datei)</translation>
     </message>
@@ -4915,17 +4972,17 @@ Mit Stern markierte (favorisierte) Aufnahmen in der Auswahl bleiben erhalten - e
         <translation type="vanished">Dateipfad kopieren</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="974"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="975"/>
         <source>More</source>
         <translation>Mehr</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="993"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="994"/>
         <source>Pin as floating preview</source>
         <translation>Als schwebende Vorschau anheften</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="996"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="997"/>
         <source>Copy text (OCR)</source>
         <translation>Text kopieren (OCR)</translation>
     </message>
@@ -4934,28 +4991,28 @@ Mit Stern markierte (favorisierte) Aufnahmen in der Auswahl bleiben erhalten - e
         <translation type="vanished">Als GIF speichern</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="1023"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="1024"/>
         <source>Needs ffmpeg</source>
         <translation>Braucht ffmpeg</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="1028"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="1029"/>
         <source>Starred. Unstar to allow deleting</source>
         <translation>Markiert. Markierung entfernen, um löschen zu können</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="1029"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="1030"/>
         <source>Delete (moves file to trash)</source>
         <translation>Löschen (verschiebt die Datei in den Papierkorb)</translation>
     </message>
     <message>
         <location filename="../qml/pages/HistoryPage.qml" line="98"/>
-        <location filename="../qml/pages/HistoryPage.qml" line="1057"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="1058"/>
         <source>(not saved)</source>
         <translation>(nicht gespeichert)</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="999"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="1000"/>
         <source>Print…</source>
         <translation>Drucken…</translation>
     </message>
@@ -5906,7 +5963,7 @@ Mit Stern markierte (favorisierte) Aufnahmen in der Auswahl bleiben erhalten - e
         <translation type="vanished">Behält jede Quelle auf einer eigenen benannten Spur für den Schnitt. Braucht mindestens zwei Quellen, sonst hat die Aufnahme ohnehin nur eine Spur.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/ClipsPage.qml" line="160"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="234"/>
         <location filename="../qml/pages/RecordPage.qml" line="510"/>
         <source>Replay length</source>
         <translation>Länge der Wiedergabe</translation>
@@ -5958,13 +6015,13 @@ Mit Stern markierte (favorisierte) Aufnahmen in der Auswahl bleiben erhalten - e
         <translation>0 = unbegrenzt</translation>
     </message>
     <message>
-        <location filename="../qml/pages/ClipsPage.qml" line="192"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="278"/>
         <location filename="../qml/pages/RecordPage.qml" line="461"/>
         <source>Record system audio</source>
         <translation>Systemton aufnehmen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/ClipsPage.qml" line="201"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="287"/>
         <location filename="../qml/pages/RecordPage.qml" line="470"/>
         <source>Record microphone</source>
         <translation>Mikrofon aufnehmen</translation>
@@ -6145,7 +6202,7 @@ Mit Stern markierte (favorisierte) Aufnahmen in der Auswahl bleiben erhalten - e
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="302"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="3498"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3528"/>
         <source>Appearance</source>
         <translation>Erscheinungsbild</translation>
     </message>
@@ -6157,7 +6214,7 @@ Mit Stern markierte (favorisierte) Aufnahmen in der Auswahl bleiben erhalten - e
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="301"/>
         <location filename="../qml/pages/SettingsPage.qml" line="1980"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="4142"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4172"/>
         <source>Recording</source>
         <translation>Aufzeichnung</translation>
     </message>
@@ -6168,7 +6225,7 @@ Mit Stern markierte (favorisierte) Aufnahmen in der Auswahl bleiben erhalten - e
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="304"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="4467"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4497"/>
         <source>Developer</source>
         <translation>Entwickler</translation>
     </message>
@@ -6283,7 +6340,7 @@ Mit Stern markierte (favorisierte) Aufnahmen in der Auswahl bleiben erhalten - e
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1267"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="4729"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4759"/>
         <source>Language</source>
         <translation>Sprache</translation>
     </message>
@@ -6304,47 +6361,47 @@ Mit Stern markierte (favorisierte) Aufnahmen in der Auswahl bleiben erhalten - e
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="302"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="3189"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3219"/>
         <source>Notifications</source>
         <translation>Benachrichtigungen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3214"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3244"/>
         <source>Show notifications</source>
         <translation>Benachrichtigungen anzeigen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3220"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3250"/>
         <source>Master switch for all app notifications.</source>
         <translation>Hauptschalter für alle Benachrichtigungen der Anwendung.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3264"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3294"/>
         <source>Notification position</source>
         <translation>Position der Benachrichtigung</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3265"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3295"/>
         <source>Screen corner where the capture card appears.</source>
         <translation>Bildschirmecke, in der die Aufnahmekarte erscheint.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3294"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3324"/>
         <source>After this many seconds the card disappears on its own. Set 0 to keep it open until you dismiss it manually.</source>
         <translation>Nach so vielen Sekunden verschwindet die Karte von selbst. Mit 0 bleibt sie offen, bis Sie sie selbst schließen.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3307"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3337"/>
         <source>Hide it during fullscreen / Do Not Disturb</source>
         <translation>Bei Vollbild / Nicht stören ausblenden</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3308"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3338"/>
         <source>Mutes capture cards while a fullscreen app or DND is active.</source>
         <translation>Schaltet Aufnahmekarten stumm, solange eine Vollbildanwendung oder Nicht stören aktiv ist.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3309"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3339"/>
         <source>Uses the notification server&apos;s inhibition state (fullscreen application, Do Not Disturb, screen sharing). Inhibitors that were already stuck when Unisic started are ignored, so a misbehaving third-party app can&apos;t silence your capture feedback forever.</source>
         <translation>Verwendet den Sperrzustand des Benachrichtigungsservers (Vollbildanwendung, Nicht stören, Bildschirmfreigabe). Sperren, die beim Start von Unisic bereits festhingen, werden ignoriert, damit eine fehlerhafte Fremdanwendung Ihre Aufnahmerückmeldung nicht dauerhaft stummschalten kann.</translation>
     </message>
@@ -6394,23 +6451,23 @@ Mit Stern markierte (favorisierte) Aufnahmen in der Auswahl bleiben erhalten - e
         <translation>Legt einen XDG-Autostart-Eintrag an, der die Anwendung versteckt im Systembereich startet, damit die Tastenkürzel sofort ohne sichtbares Fenster funktionieren.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2899"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2929"/>
         <source>Open file after saving</source>
         <translation>Datei nach dem Speichern öffnen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2900"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2930"/>
         <source>Opens each capture in your image viewer after saving.</source>
         <translation>Öffnet jede Aufnahme nach dem Speichern in Ihrem Bildbetrachter.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2901"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2931"/>
         <source>Uses the system default application for the file type. Independent from the editor; this only opens the saved file.</source>
         <translation>Verwendet die Standardanwendung des Systems für den Dateityp. Unabhängig vom Editor; hier wird nur die gespeicherte Datei geöffnet.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1682"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="4668"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4698"/>
         <source>Capture delay</source>
         <translation>Aufnahmeverzögerung</translation>
     </message>
@@ -6435,81 +6492,81 @@ Mit Stern markierte (favorisierte) Aufnahmen in der Auswahl bleiben erhalten - e
         <translation>Zeichnet den Mauszeiger in die Aufnahme.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3322"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="4660"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3352"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4690"/>
         <source>Capture sound</source>
         <translation>Aufnahmeklang</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3323"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3353"/>
         <source>Plays a short sound when a screenshot is taken.</source>
         <translation>Spielt einen kurzen Klang, wenn ein Bildschirmfoto erstellt wird.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3324"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3354"/>
         <source>A fullscreen capture has no on-screen feedback, so it can be hard to tell it happened. Pick a bundled cue - Shutter, Click, Beep, Ding or Pop - a custom sound, or Off. Custom sounds are .wav/.ogg files in ~/.config/unisic/sounds (add them there or with the + button). The sound plays through the system audio (pw-play/paplay/aplay).</source>
         <translation>Eine Vollbildaufnahme hat keine sichtbare Rückmeldung, deshalb ist schwer zu erkennen, ob sie stattgefunden hat. Wählen Sie einen mitgelieferten Hinweis - Auslöser, Klick, Piepton, Ding oder Plopp - einen eigenen Klang oder Aus. Eigene Klänge sind .wav/.ogg-Dateien in ~/.config/unisic/sounds (dort ablegen oder über den Knopf + hinzufügen). Der Klang läuft über die Systemaudioausgabe (pw-play/paplay/aplay).</translation>
     </message>
     <message>
-        <location filename="../qml/pages/ClipsPage.qml" line="184"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="2362"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="3333"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="270"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2392"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3363"/>
         <source>Off</source>
         <translation>Aus</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3334"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3364"/>
         <source>Shutter</source>
         <translation>Auslöser</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3335"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3365"/>
         <source>Click</source>
         <translation>Klick</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3336"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3366"/>
         <source>Beep</source>
         <translation>Piepton</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3337"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3367"/>
         <source>Ding</source>
         <translation>Ding</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3338"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3368"/>
         <source>Pop</source>
         <translation>Plopp</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3353"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="3392"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="3431"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3383"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3422"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3461"/>
         <source>Preview</source>
         <translation>Anhören</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3361"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="3400"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="3439"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3391"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3430"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3469"/>
         <source>Add custom sound</source>
         <translation>Eigenen Klang hinzufügen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2759"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2789"/>
         <source>Storage &amp; file naming</source>
         <translation>Speicherung und Dateinamen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2342"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="2785"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="2806"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2354"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2815"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2836"/>
         <source>Open</source>
         <translation>Öffnen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2812"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2842"/>
         <source>Image format</source>
         <translation>Bildformat</translation>
     </message>
@@ -6526,7 +6583,7 @@ Mit Stern markierte (favorisierte) Aufnahmen in der Auswahl bleiben erhalten - e
         <translation type="vanished">Qualität (JPEG/WebP): %1</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2824"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2854"/>
         <source>Compression quality for lossy formats.</source>
         <translation>Kompressionsqualität für verlustbehaftete Formate.</translation>
     </message>
@@ -6535,7 +6592,7 @@ Mit Stern markierte (favorisierte) Aufnahmen in der Auswahl bleiben erhalten - e
         <translation type="vanished">Höher bedeutet bessere Wiedergabe und größere Dateien. PNG ignoriert diese Einstellung, weil es immer verlustfrei ist.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2891"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2921"/>
         <source>Preview: %1</source>
         <translation>Vorschau: %1</translation>
     </message>
@@ -6601,7 +6658,7 @@ Mit Stern markierte (favorisierte) Aufnahmen in der Auswahl bleiben erhalten - e
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="301"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="4199"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4229"/>
         <source>Clips</source>
         <translation>Clips</translation>
     </message>
@@ -6698,7 +6755,7 @@ Mit Stern markierte (favorisierte) Aufnahmen in der Auswahl bleiben erhalten - e
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1489"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="2624"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2654"/>
         <source>Downloading… %1%</source>
         <translation>Wird heruntergeladen… %1 %</translation>
     </message>
@@ -6765,30 +6822,30 @@ Mit Stern markierte (favorisierte) Aufnahmen in der Auswahl bleiben erhalten - e
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="2297"/>
         <location filename="../qml/pages/SettingsPage.qml" line="2305"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="4201"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4231"/>
         <source>Save clip</source>
         <translation>Clip speichern</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="2306"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="4202"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4232"/>
         <source>Hotkey: save the last moments as a clip. Starts instant replay when it is off.</source>
         <translation>Tastenkürzel: die letzten Momente als Clip speichern. Startet die Sofortwiedergabe, wenn sie aus ist.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="2313"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="4209"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4239"/>
         <source>Instant replay on/off</source>
         <translation>Sofortwiedergabe an/aus</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="2314"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="4210"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4240"/>
         <source>Hotkey: start instant replay, or stop it.</source>
         <translation>Tastenkürzel: Sofortwiedergabe starten oder stoppen.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/ClipsPage.qml" line="210"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="296"/>
         <location filename="../qml/pages/SettingsPage.qml" line="2320"/>
         <source>On-screen indicator</source>
         <translation>Anzeige auf dem Bildschirm</translation>
@@ -6804,239 +6861,286 @@ Mit Stern markierte (favorisierte) Aufnahmen in der Auswahl bleiben erhalten - e
         <translation>Erscheint auch über Vollbildspielen und nimmt nie einen Klick an. Die Sofortwiedergabe nimmt den Bildschirm auf, daher zeigt ein Clip das Zeichen, wenn er den Moment umfasst, in dem es zu sehen war.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2327"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2339"/>
         <source>Clips folder</source>
         <translation>Clip-Ordner</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2337"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2349"/>
         <source>Same as recordings: %1</source>
         <translation>Wie Aufnahmen: %1</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2352"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2364"/>
         <source>The ring uses fixed-count two-second segments in the disk cache, not raw frames in RAM, and drops the oldest as it goes. Saving snapshots completed segments without stopping the ring. Long replays take gigabytes of disk space, and saving one copies it first.</source>
         <translation>Der Ringpuffer besteht aus einer festen Anzahl von Zwei-Sekunden-Segmenten im Festplatten-Cache, nicht aus Rohbildern im RAM, und verwirft laufend die ältesten. Speichern kopiert die fertigen Segmente, ohne den Puffer anzuhalten. Lange Replays belegen Gigabytes an Speicherplatz, und Speichern kopiert sie zuerst.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2356"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2386"/>
         <source>Start instant replay automatically</source>
         <translation>Instant Replay automatisch starten</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2357"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2387"/>
         <source>Keeps recording the screen in the background, ready to save the last moments.</source>
         <translation>Nimmt den Bildschirm im Hintergrund auf, bereit, die letzten Momente zu speichern.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2358"/>
         <source>When Unisic starts: from launch until you stop it. While a game is running: games started by Steam, and on Linux games using GameMode (Lutris, Heroic, gamemoderun); it stops when the game closes. Starting a recording pauses it, and it comes back afterwards.</source>
-        <translation>Beim Start von Unisic: ab dem Start, bis du es stoppst. Während ein Spiel läuft: über Steam gestartete Spiele und unter Linux Spiele mit GameMode (Lutris, Heroic, gamemoderun); es stoppt, wenn das Spiel beendet wird. Eine Aufnahme pausiert es, danach läuft es wieder.</translation>
+        <translation type="vanished">Beim Start von Unisic: ab dem Start, bis du es stoppst. Während ein Spiel läuft: über Steam gestartete Spiele und unter Linux Spiele mit GameMode (Lutris, Heroic, gamemoderun); es stoppt, wenn das Spiel beendet wird. Eine Aufnahme pausiert es, danach läuft es wieder.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/ClipsPage.qml" line="184"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="2362"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="245"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2368"/>
+        <source>Record</source>
+        <translation>Aufnehmen</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="250"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2374"/>
+        <source>Whole screen</source>
+        <translation>Ganzer Bildschirm</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="250"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2374"/>
+        <source>Game window</source>
+        <translation>Spielfenster</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="270"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2392"/>
         <source>When Unisic starts</source>
         <translation>Beim Start von Unisic</translation>
     </message>
     <message>
-        <location filename="../qml/pages/ClipsPage.qml" line="185"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="2362"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="271"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2392"/>
         <source>While a game is running</source>
         <translation>Während ein Spiel läuft</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2368"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="305"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2327"/>
+        <source>Indicator style</source>
+        <translation>Anzeigestil</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="311"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2332"/>
+        <source>Pill</source>
+        <translation>Pille</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="312"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2332"/>
+        <source>Dot</source>
+        <translation>Punkt</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="312"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2332"/>
+        <source>Tinted</source>
+        <translation>Getönt</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="319"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2380"/>
+        <source>Keep the whole session</source>
+        <translation>Ganze Sitzung behalten</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="2398"/>
         <source>Replay watermark</source>
         <translation>Replay-Wasserzeichen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2369"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2399"/>
         <source>Marks every instant replay with its own text, separate from the screenshot watermark.</source>
         <translation>Kennzeichnet jedes Instant Replay mit eigenem Text, getrennt vom Screenshot-Wasserzeichen.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2370"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2400"/>
         <source>Burned into the replay while it records, so saving stays a quick copy. A change applies the next time instant replay starts.</source>
         <translation>Wird während der Aufnahme ins Replay eingebrannt, daher bleibt Speichern ein schnelles Kopieren. Eine Änderung gilt ab dem nächsten Start von Instant Replay.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2375"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2405"/>
         <source>Replay watermark text</source>
         <translation>Text des Replay-Wasserzeichens</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2384"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2414"/>
         <source>Replay watermark position</source>
         <translation>Position des Replay-Wasserzeichens</translation>
     </message>
     <message>
-        <location filename="../qml/pages/ClipsPage.qml" line="228"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="2399"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="337"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2429"/>
         <source>Clip editor</source>
         <translation>Clip-Editor</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2401"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2431"/>
         <source>Open saved replays in the clip editor</source>
         <translation>Gespeicherte Replays im Clip-Editor öffnen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2402"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2432"/>
         <source>A saved instant replay opens in the trim window, ready to cut and share.</source>
         <translation>Ein gespeichertes Sofort-Replay öffnet sich im Zuschneidefenster, bereit zum Schneiden und Teilen.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/ClipsPage.qml" line="240"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="2406"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="349"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2436"/>
         <source>Default frame</source>
         <translation>Standardbildausschnitt</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2407"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2437"/>
         <source>The frame the trim window starts with. Vertical fits TikTok, Shorts and Reels.</source>
         <translation>Der Bildausschnitt, mit dem das Zuschneidefenster startet. Hochformat passt zu TikTok, Shorts und Reels.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/ClipsPage.qml" line="245"/>
-        <location filename="../qml/pages/ClipsPage.qml" line="257"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="2411"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="2422"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="354"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="366"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2441"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2452"/>
         <source>As recorded</source>
         <translation>Wie aufgenommen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2411"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2441"/>
         <source>Landscape 16:9</source>
         <translation>Querformat 16:9</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2411"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2441"/>
         <source>Vertical 9:16</source>
         <translation>Hochformat 9:16</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2411"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2441"/>
         <source>Square 1:1</source>
         <translation>Quadrat 1:1</translation>
     </message>
     <message>
-        <location filename="../qml/pages/ClipsPage.qml" line="252"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="2417"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="361"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2447"/>
         <source>Default clip size</source>
         <translation>Standard-Clipgröße</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2418"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2448"/>
         <source>Scales a saved clip so its shorter side has this many pixels. Never enlarges.</source>
         <translation>Skaliert einen gespeicherten Clip, sodass seine kürzere Seite so viele Pixel hat. Vergrößert nie.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2596"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2626"/>
         <source>%1; a newer one is downloaded with the model</source>
         <translation>%1; eine neuere wird mit dem Modell heruntergeladen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2912"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2942"/>
         <source>Organizes saved screenshots and recordings into per-month subfolders (yyyy-MM).</source>
         <translation>Ordnet gespeicherte Bildschirmfotos und Aufnahmen in Unterordner je Monat (yyyy-MM).</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2913"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2943"/>
         <source>Keeps busy capture folders tidy. The subfolder is created under both the screenshots and the recordings folder above.</source>
         <translation>Hält viel genutzte Aufnahmeordner übersichtlich. Der Unterordner wird sowohl im Bildschirmfoto- als auch im Aufnahmeordner oben angelegt.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2997"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3027"/>
         <source>Adds a text or logo stamp to the captured image before it is saved, copied, uploaded, shown in history or opened in the editor.</source>
         <translation>Fügt dem aufgenommenen Bild einen Text- oder Logostempel hinzu, bevor es gespeichert, kopiert, hochgeladen, im Verlauf gezeigt oder im Editor geöffnet wird.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3003"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3033"/>
         <source>Applies the selected stamp to every new screenshot.</source>
         <translation>Wendet den gewählten Stempel auf jedes neue Bildschirmfoto an.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3116"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3146"/>
         <source>Corner, center edge, or middle of the image for the watermark.</source>
         <translation>Ecke, Kantenmitte oder Bildmitte für das Wasserzeichen.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3219"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3249"/>
         <source>No notification support was detected on this desktop: there is no notification server and the compositor has no layer-shell, so Unisic cannot show any notification.</source>
         <translation>Auf dieser Arbeitsumgebung wurde keine Unterstützung für Benachrichtigungen gefunden: es gibt keinen Benachrichtigungsserver und der Compositor hat kein Layer-Shell, deshalb kann Unisic keine Benachrichtigung anzeigen.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3221"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3251"/>
         <source>Covers toasts and capture notifications alike. When off, Unisic stays completely silent: captures, uploads and errors produce no visual feedback outside the main window.</source>
         <translation>Betrifft Kurzmeldungen und Aufnahmebenachrichtigungen gleichermaßen. Ist dies aus, bleibt Unisic völlig still: Aufnahmen, Uploads und Fehler geben außerhalb des Hauptfensters keine sichtbare Rückmeldung.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3225"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3255"/>
         <source>Show app notifications (stylized)</source>
         <translation>Anwendungsbenachrichtigungen anzeigen (gestaltet)</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3230"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3260"/>
         <source>This compositor has no layer-shell support, so Unisic cannot draw its own stylized card. Native desktop notifications are used instead.</source>
         <translation>Dieser Compositor unterstützt kein Layer-Shell, deshalb kann Unisic seine eigene gestaltete Karte nicht zeichnen. Stattdessen werden Benachrichtigungen der Arbeitsumgebung verwendet.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3231"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3261"/>
         <source>Draws capture notifications as Unisic&apos;s own themed card.</source>
         <translation>Zeichnet Aufnahmebenachrichtigungen als Unisics eigene gestaltete Karte.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3232"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3262"/>
         <source>On: the capture notification is Unisic&apos;s stylized always-on-top card (layer-shell), with the position, style and auto-hide options below.
 Off or unsupported: a native desktop notification is shown instead - the capture feedback itself never disappears; use the master switch above to silence everything.</source>
         <translation>An: die Aufnahmebenachrichtigung ist Unisics gestaltete Karte immer im Vordergrund (Layer-Shell), mit den Optionen für Position, Stil und automatisches Ausblenden unten.
 Aus oder nicht unterstützt: es wird stattdessen eine Benachrichtigung der Arbeitsumgebung angezeigt - die Rückmeldung zur Aufnahme selbst verschwindet nie; nutzen Sie den Hauptschalter oben, um alles stumm zu schalten.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3263"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3293"/>
         <source>The system notification server decides the position here, because this compositor has no card for Unisic to place.</source>
         <translation>Die Position bestimmt hier der Benachrichtigungsserver des Systems, denn dieser Compositor hat keine Karte, die Unisic platzieren könnte.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3266"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3296"/>
         <source>Applies to the card Unisic draws itself (the layer-shell card or the GNOME XWayland card). Native desktop notifications are placed by the system notification server and ignore this.</source>
         <translation>Gilt für die Karte, die Unisic selbst zeichnet (die Layer-Shell-Karte oder die GNOME-XWayland-Karte). Benachrichtigungen der Arbeitsumgebung platziert der Benachrichtigungsserver des Systems und ignoriert dies.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3292"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3322"/>
         <source>Notification auto-hide</source>
         <translation>Benachrichtigung automatisch ausblenden</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3293"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3323"/>
         <source>How long the capture card stays on screen. 0 keeps it open.</source>
         <translation>Wie lange die Aufnahmekarte auf dem Bildschirm bleibt. 0 hält sie offen.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3300"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3330"/>
         <source>0 = keep open</source>
         <translation>0 = offen lassen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3374"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="4661"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3404"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4691"/>
         <source>Recording sound</source>
         <translation>Aufzeichnungsklang</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3375"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3405"/>
         <source>Plays a short sound when a recording or GIF is finished.</source>
         <translation>Spielt einen kurzen Klang, wenn eine Aufnahme oder ein GIF fertig ist.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3376"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3406"/>
         <source>Encoding can take a while after you stop a recording, so this cue tells you the file is actually ready. It is separate from the screenshot sound: pick a bundled cue - Shutter, Click, Beep, Ding or Pop - a custom sound, or Off. Custom sounds are .wav/.ogg files in ~/.config/unisic/sounds (shared with the capture sound).</source>
         <translation>Das Kodieren kann nach dem Stoppen einer Aufnahme dauern, deshalb sagt Ihnen dieser Hinweis, dass die Datei wirklich fertig ist. Er ist vom Klang für Bildschirmfotos getrennt: wählen Sie einen mitgelieferten Hinweis - Auslöser, Klick, Piepton, Ding oder Plopp - einen eigenen Klang oder Aus. Eigene Klänge sind .wav/.ogg-Dateien in ~/.config/unisic/sounds (gemeinsam mit dem Aufnahmeklang).</translation>
     </message>
     <message>
         <location filename="../qml/pages/EditPage.qml" line="125"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="4232"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4262"/>
         <source>Edit an image</source>
         <translation>Bild bearbeiten</translation>
     </message>
@@ -7047,35 +7151,35 @@ Aus oder nicht unterstützt: es wird stattdessen eine Benachrichtigung der Arbei
     </message>
     <message>
         <location filename="../qml/pages/EditPage.qml" line="324"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="2517"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2547"/>
         <source>Always start with the default colors</source>
         <translation>Immer mit den Standardfarben beginnen</translation>
     </message>
     <message>
         <location filename="../qml/pages/EditPage.qml" line="328"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="2518"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2548"/>
         <source>Color picks made while annotating last for that session only.</source>
         <translation>Beim Beschriften gewählte Farben gelten nur für diese Sitzung.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2519"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2549"/>
         <source>With this on, changing the stroke, fill, text outline or text background color in the editor or on the capture overlay does not overwrite your saved defaults - the next session starts again from the colors configured in Settings → Editor.</source>
         <translation>Ist dies an, überschreibt das Ändern der Linien-, Füll-, Textumriss- oder Texthintergrundfarbe im Editor oder auf der Aufnahmeebene Ihre gespeicherten Standardwerte nicht - die nächste Sitzung beginnt wieder mit den unter Einstellungen → Editor eingestellten Farben.</translation>
     </message>
     <message>
         <location filename="../qml/pages/EditPage.qml" line="335"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="2523"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2553"/>
         <source>Always start with the default tool options</source>
         <translation>Immer mit den Standardwerten der Werkzeuge beginnen</translation>
     </message>
     <message>
         <location filename="../qml/pages/EditPage.qml" line="339"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="2524"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2554"/>
         <source>Stroke width, text style and fill toggles last for that session only.</source>
         <translation>Linienbreite, Textstil und Füllschalter gelten nur für diese Sitzung.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2525"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2555"/>
         <source>Covers everything except colors: stroke width, font family and size, bold/italic/underline, the text outline and background toggles, and shape fill. With this on the next session starts again from the defaults configured in Settings → Editor.</source>
         <translation>Betrifft alles außer den Farben: Linienbreite, Schriftart und -größe, fett/kursiv/unterstrichen, die Schalter für Textumriss und -hintergrund sowie die Formfüllung. Ist dies an, beginnt die nächste Sitzung wieder mit den unter Einstellungen → Editor eingestellten Standardwerten.</translation>
     </message>
@@ -7134,27 +7238,27 @@ Aus oder nicht unterstützt: es wird stattdessen eine Benachrichtigung der Arbei
         <translation>Läuft nach jedem erfolgreichen Upload, im Standardbrowser des Systems.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3243"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3273"/>
         <source>The style only applies to the card Unisic draws itself; a native notification is drawn by the system server.</source>
         <translation>Der Stil gilt nur für die Karte, die Unisic selbst zeichnet; eine Benachrichtigung der Arbeitsumgebung zeichnet der Server des Systems.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3500"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3530"/>
         <source>Theme</source>
         <translation>Farbschema</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3501"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3531"/>
         <source>Color theme for the whole app.</source>
         <translation>Farbschema für die gesamte Anwendung.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3502"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3532"/>
         <source>“System” follows your desktop&apos;s light/dark scheme live; the other entries are fixed palettes. Windows, cards and the editor all re-theme instantly.</source>
         <translation>„System“ folgt live dem hellen bzw. dunklen Schema Ihrer Arbeitsumgebung; die übrigen Einträge sind feste Paletten. Fenster, Karten und der Editor wechseln sofort das Aussehen.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3244"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3274"/>
         <source>Notification style</source>
         <translation>Stil der Benachrichtigung</translation>
     </message>
@@ -7164,7 +7268,7 @@ Aus oder nicht unterstützt: es wird stattdessen eine Benachrichtigung der Arbei
         <translation>Automatisch verwendet VAAPI oder NVENC, wenn sie auf diesem Rechner tatsächlich kodieren, und weicht sonst auf Software aus - ein Hardware-Encoder, der nur aufgeführt, aber defekt ist, wird übersprungen. Hardwarekodierung beschleunigt MP4 (H.264); WebM nutzt AV1 auf NVIDIA-Grafikkarten mit AV1-Encoder (RTX-40-Serie und neuer) und sonst überall VP9 in Software.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3245"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3275"/>
         <source>How the capture card looks, from full card to tiny pill.</source>
         <translation>Wie die Aufnahmekarte aussieht, von der vollen Karte bis zur kleinen Pille.</translation>
     </message>
@@ -7185,32 +7289,34 @@ Vorschaubild: Bild zuerst, die Aufnahme füllt die Karte und die Aktionen ersche
 Gilt ab der nächsten Aufnahme.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3250"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3280"/>
         <source>Casual</source>
         <translation>Gewöhnlich</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3250"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="311"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2332"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3280"/>
         <source>Compact</source>
         <translation>Kompakt</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3250"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3280"/>
         <source>Small</source>
         <translation>Klein</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3250"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3280"/>
         <source>Minimal</source>
         <translation>Minimal</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3250"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3280"/>
         <source>Thumbnail</source>
         <translation>Vorschaubild</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3513"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3543"/>
         <source>The System theme follows your desktop&apos;s light/dark mode and accent color.</source>
         <translation>Das Farbschema „System“ folgt dem hellen bzw. dunklen Modus und der Akzentfarbe Ihrer Arbeitsumgebung.</translation>
     </message>
@@ -7219,189 +7325,189 @@ Gilt ab der nächsten Aufnahme.</translation>
         <translation type="vanished">Symbolgröße der Werkzeugleiste: %1 px</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3602"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3632"/>
         <source>The icons are drawn for 24 px, where their lines are cleanest. At other sizes thin diagonal lines can look a little softer or jagged.</source>
         <translation>Die Symbole sind für 24 px gezeichnet, dort sind ihre Linien am saubersten. Bei anderen Größen können dünne schräge Linien etwas weicher oder gezackt wirken.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3653"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3683"/>
         <source>Window decoration</source>
         <translation>Fensterdekoration</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3655"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3685"/>
         <source>Use system window decoration</source>
         <translation>Fensterdekoration des Systems verwenden</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3656"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3686"/>
         <source>Uses the desktop&apos;s normal title bar and borders.</source>
         <translation>Verwendet die übliche Titelleiste und die Ränder der Arbeitsumgebung.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3657"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3687"/>
         <source>When off, Unisic draws its own frameless chrome. Turn this on if window dragging/snapping misbehaves on your compositor.</source>
         <translation>Ist dies aus, zeichnet Unisic seinen eigenen rahmenlosen Fensterrahmen. Schalten Sie es an, wenn das Ziehen oder Einrasten von Fenstern auf Ihrem Compositor Probleme macht.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3663"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3693"/>
         <source>Off = Unisic draws its own title bar with themed minimize/maximize/close buttons.</source>
         <translation>Aus = Unisic zeichnet seine eigene Titelleiste mit gestalteten Knöpfen zum Minimieren, Maximieren und Schließen.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3675"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3705"/>
         <source>System tray icon</source>
         <translation>Symbol im Systembereich</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3679"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3709"/>
         <source>Click an icon to use it in the system tray. Drop your own .png/.svg files into the icons folder and they appear here automatically.</source>
         <translation>Klicken Sie ein Symbol an, um es im Systembereich zu verwenden. Legen Sie eigene .png/.svg-Dateien in den Symbolordner, dann erscheinen sie hier automatisch.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3726"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3756"/>
         <source>Tray icon %1</source>
         <translation>Symbol im Systembereich %1</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3755"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3785"/>
         <source>Default</source>
         <translation>Standard</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3817"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3847"/>
         <source>Add an icon</source>
         <translation>Ein Symbol hinzufügen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3823"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3853"/>
         <source>Add an icon (copies it here)</source>
         <translation>Ein Symbol hinzufügen (kopiert es hierher)</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3831"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3861"/>
         <source>Open folder with icons</source>
         <translation>Ordner mit den Symbolen öffnen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3833"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3863"/>
         <source>Reset</source>
         <translation>Zurücksetzen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2652"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2682"/>
         <source>Editor tool icons</source>
         <translation>Symbole der Editorwerkzeuge</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2656"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2686"/>
         <source>Choose the icon set for the drawing tools only; the main app icons stay fixed.</source>
         <translation>Wählen Sie den Symbolsatz nur für die Zeichenwerkzeuge; die Symbole der Anwendung selbst bleiben unverändert.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2661"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2691"/>
         <source>Icon style</source>
         <translation>Symbolstil</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2662"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2692"/>
         <source>Icon set used by the editor toolbars.</source>
         <translation>Symbolsatz für die Werkzeugleisten des Editors.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2663"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2693"/>
         <source>“System” takes icons from your desktop icon theme (with Breeze as fallback); “custom” uses the bundled monochrome set that follows the app theme.</source>
         <translation>„System“ nimmt die Symbole aus dem Symbolthema Ihrer Arbeitsumgebung (mit Breeze als Rückfallebene); „eigen“ verwendet den mitgelieferten einfarbigen Satz, der dem Farbschema der Anwendung folgt.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2666"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2696"/>
         <source>Custom (bundled)</source>
         <translation>Eigen (mitgeliefert)</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2666"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2696"/>
         <source>System (desktop theme)</source>
         <translation>System (Desktop-Thema)</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2675"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2705"/>
         <source>Optional: override individual tools with a freedesktop icon name.</source>
         <translation>Optional: einzelne Werkzeuge mit einem freedesktop-Symbolnamen überschreiben.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4369"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4399"/>
         <source>This desktop offers neither KGlobalAccel nor a working GlobalShortcuts portal, so Unisic cannot register global shortcuts itself. Instead each capture action can be bound to a command in your desktop&apos;s own shortcut settings; a running Unisic instance then picks it up.</source>
         <translation>Diese Arbeitsumgebung bietet weder KGlobalAccel noch ein funktionierendes GlobalShortcuts-Portal, deshalb kann Unisic globale Tastenkürzel nicht selbst registrieren. Stattdessen lässt sich jede Aufnahmeaktion in den Tastenkürzel-Einstellungen der Arbeitsumgebung an einen Befehl binden; eine laufende Unisic-Instanz greift ihn dann auf.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4046"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="4389"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4076"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4419"/>
         <source>Add shortcuts to %1</source>
         <translation>Tastenkürzel zu %1 hinzufügen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4393"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4423"/>
         <source>Remove</source>
         <translation>Entfernen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4419"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4449"/>
         <source>Bind these commands in your desktop:</source>
         <translation>Binden Sie diese Befehle in Ihrer Arbeitsumgebung:</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4008"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4038"/>
         <source>Record the key you want for each action, then use “Add shortcuts to %1” below - Unisic binds each one as a command in %1&apos;s keyboard settings.</source>
         <translation>Nehmen Sie für jede Aktion die gewünschte Taste auf und verwenden Sie dann unten „Tastenkürzel zu %1 hinzufügen“ - Unisic bindet jedes als Befehl in den Tastatureinstellungen von %1.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3600"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="3609"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3630"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3639"/>
         <source>Toolbar icon size</source>
         <translation>Symbolgröße der Werkzeugleiste</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3601"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3631"/>
         <source>How big the tool icons on the selection overlay are.</source>
         <translation>Wie groß die Werkzeugsymbole auf dem Auswahl-Overlay sind.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3624"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3654"/>
         <source>“Badge at the top” names the mode in a pill above the screen, which is unmissable but is a strip of chrome over the desktop you are about to capture. “Icon in the middle” draws that mode&apos;s icon large and faded in the center of the screen instead, with your selection cut out of it: the part you are framing over is not drawn, and the rest keeps naming the capture. The colored screen frame and selection handles stay in both.</source>
         <translation>„Badge oben“ benennt den Modus in einer Pille über dem Bildschirm - nicht zu übersehen, aber ein Streifen Bedienoberfläche über der Arbeitsfläche, die Sie gleich aufnehmen. „Symbol in der Mitte“ zeichnet stattdessen das Symbol dieses Modus groß und abgeblendet in der Bildschirmmitte, mit Ihrer Auswahl darin ausgeschnitten: der Teil über dem eingerahmten Bereich wird nicht gezeichnet, der Rest benennt die Aufnahme weiter. Der farbige Bildschirmrahmen und die Auswahlgriffe bleiben in beiden.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3846"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3876"/>
         <source>System tray menu</source>
         <translation>Menü im Systembereich</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3850"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3880"/>
         <source>Choose which entries the tray menu shows. Open Unisic and Quit always stay.</source>
         <translation>Wählen Sie, welche Einträge das Menü im Systembereich zeigt. „Unisic öffnen“ und „Beenden“ bleiben immer erhalten.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4082"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4112"/>
         <source>Grabs the entire workspace silently (KWin path) or via the portal elsewhere, then runs the normal after-capture pipeline. The “Full screen captures” preference in Capture can narrow it to the screen under the cursor.</source>
         <translation>Nimmt die gesamte Arbeitsfläche still auf (KWin-Weg) oder sonst über das Portal und lässt danach den normalen Ablauf nach der Aufnahme laufen. Die Einstellung „Vollbildaufnahmen“ unter Aufnahme kann das auf den Bildschirm unter dem Mauszeiger einschränken.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4096"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4126"/>
         <source>Scrolling region</source>
         <translation>Scrollender Bereich</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4097"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4127"/>
         <source>Hotkey: capture a scrolling region (long screenshot).</source>
         <translation>Tastenkürzel: einen scrollenden Bereich aufnehmen (langer Screenshot).</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4098"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4128"/>
         <source>Select a region, then scroll content in the window beneath it. Unisic continuously stitches the frames together.</source>
         <translation>Wählen Sie einen Bereich aus und scrollen Sie den Inhalt im darunter liegenden Fenster. Unisic fügt die Bilder nahtlos zusammen.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4492"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4522"/>
         <source>Drawn as a click-through overlay surface just outside the recorded area, so the frame never appears inside the recording itself. Hosted on layer-shell (KWin, wlroots, COSMIC), a KWin fullscreen fallback, or an XWayland helper on GNOME.</source>
         <translation>Wird als klickdurchlässige Fläche direkt außerhalb des aufgenommenen Bereichs gezeichnet, damit der Rahmen nie in der Aufnahme selbst auftaucht. Läuft über Layer-Shell (KWin, wlroots, COSMIC), eine KWin-Vollbild-Rückfallebene oder einen XWayland-Helfer unter GNOME.</translation>
     </message>
@@ -7418,12 +7524,12 @@ Gilt ab der nächsten Aufnahme.</translation>
         <translation type="vanished">Benötigt eine X11-Sitzung (xcb-Plattform). Unter X11 kommen die Bilder von XShm statt vom ScreenCast-Portal, deshalb funktioniert die Aufnahme auch auf Arbeitsumgebungen ganz ohne Portal-Backend - Cinnamon, MATE und XFCE unter Xorg. Ein einzelnes Fenster braucht weiterhin die Fensterauswahl des Portals und bleibt dort nicht verfügbar.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4603"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4633"/>
         <source>KWin native record probe</source>
         <translation>Test der nativen KWin-Aufnahme</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4604"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4634"/>
         <source>X11 record grab</source>
         <translation>X11-Aufnahmezugriff</translation>
     </message>
@@ -7432,33 +7538,33 @@ Gilt ab der nächsten Aufnahme.</translation>
         <translation type="vanished">Test der X11-Tastenkürzel</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4128"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="4697"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4158"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4727"/>
         <source>Measure</source>
         <translation>Messen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4703"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4733"/>
         <source>Trim cut (exact + lossless)</source>
         <translation>Zuschnitt (exakt und verlustfrei)</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4704"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4734"/>
         <source>Recording pause excise</source>
         <translation>Pausen aus der Aufnahme schneiden</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4712"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4742"/>
         <source>Magnifier</source>
         <translation>Lupe</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4717"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4747"/>
         <source>Eyedropper</source>
         <translation>Pipette</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4718"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4748"/>
         <source>Pixel loupe</source>
         <translation>Pixellupe</translation>
     </message>
@@ -7467,93 +7573,93 @@ Gilt ab der nächsten Aufnahme.</translation>
         <translation type="vanished">Muster zum Schwärzen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4725"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4755"/>
         <source>Style presets</source>
         <translation>Stilvorlagen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4726"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4756"/>
         <source>Cursor overlay</source>
         <translation>Zeigerüberlagerung</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4727"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4757"/>
         <source>OCR auto language</source>
         <translation>Automatische OCR-Sprache</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1289"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="4728"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4758"/>
         <source>OCR engine</source>
         <translation>OCR-Engine</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4730"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4760"/>
         <source>Update check</source>
         <translation>Aktualisierungsprüfung</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4731"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4761"/>
         <source>Simulate update</source>
         <translation>Aktualisierung simulieren</translation>
     </message>
     <message>
         <location filename="../qml/pages/EditPage.qml" line="214"/>
         <location filename="../qml/pages/EditPage.qml" line="237"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="2461"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2491"/>
         <source>Editor defaults</source>
         <translation>Editor-Standardwerte</translation>
     </message>
     <message>
         <location filename="../qml/pages/EditPage.qml" line="275"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="2474"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2504"/>
         <source>Stroke color</source>
         <translation>Linienfarbe</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2475"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2505"/>
         <source>Default color for new annotations.</source>
         <translation>Standardfarbe für neue Beschriftungen.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2476"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2506"/>
         <source>Used by pen, shapes, arrows and text until you pick another color in the editor. Recent colors are remembered.</source>
         <translation>Wird von Stift, Formen, Pfeilen und Text verwendet, bis Sie im Editor eine andere Farbe wählen. Zuletzt genutzte Farben werden gemerkt.</translation>
     </message>
     <message>
         <location filename="../qml/pages/EditPage.qml" line="296"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="2491"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2521"/>
         <source>Stroke width</source>
         <translation>Linienbreite</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2492"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2522"/>
         <source>Default line thickness for annotations.</source>
         <translation>Standardstärke der Linien für Beschriftungen.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2493"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2523"/>
         <source>Also scales arrow heads and the pixelate block size. Adjustable per-annotation in the editor toolbar.</source>
         <translation>Skaliert auch die Pfeilspitzen und die Blockgröße beim Verpixeln. In der Editorleiste je Beschriftung einstellbar.</translation>
     </message>
     <message>
         <location filename="../qml/pages/EditPage.qml" line="310"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="2504"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2534"/>
         <source>Text size</source>
         <translation>Textgröße</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2505"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2535"/>
         <source>Default font size for the text tool.</source>
         <translation>Standardschriftgröße für das Textwerkzeug.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2506"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2536"/>
         <source>Measured in image pixels, so it stays consistent regardless of display scaling.</source>
         <translation>In Bildpunkten gemessen, deshalb bleibt sie unabhängig von der Bildschirmskalierung gleich.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3543"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3573"/>
         <source>Capture overlay</source>
         <translation>Aufnahmeebene</translation>
     </message>
@@ -7563,42 +7669,42 @@ Gilt ab der nächsten Aufnahme.</translation>
         <translation>Die Unisic-Fassung, die Sie verwenden. Klicken Sie darauf, um die Neuigkeiten zu sehen.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3589"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3619"/>
         <source>Toolbar position</source>
         <translation>Position der Werkzeugleiste</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3590"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3620"/>
         <source>Where the annotation toolbar sits on the selection overlay.</source>
         <translation>Wo die Beschriftungsleiste auf der Auswahlebene sitzt.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3591"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3621"/>
         <source>“Follow selection” keeps it glued to the selected region; the fixed positions pin it to a screen edge, which helps when it keeps covering what you select.</source>
         <translation>„Der Auswahl folgen“ hält sie am ausgewählten Bereich; die festen Positionen heften sie an einen Bildschirmrand, was hilft, wenn sie immer wieder verdeckt, was Sie auswählen wollen.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3634"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3664"/>
         <source>Show alignment guides while selecting</source>
         <translation>Ausrichtungslinien beim Auswählen anzeigen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3635"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3665"/>
         <source>Crosshair lines from the cursor to the screen edges.</source>
         <translation>Fadenkreuzlinien vom Mauszeiger zu den Bildschirmrändern.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3636"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3666"/>
         <source>Shown while picking a region (screenshots and recordings alike) to help align the selection with on-screen elements. Purely visual and never captured into the image.</source>
         <translation>Werden beim Auswählen eines Bereichs angezeigt (bei Bildschirmfotos wie bei Aufnahmen), um die Auswahl an Elementen auf dem Bildschirm auszurichten. Rein sichtbar und nie im Bild.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2536"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2566"/>
         <source>Editor tools</source>
         <translation>Editorwerkzeuge</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2540"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2570"/>
         <source>Hide tools you don&apos;t use; they disappear from the editor and the capture overlay.</source>
         <translation>Blenden Sie Werkzeuge aus, die Sie nicht nutzen; sie verschwinden aus dem Editor und von der Aufnahmeebene.</translation>
     </message>
@@ -7618,18 +7724,18 @@ Gilt ab der nächsten Aufnahme.</translation>
         <translation>Höher wirkt flüssiger, lässt die Datei aber schnell wachsen. Für Oberflächen-Vorführungen reichen meist 10-15 fps.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2771"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2801"/>
         <source>Screenshots folder</source>
         <translation>Ordner für Bildschirmfotos</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2792"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2822"/>
         <source>Recordings folder (GIF and video)</source>
         <translation>Ordner für Aufnahmen (GIF und Video)</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1719"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="4719"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4749"/>
         <source>Capture on release</source>
         <translation>Beim Loslassen aufnehmen</translation>
     </message>
@@ -7784,7 +7890,7 @@ Gilt ab der nächsten Aufnahme.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1590"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="4589"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4619"/>
         <source>Welcome screen</source>
         <translation>Willkommensbildschirm</translation>
     </message>
@@ -7815,7 +7921,7 @@ Gilt ab der nächsten Aufnahme.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1608"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="4683"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4713"/>
         <source>Copy diagnostics</source>
         <translation>Diagnose kopieren</translation>
     </message>
@@ -7929,13 +8035,13 @@ Gilt ab der nächsten Aufnahme.</translation>
         <translation>Alle Bildschirme</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3567"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="3577"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3597"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3607"/>
         <source>Preview mode</source>
         <translation>Vorschaumodus</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3583"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3613"/>
         <source>A mock screen, not a capture: every setting in this card is drawn here as you change it. Switch the mode to see what the overlay looks like when a hotkey starts a measurement or a recording instead of a screenshot.</source>
         <translation>Ein simulierter Bildschirm, keine Aufnahme: Jede Einstellung dieser Karte wird hier beim Ändern gezeichnet. Wechseln Sie den Modus, um zu sehen, wie die Ebene aussieht, wenn ein Kürzel eine Messung oder eine Aufnahme statt eines Bildschirmfotos startet.</translation>
     </message>
@@ -7970,7 +8076,7 @@ Gilt ab der nächsten Aufnahme.</translation>
         <translation>CSS</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3615"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3645"/>
         <source>Show which capture mode is running</source>
         <translation>Anzeigen, welcher Aufnahmemodus läuft</translation>
     </message>
@@ -7983,18 +8089,18 @@ Gilt ab der nächsten Aufnahme.</translation>
         <translation type="vanished">Das Overlay sieht gleich aus, ob Sie ein Bildschirmfoto machen, messen, Text lesen oder eine Aufnahme starten, deshalb zeigt sich ein falsch getroffenes Tastenkürzel erst, wenn das Bild schon aufgenommen ist - oder die Aufnahme bereits läuft. Ist dies aktiv, wird der Modus oben am Bildschirm benannt, der Bildschirmrand und die Auswahlgriffe nehmen die Farbe dieses Modus an, und die Farben des Overlays kommen aus dem Thema (ein eigenes Thema kann modeShot, modeMeasure, modeOcr, modeGif und modeVideo setzen). Die Bestätigungsschaltfläche und der Hinweis benennen immer die richtige Aktion, egal ob dies aktiv ist oder nicht.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3640"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3670"/>
         <source>Show a pixel loupe while selecting</source>
         <translation>Beim Auswählen eine Pixellupe anzeigen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3641"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3671"/>
         <source>A magnifier by the cursor shows the exact pixel you are on.</source>
         <translation>Eine Lupe am Mauszeiger zeigt genau den Bildpunkt, auf dem Sie sind.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1897"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="4691"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4721"/>
         <source>External action</source>
         <translation>Externe Aktion</translation>
     </message>
@@ -8029,7 +8135,7 @@ Gilt ab der nächsten Aufnahme.</translation>
         <translation>Für den Schnitt: Das Mikrofon bleibt vom Systemton getrennt, sodass sich später eines gegen das andere absenken lässt. Benötigt mindestens zwei Quellen - mit einer gibt es nichts zu trennen und die Aufnahme behält ihre einzelne Spur. Die erste Spur ist ein fertiger Mix von allem, daher spielt die Datei überall mit vollem Ton; die getrennten Quellspuren folgen dahinter.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3246"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3276"/>
         <source>Casual: the full card with a large thumbnail, title and a row of action buttons.
 Compact: a tighter card with a medium thumbnail, filename and the same actions.
 Small: one slim row with tiny inline action icons.
@@ -8046,12 +8152,12 @@ Vorschaubild: Bild zuerst, die Aufnahme füllt die Karte und die Aktionen bleibe
 Gilt ab der nächsten Aufnahme.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4655"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4685"/>
         <source>Template variables</source>
         <translation>Vorlagenvariablen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4692"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4722"/>
         <source>External action timeout</source>
         <translation>Zeitlimit der externen Aktion</translation>
     </message>
@@ -8236,7 +8342,7 @@ Gilt ab der nächsten Aufnahme.</translation>
         <translation>Diese Kopie kam aus dem AUR - Ihr AUR-Helfer aktualisiert sie, deshalb prüft Unisic nicht von sich aus.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3642"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3672"/>
         <source>A zoomed pixel grid follows the cursor with the hovered pixel highlighted, plus its position and color - so a selection edge lands on exactly the pixel you mean. Scroll on the overlay to zoom it in and out; scroll all the way out to hide the loupe. Purely visual and never captured into the image.</source>
         <translation>Ein vergrößertes Pixelraster folgt dem Mauszeiger, hebt den Bildpunkt darunter hervor und zeigt seine Position und Farbe - damit eine Auswahlkante genau auf dem Bildpunkt landet, den Sie meinen. Scrollen auf der Ebene zoomt sie hinein und heraus; ganz herausscrollen blendet die Lupe aus. Rein sichtbar und nie im Bild.</translation>
     </message>
@@ -8256,12 +8362,12 @@ Gilt ab der nächsten Aufnahme.</translation>
         <translation>0 = sofort starten</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2350"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2362"/>
         <source>Instant replay length</source>
         <translation>Länge der Sofortwiedergabe</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2351"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2363"/>
         <source>Keeps only the most recent encoded seconds while replay is active.</source>
         <translation>Behält nur die zuletzt kodierten Sekunden, solange die Wiedergabe aktiv ist.</translation>
     </message>
@@ -8468,265 +8574,265 @@ Gilt ab der nächsten Aufnahme.</translation>
     </message>
     <message>
         <location filename="../qml/pages/EditPage.qml" line="258"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="2463"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2493"/>
         <source>Layout</source>
         <translation>Anordnung</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2464"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2494"/>
         <source>How the editor arranges its tools around the image.</source>
         <translation>Wie der Editor seine Werkzeuge um das Bild anordnet.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2465"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2495"/>
         <source>“Panels” puts the tools in a rail on the left and the active tool&apos;s options in a column on the right. “Floating” gives the image the whole window, with the same controls in pills over its edges. Open editors switch at once.</source>
         <translation>„Bedienfelder“ legt die Werkzeuge in eine Leiste links und die Optionen des aktiven Werkzeugs in eine Spalte rechts. „Schwebend“ überlässt dem Bild das ganze Fenster, mit denselben Bedienelementen in Pillen über seinen Rändern. Offene Editoren wechseln sofort.</translation>
     </message>
     <message>
         <location filename="../qml/pages/EditPage.qml" line="267"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="2468"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2498"/>
         <source>Panels</source>
         <translation>Bedienfelder</translation>
     </message>
     <message>
         <location filename="../qml/pages/EditPage.qml" line="267"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="2468"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2498"/>
         <source>Floating</source>
         <translation>Schwebend</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2585"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2615"/>
         <source>&quot;Remove background&quot; in the editor&apos;s More menu cuts the subject out with the BiRefNet lite model. It runs on this computer and nothing is uploaded. One run takes a few seconds and about 2 GB of memory.</source>
         <translation>„Hintergrund entfernen“ im Mehr-Menü des Editors schneidet das Motiv mit dem Modell BiRefNet lite aus. Es läuft auf diesem Computer, nichts wird hochgeladen. Ein Durchlauf dauert einige Sekunden und belegt etwa 2 GB Speicher.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2713"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2743"/>
         <source>Icon name for %1</source>
         <translation>Symbolname für %1</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2839"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2869"/>
         <source>Filename template. Available tokens: %date%, %time%, %datetime%, %unix%, %rand%, %i% (counter)</source>
         <translation>Vorlage für den Dateinamen. Verfügbare Platzhalter: %date%, %time%, %datetime%, %unix%, %rand%, %i% (Zähler)</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2855"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2885"/>
         <source>Filename template</source>
         <translation>Vorlage für den Dateinamen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2905"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2935"/>
         <source>Ask where to save</source>
         <translation>Nach dem Speicherort fragen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2906"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2936"/>
         <source>Prompts for a location for each capture instead of saving straight to the folder.</source>
         <translation>Fragt bei jeder Aufnahme nach einem Ort, statt direkt in den Ordner zu speichern.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2907"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2937"/>
         <source>Requires saving to be enabled. Canceling the dialog skips the save - the capture still lands in history and on the clipboard. The screenshots folder above is the starting location.</source>
         <translation>Setzt voraus, dass das Speichern eingeschaltet ist. Ein Abbruch des Dialogs überspringt das Speichern - die Aufnahme landet trotzdem im Verlauf und in der Zwischenablage. Der Ordner für Bildschirmfotos oben ist der Startort.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2911"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2941"/>
         <source>Date subfolders</source>
         <translation>Unterordner nach Datum</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2917"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2947"/>
         <source>Strip image metadata</source>
         <translation>Bild-Metadaten entfernen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2918"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2948"/>
         <source>Removes text, DPI and description metadata from saved files.</source>
         <translation>Entfernt Text, DPI und Beschreibungen aus den gespeicherten Dateien.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2919"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2949"/>
         <source>Captures normally carry no metadata; this guarantees a clean PNG/JPEG/WebP even when the editor or a loaded source added some.</source>
         <translation>Aufnahmen tragen normalerweise keine Metadaten; dies garantiert eine saubere PNG-, JPEG- oder WebP-Datei auch dann, wenn der Editor oder eine geladene Quelle welche hinzugefügt hat.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3002"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3032"/>
         <source>Apply watermark</source>
         <translation>Wasserzeichen anwenden</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3004"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3034"/>
         <source>The stamp is baked into the final capture once, before the independent save, clipboard, upload, history and editor actions. It does not alter recordings or existing files.</source>
         <translation>Der Stempel wird einmal in die fertige Aufnahme eingebrannt, vor den unabhängigen Aktionen Speichern, Zwischenablage, Hochladen, Verlauf und Editor. Aufzeichnungen und vorhandene Dateien ändert er nicht.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3061"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3091"/>
         <source>Watermark type</source>
         <translation>Art des Wasserzeichens</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3062"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3092"/>
         <source>Use a text label or an image logo.</source>
         <translation>Eine Textmarke oder ein Bildlogo verwenden.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3065"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3095"/>
         <source>Text</source>
         <translation>Text</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3065"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="3082"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3095"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3112"/>
         <source>Logo image</source>
         <translation>Logobild</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3072"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3102"/>
         <source>Watermark text</source>
         <translation>Text des Wasserzeichens</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3073"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3103"/>
         <source>The label stamped onto the screenshot.</source>
         <translation>Die Marke, die auf das Bildschirmfoto gestempelt wird.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3085"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3115"/>
         <source>Choose a PNG, SVG, JPEG or WebP image.</source>
         <translation>Wählen Sie ein PNG-, SVG-, JPEG- oder WebP-Bild.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3090"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3120"/>
         <source>Change image…</source>
         <translation>Bild wechseln…</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3090"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3120"/>
         <source>Choose image…</source>
         <translation>Bild wählen…</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3115"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3145"/>
         <source>Position</source>
         <translation>Position</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3142"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3172"/>
         <source>Opacity: %1%</source>
         <translation>Deckkraft: %1 %</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3143"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3173"/>
         <source>How strongly the watermark appears over the capture.</source>
         <translation>Wie stark das Wasserzeichen über der Aufnahme erscheint.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3277"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3307"/>
         <source>Distance from the screen edge</source>
         <translation>Abstand zum Bildschirmrand</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3278"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3308"/>
         <source>Gap between the capture card and the edge of the screen.</source>
         <translation>Abstand zwischen der Aufnahmekarte und dem Rand des Bildschirms.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3279"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3309"/>
         <source>Unisic already keeps the card clear of panels that reserve space for themselves. Raise this when a dock or panel still sits in the way - Wayland gives an app no way to see where those are, so this is the manual knob.</source>
         <translation>Unisic hält die Karte bereits von Leisten frei, die sich selbst Platz reservieren. Erhöhen Sie dies, wenn ein Dock oder eine Leiste trotzdem im Weg sitzt: Wayland gibt einer Anwendung keine Möglichkeit zu sehen, wo diese liegen, deshalb bleibt hier der Regler von Hand.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3208"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3238"/>
         <source>Hide the buttons you never press; the rest spread out over the freed room. A button still only appears when the capture can back it - an upload link, OCR support, a saved file.</source>
         <translation>Blenden Sie die Knöpfe aus, die Sie nie drücken; die übrigen verteilen sich über den frei gewordenen Platz. Ein Knopf erscheint weiterhin nur, wenn die Aufnahme ihn tragen kann: ein Upload-Link, OCR-Unterstützung, eine gespeicherte Datei.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3320"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3350"/>
         <source>Sounds</source>
         <translation>Klänge</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3339"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3369"/>
         <source>Chime</source>
         <translation>Glockenton</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3340"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3370"/>
         <source>Blip</source>
         <translation>Blip</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3341"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3371"/>
         <source>Snap</source>
         <translation>Schnipp</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3342"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3372"/>
         <source>Knock</source>
         <translation>Klopfen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3413"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3443"/>
         <source>Recording start sound</source>
         <translation>Klang beim Start der Aufzeichnung</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3414"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3444"/>
         <source>Plays a short sound the moment recording begins (after the countdown).</source>
         <translation>Spielt einen kurzen Klang in dem Moment, in dem die Aufzeichnung beginnt (nach dem Countdown).</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3415"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3445"/>
         <source>Separate from the finished-recording cue: this fires when capture actually starts. Pick a bundled cue - Shutter, Click, Beep, Ding or Pop - a custom sound, or Off.</source>
         <translation>Getrennt vom Hinweis auf die fertige Aufzeichnung: dieser ertönt, wenn die Aufnahme wirklich startet. Wählen Sie einen mitgelieferten Hinweis - Auslöser, Klick, Piepton, Ding oder Plopp - einen eigenen Klang oder Aus.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3453"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3483"/>
         <source>Sound volume: %1 %</source>
         <translation>Lautstärke: %1 %</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3454"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3484"/>
         <source>Playback volume for the capture and recording sound cues.</source>
         <translation>Wiedergabelautstärke für die Klänge bei Aufnahme und Aufzeichnung.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3455"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3485"/>
         <source>0 is muted. Applied via the player (pw-play/paplay); aplay has no volume flag and plays at the sample level.</source>
         <translation>0 ist stumm. Wird über den Abspieler gesetzt (pw-play/paplay); aplay hat keinen Lautstärkeschalter und spielt in der Lautstärke der Datei.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4012"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4042"/>
         <source>Registered directly with the X server (XGrabKey) for this X11 session. Each action can hold several bindings: record one, then use the small chip to add alternatives (up to 4). Remove a binding with its ×.</source>
         <translation>Direkt beim X-Server registriert (XGrabKey) für diese X11-Sitzung. Jede Aktion kann mehrere Belegungen halten: nehmen Sie eine auf und fügen Sie über die kleine Marke Alternativen hinzu (bis zu 4). Eine Belegung entfernen Sie über ihr ×.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4014"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4044"/>
         <source>Registered directly with Windows (RegisterHotKey). Each action can hold several bindings: record one, then use the small chip to add alternatives (up to 4). Remove a binding with its ×.</source>
         <translation>Direkt bei Windows registriert (RegisterHotKey). Jede Aktion kann mehrere Belegungen halten: nehmen Sie eine auf und fügen Sie über die kleine Marke Alternativen hinzu (bis zu 4). Eine Belegung entfernen Sie über ihr ×.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4036"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4066"/>
         <source>The emergency stop %1 is held by the release build of Unisic and cannot be changed here. Only one Unisic build can hold it at a time.</source>
         <translation>Der Nothalt %1 ist von der Release-Version von Unisic belegt und kann hier nicht geändert werden. Nur eine Unisic-Version kann ihn gleichzeitig belegen.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4038"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4068"/>
         <source>The emergency stop %1 is held by the dev build of Unisic and cannot be changed here. Only one Unisic build can hold it at a time.</source>
         <translation>Der Nothalt %1 ist von der Entwicklerversion von Unisic belegt und kann hier nicht geändert werden. Nur eine Unisic-Version kann ihn gleichzeitig belegen.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4040"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4070"/>
         <source>The emergency stop %1 is taken by %2 and cannot be changed here. Free it on the Shortcuts page of System Settings.</source>
         <translation>Der Nothalt %1 ist von %2 belegt und kann hier nicht geändert werden. Geben Sie ihn in den „Systemeinstellungen → Kurzbefehle“ frei.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4041"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4071"/>
         <source>The emergency stop %1 is taken by another application and cannot be changed here. Free it in that application.</source>
         <translation>Der Nothalt %1 ist von einer anderen Anwendung belegt und kann hier nicht geändert werden. Geben Sie ihn in dieser Anwendung frei.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4147"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4177"/>
         <source>First press opens the recording setup for a region; pressing again while recording stops and finalizes the file. Ctrl+Alt+Esc is the always-on emergency stop (Windows keeps Ctrl+Esc for the Start menu).</source>
         <translation>Der erste Druck öffnet die Einrichtung der Aufzeichnung für einen Bereich; ein erneuter Druck während der Aufzeichnung stoppt sie und schließt die Datei ab. Ctrl+Alt+Esc ist der immer verfügbare Nothalt (Windows behält Ctrl+Esc dem Startmenü vor).</translation>
     </message>
@@ -8735,184 +8841,184 @@ Gilt ab der nächsten Aufnahme.</translation>
         <translation type="vanished">Bereich per OCR lesen, Letzte Aufnahme kopieren, Sofortwiedergabe, weitere Aufnahmen, Messen, Bearbeiten und Hochladen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4360"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4390"/>
         <source>Global hotkeys unavailable on this desktop</source>
         <translation>Globale Tastenkürzel sind auf dieser Arbeitsumgebung nicht verfügbar</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4411"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4441"/>
         <source>Hide commands</source>
         <translation>Befehle ausblenden</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4411"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4441"/>
         <source>Show commands</source>
         <translation>Befehle anzeigen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4003"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4033"/>
         <source>Global hotkeys</source>
         <translation>Globale Tastenkürzel</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2813"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2843"/>
         <source>File format for saved captures: PNG, JPEG, WebP or GIF.</source>
         <translation>Dateiformat für gespeicherte Aufnahmen: PNG, JPEG, WebP oder GIF.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2814"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2844"/>
         <source>PNG is lossless and largest; JPEG and WebP are smaller with adjustable quality. GIF makes every capture a single-frame GIF, needs ffmpeg, and is limited to 256 colors - pick it for a site that takes nothing else. The format also applies to uploads and to the clipboard-encoded image where relevant.</source>
         <translation>PNG ist verlustfrei und am größten; JPEG und WebP sind kleiner mit einstellbarer Qualität. GIF macht aus jeder Aufnahme ein GIF mit einem einzigen Bild, braucht ffmpeg und ist auf 256 Farben begrenzt - wähle es für eine Seite, die nichts anderes annimmt. Das Format gilt auch für Uploads und für das in die Zwischenablage kodierte Bild, wo es zutrifft.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2823"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2853"/>
         <source>Quality (JPEG/WebP/GIF): %1</source>
         <translation>Qualität (JPEG/WebP/GIF): %1</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2825"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2855"/>
         <source>Higher means better fidelity and larger files. PNG ignores this setting because it is always lossless. For GIF it buys palette entries instead: 64 colors below 40, 128 below 75, the full 256 above.</source>
         <translation>Höher bedeutet bessere Wiedergabe und größere Dateien. PNG ignoriert diese Einstellung, weil es immer verlustfrei ist. Für GIF kauft sie stattdessen Paletteneinträge: 64 Farben unter 40, 128 unter 75, die vollen 256 darüber.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2929"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="4657"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2959"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4687"/>
         <source>Image conversion</source>
         <translation>Bildkonvertierung</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2933"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2963"/>
         <source>Re-encodes pictures into another format on the way in, on the way out, or when one turns out too big. The quality slider above applies to every conversion.</source>
         <translation>Kodiert Bilder beim Hereinkommen, beim Hinausgehen oder wenn eines zu groß gerät in ein anderes Format um. Der Qualitätsregler oben gilt für jede Konvertierung.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2938"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2968"/>
         <source>Convert files I bring in</source>
         <translation>Hereingebrachte Dateien konvertieren</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2939"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2969"/>
         <source>A picture dropped, pasted or opened here is saved in the format above instead of the one it arrived in.</source>
         <translation>Ein hier abgelegtes, eingefügtes oder geöffnetes Bild wird im Format oben gespeichert, nicht in dem, in dem es ankam.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2940"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2970"/>
         <source>The converted picture is a new file beside the original, which stays untouched: an in-place rewrite would leave the name disagreeing with the bytes, and a lossy re-encode over someone&apos;s only copy is not something a Save button should do quietly. Files already in the chosen format are saved normally.</source>
         <translation>Das konvertierte Bild ist eine neue Datei neben dem Original, das unangetastet bleibt: ein Überschreiben an Ort und Stelle ließe den Namen im Widerspruch zum Inhalt, und eine verlustbehaftete Neukodierung über die einzige Kopie von jemandem ist nichts, was ein Speichern-Knopf stillschweigend tun sollte. Dateien, die bereits im gewählten Format vorliegen, werden normal gespeichert.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2944"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2974"/>
         <source>Convert files over a size</source>
         <translation>Dateien ab einer Größe konvertieren</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2945"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2975"/>
         <source>A saved capture larger than the limit below is re-encoded into a lighter format.</source>
         <translation>Eine gespeicherte Aufnahme über dem Limit unten wird in ein leichteres Format umkodiert.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2946"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2976"/>
         <source>Runs right after the save, so history, the notification and the clipboard all point at the converted file. If the re-encode does not actually come out smaller, the original is kept and nothing is said - the rule can never make a file worse. It leaves manual choices alone: Save as GIF and the history Convert to entries are never overridden.</source>
         <translation>Läuft direkt nach dem Speichern, damit Verlauf, Benachrichtigung und Zwischenablage alle auf die konvertierte Datei zeigen. Wird die Neukodierung nicht wirklich kleiner, bleibt das Original und es wird nichts gesagt - die Regel kann eine Datei nie verschlechtern. Manuelle Entscheidungen lässt sie in Ruhe: Als GIF speichern und die Einträge Nach ... konvertieren im Verlauf werden nie übergangen.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2951"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2981"/>
         <source>Convert over: %1 MB</source>
         <translation>Konvertieren ab: %1 MB</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2952"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2982"/>
         <source>Size at which a saved capture is converted.</source>
         <translation>Größe, ab der eine gespeicherte Aufnahme konvertiert wird.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2962"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2992"/>
         <source>Convert into</source>
         <translation>Konvertieren nach</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2963"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2993"/>
         <source>Format for the over-size conversion.</source>
         <translation>Format der Größen-Konvertierung.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2964"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2994"/>
         <source>WebP is the usual answer: it keeps transparency and is far smaller than PNG. JPEG is smaller still but drops transparency, so a capture with any goes to PNG instead and says so.</source>
         <translation>WebP ist meist die Antwort: es behält die Transparenz und ist weit kleiner als PNG. JPEG ist noch kleiner, verliert aber die Transparenz, deshalb geht eine Aufnahme mit Transparenz stattdessen nach PNG und sagt es.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2973"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3003"/>
         <source>Upload format</source>
         <translation>Upload-Format</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2974"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3004"/>
         <source>Format for uploaded pictures, independent of what lands on disk.</source>
         <translation>Format hochgeladener Bilder, unabhängig davon, was auf der Platte landet.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2975"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3005"/>
         <source>Lets you keep lossless PNG files locally while sending something lighter, or the other way round. The file on disk and the one in history are never touched - the conversion happens on the bytes being sent. Recordings and animated GIFs upload as they are.</source>
         <translation>Damit lassen sich lokal verlustfreie PNG-Dateien behalten und etwas Leichteres verschicken, oder umgekehrt. Die Datei auf der Platte und die im Verlauf bleiben unberührt - konvertiert werden die gesendeten Bytes. Aufnahmen und animierte GIFs werden unverändert hochgeladen.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2981"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3011"/>
         <source>Same as the saved file</source>
         <translation>Wie die gespeicherte Datei</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3047"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="4671"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3077"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4701"/>
         <source>Watermark preview</source>
         <translation>Wasserzeichen-Vorschau</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3048"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3078"/>
         <source>A sample capture with the current watermark settings applied.</source>
         <translation>Eine Beispielaufnahme mit den aktuellen Wasserzeichen-Einstellungen.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3054"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3084"/>
         <source>A sample capture, stamped by the same code your screenshots go through.</source>
         <translation>Eine Beispielaufnahme, gestempelt von demselben Code, den Ihre Screenshots durchlaufen.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3096"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3126"/>
         <source>Pattern</source>
         <translation>Muster</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3097"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3127"/>
         <source>One stamp, or a ready-made layout that covers the whole capture.</source>
         <translation>Ein einzelner Stempel oder ein fertiges Layout, das die ganze Aufnahme abdeckt.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3098"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3128"/>
         <source>One stamp sits where Position says. Tiled and Diagonal repeat a small stamp across the picture, staggered row by row, which is what makes a screenshot awkward to crop the mark out of. Four corners puts one in each corner. Diagonal band is a single large stamp running across the middle. Everything except One stamp covers the whole capture and ignores Position.</source>
         <translation>Ein einzelner Stempel sitzt dort, wo Position es angibt. Gekachelt und Diagonal gekachelt wiederholen einen kleinen Stempel über das ganze Bild, Reihe für Reihe versetzt, und genau das macht es schwer, die Markierung aus einem Screenshot herauszuschneiden. Vier Ecken setzt in jede Ecke einen. Diagonales Band ist ein einzelner großer Stempel quer durch die Mitte. Alles außer Ein Stempel deckt die ganze Aufnahme ab und ignoriert Position.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3104"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3134"/>
         <source>One stamp</source>
         <translation>Ein Stempel</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3104"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3134"/>
         <source>Tiled</source>
         <translation>Gekachelt</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3104"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3134"/>
         <source>Diagonal tiled</source>
         <translation>Diagonal gekachelt</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3105"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3135"/>
         <source>Four corners</source>
         <translation>Vier Ecken</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3105"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3135"/>
         <source>Diagonal band</source>
         <translation>Diagonales Band</translation>
     </message>
@@ -8921,12 +9027,12 @@ Gilt ab der nächsten Aufnahme.</translation>
         <translation type="vanished">Größe: %1%</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3127"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3157"/>
         <source>How big the stamp is, against the size the pattern picks itself.</source>
         <translation>Wie groß der Stempel gegenüber der Größe ist, die das Muster selbst wählt.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3128"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3158"/>
         <source>100% is the pattern&apos;s own size, which is a fraction of the capture&apos;s shorter side - so one setting looks the same on a 720p window and a 4K screen. Below 100% the stamp shrinks and a tiled pattern packs tighter; above it the stamp grows and the tiles spread out. A logo is scaled from the file you chose, so pushing a small logo far past 100% will look soft.</source>
         <translation>100% ist die eigene Größe des Musters, ein Bruchteil der kürzeren Seite der Aufnahme - dieselbe Einstellung sieht damit in einem 720p-Fenster genauso aus wie auf einem 4K-Bildschirm. Unter 100% schrumpft der Stempel und die Kachelung wird dichter; darüber wächst der Stempel und die Kacheln rücken auseinander. Ein Logo wird aus der von Ihnen gewählten Datei skaliert, ein kleines Logo weit über 100% wirkt daher unscharf.</translation>
     </message>
@@ -8935,67 +9041,67 @@ Gilt ab der nächsten Aufnahme.</translation>
         <translation type="vanished">Auf 100% zurücksetzen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4010"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4040"/>
         <source>Registered through the system GlobalShortcuts portal. Your desktop may show a one-time confirmation dialog; the binding it decides on is final (on Hyprland bind the ids in hyprland.conf).</source>
         <translation>Über das GlobalShortcuts-Portal des Systems registriert. Ihre Arbeitsumgebung zeigt eventuell einmalig einen Bestätigungsdialog; die Belegung, für die sie sich entscheidet, ist endgültig (unter Hyprland binden Sie die Kennungen in hyprland.conf).</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4015"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4045"/>
         <source>Registered through KDE global shortcuts (KGlobalAccel). Each action can hold several bindings: record one, then use the small chip to add alternatives (up to 4). Remove a binding with its ×.</source>
         <translation>Über die globalen Kurzbefehle von KDE registriert (KGlobalAccel). Jede Aktion kann mehrere Belegungen halten: nehmen Sie eine auf und fügen Sie über die kleine Marke Alternativen hinzu (bis zu 4). Eine Belegung entfernen Sie über ihr ×.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4080"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4110"/>
         <source>Full screen</source>
         <translation>Vollbild</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4081"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4111"/>
         <source>Hotkey: capture all monitors at once.</source>
         <translation>Tastenkürzel: alle Bildschirme auf einmal aufnehmen.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4088"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4118"/>
         <source>Region</source>
         <translation>Bereich</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4089"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4119"/>
         <source>Hotkey: capture a selected region.</source>
         <translation>Tastenkürzel: einen ausgewählten Bereich aufnehmen.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4090"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4120"/>
         <source>Opens the selection overlay with annotation tools, so you can draw on the frozen screen before the capture is finalized.</source>
         <translation>Öffnet die Auswahlebene mit den Beschriftungswerkzeugen, sodass Sie auf dem eingefrorenen Bildschirm zeichnen können, bevor die Aufnahme endgültig ist.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4104"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4134"/>
         <source>Window</source>
         <translation>Fenster</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4105"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4135"/>
         <source>Hotkey: capture a single window.</source>
         <translation>Tastenkürzel: ein einzelnes Fenster aufnehmen.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4106"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4136"/>
         <source>Uses the desktop&apos;s window picker where available, so you get exactly one window without manual cropping.</source>
         <translation>Verwendet die Fensterauswahl der Arbeitsumgebung, wo es sie gibt, sodass Sie genau ein Fenster ohne Zuschneiden von Hand bekommen.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4144"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4174"/>
         <source>Video start/stop</source>
         <translation>Video starten/stoppen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4145"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4175"/>
         <source>Hotkey: toggle video recording.</source>
         <translation>Tastenkürzel: die Videoaufzeichnung umschalten.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4148"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4178"/>
         <source>First press opens the recording setup for a region; pressing again while recording stops and finalizes the file. Ctrl+Esc is the always-on emergency stop.</source>
         <translation>Der erste Druck öffnet die Einrichtung der Aufzeichnung für einen Bereich; ein erneuter Druck während der Aufzeichnung stoppt sie und schließt die Datei ab. Ctrl+Esc ist der immer verfügbare Nothalt.</translation>
     </message>
@@ -9016,17 +9122,17 @@ Gilt ab der nächsten Aufnahme.</translation>
         <translation type="vanished">Fragt KWin nach dem Rechteck des aktiven Fensters und nimmt genau diesen Bereich als Region auf - ohne Auswahl, ohne Portal-Dialog. Die Aufnahme behält das Rechteck vom Start, ein späteres Verschieben des Fensters bewegt es also aus dem Bild.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4154"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4184"/>
         <source>GIF start/stop</source>
         <translation>GIF starten/stoppen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4155"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4185"/>
         <source>Hotkey: toggle GIF recording.</source>
         <translation>Tastenkürzel: die GIF-Aufzeichnung umschalten.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4156"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4186"/>
         <source>Same flow as video recording, but the result is converted into an optimized GIF (two-pass palette) when you stop.</source>
         <translation>Derselbe Ablauf wie bei der Videoaufzeichnung, aber das Ergebnis wird beim Stoppen in ein optimiertes GIF umgewandelt (Palette in zwei Durchgängen).</translation>
     </message>
@@ -9035,39 +9141,39 @@ Gilt ab der nächsten Aufnahme.</translation>
         <translation type="vanished">Bereich per OCR lesen, Letzte Aufnahme kopieren, Sofortwiedergabe</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4112"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4142"/>
         <source>OCR region (copy text)</source>
         <translation>Bereich per OCR lesen (Text kopieren)</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4113"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4143"/>
         <source>Hotkey: select a region, its text lands in the clipboard.</source>
         <translation>Tastenkürzel: einen Bereich auswählen, sein Text landet in der Zwischenablage.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4114"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4144"/>
         <source>Opens the region selector and runs OCR on the crop. Nothing is saved and no notification is shown; the recognized text is simply copied. QR and bar codes are read too: a code in the region copies its content instead.</source>
         <translation>Öffnet die Bereichsauswahl und lässt OCR über den Ausschnitt laufen. Es wird nichts gespeichert und keine Benachrichtigung gezeigt; der erkannte Text wird einfach kopiert. QR- und Barcodes werden ebenfalls gelesen: ein Code im Bereich kopiert stattdessen seinen Inhalt.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4120"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="4636"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4150"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4666"/>
         <source>Copy last capture</source>
         <translation>Letzte Aufnahme kopieren</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4121"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4151"/>
         <source>Hotkey: puts the most recent screenshot back on the clipboard.</source>
         <translation>Tastenkürzel: das jüngste Bildschirmfoto wieder in die Zwischenablage legen.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4122"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4152"/>
         <source>Copies the last screenshot taken in this session, whenever you press it. A dedicated shortcut never collides with the normal Ctrl+C - this replaces the old 2-second Ctrl+C grab, which could steal an ordinary copy right after a capture.</source>
         <translation>Kopiert das letzte in dieser Sitzung erstellte Bildschirmfoto, wann immer Sie es drücken. Ein eigenes Tastenkürzel kollidiert nie mit dem normalen Ctrl+C - dies ersetzt den früheren Zwei-Sekunden-Zugriff auf Ctrl+C, der direkt nach einer Aufnahme ein gewöhnliches Kopieren stehlen konnte.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="2278"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="4701"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4731"/>
         <source>Instant replay</source>
         <translation>Sofortwiedergabe</translation>
     </message>
@@ -9076,82 +9182,82 @@ Gilt ab der nächsten Aufnahme.</translation>
         <translation type="vanished">Startet den laufenden Ring der Wiedergabe; spätere Tastendrücke sichern das Fenster der letzten Abschnitte.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4203"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4233"/>
         <source>The first press opens the screen-sharing portal and starts the bounded encoded ring. While it is active, each press saves the latest configured duration without stopping capture.</source>
         <translation>Der erste Druck öffnet das Portal zur Bildschirmfreigabe und startet den begrenzten kodierten Ring. Solange er aktiv ist, sichert jeder Druck die zuletzt eingestellte Dauer, ohne die Aufnahme zu stoppen.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4163"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4193"/>
         <source>Hotkey: start or stop a video of the whole screen.</source>
         <translation>Tastenkürzel: ein Video des ganzen Bildschirms starten oder beenden.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4170"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4200"/>
         <source>Hotkey: start or stop a GIF of the whole screen.</source>
         <translation>Tastenkürzel: ein GIF des ganzen Bildschirms starten oder beenden.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4177"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4207"/>
         <source>Hotkey: start or stop a video of one window you pick.</source>
         <translation>Tastenkürzel: ein Video eines ausgewählten Fensters starten oder beenden.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4179"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4209"/>
         <source>Recording one window needs the desktop&apos;s window picker, which this session does not have.</source>
         <translation>Das Aufzeichnen eines einzelnen Fensters braucht die Fensterauswahl des Desktops, die diese Sitzung nicht hat.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4185"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4215"/>
         <source>Pause or resume recording</source>
         <translation>Aufnahme anhalten oder fortsetzen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4186"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4216"/>
         <source>Hotkey: pause the running recording, or resume it.</source>
         <translation>Tastenkürzel: die laufende Aufnahme anhalten oder fortsetzen.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4045"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4075"/>
         <source>Apply hotkeys</source>
         <translation>Tastenkürzel anwenden</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4049"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4079"/>
         <source>Hotkeys re-registered</source>
         <translation>Tastenkürzel neu registriert</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4129"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4159"/>
         <source>Hotkey: select a region and measure distances and angles in it.</source>
         <translation>Tastenkürzel: einen Bereich auswählen und darin Abstände und Winkel messen.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4057"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4087"/>
         <source>Changing a key here updates the stored shortcut; press “Add shortcuts to %1” to write it into the desktop.</source>
         <translation>Eine Tastenänderung hier aktualisiert das gespeicherte Kürzel; drücken Sie „Tastenkürzel zu %1 hinzufügen“, um es in die Arbeitsumgebung zu schreiben.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4059"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4089"/>
         <source>Keys recorded here are suggestions passed to the portal; the system dialog confirms or adjusts them.</source>
         <translation>Hier aufgenommene Tasten sind Vorschläge an das Portal; der Systemdialog bestätigt oder ändert sie.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4061"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4091"/>
         <source>Shortcuts apply immediately on this X11 session (grabbed straight from the X server).</source>
         <translation>Die Kürzel gelten in dieser X11-Sitzung sofort (direkt beim X-Server gegriffen).</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4233"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4263"/>
         <source>Hotkey: pick an image file and open it in the editor.</source>
         <translation>Tastenkürzel: eine Bilddatei auswählen und im Editor öffnen.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4063"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4093"/>
         <source>Shortcuts apply immediately. A key another app already registered is reported as taken.</source>
         <translation>Die Kürzel gelten sofort. Eine Taste, die eine andere App bereits registriert hat, wird als belegt gemeldet.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4064"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4094"/>
         <source>Shortcuts apply immediately and stay in sync with KDE System Settings; an edit made there shows up here too.</source>
         <translation>Die Kürzel gelten sofort und bleiben mit den KDE-Systemeinstellungen synchron; eine dort vorgenommene Änderung erscheint auch hier.</translation>
     </message>
@@ -9160,324 +9266,354 @@ Gilt ab der nächsten Aufnahme.</translation>
         <translation type="vanished">Tastenkürzel: eine Aufnahme auswählen und im Zuschneidefenster öffnen.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4269"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4299"/>
         <source>Use global actions</source>
         <translation>Globale Aktionen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4269"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4299"/>
         <source>Copy only</source>
         <translation>Nur kopieren</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4269"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4299"/>
         <source>Edit only</source>
         <translation>Nur bearbeiten</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4269"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4299"/>
         <source>Save only</source>
         <translation>Nur speichern</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4269"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4299"/>
         <source>Upload only</source>
         <translation>Nur hochladen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4239"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4269"/>
         <source>Upload a file</source>
         <translation>Datei hochladen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4270"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4300"/>
         <source>Copy + save</source>
         <translation>Kopieren + speichern</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4270"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4300"/>
         <source>Copy + edit</source>
         <translation>Kopieren + bearbeiten</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4270"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4300"/>
         <source>Copy + upload</source>
         <translation>Kopieren + hochladen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4270"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4300"/>
         <source>Save + upload</source>
         <translation>Speichern + hochladen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4240"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4270"/>
         <source>Hotkey: pick any file and upload it.</source>
         <translation>Tastenkürzel: eine beliebige Datei auswählen und hochladen.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4271"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4301"/>
         <source>Copy + save + upload</source>
         <translation>Kopieren + speichern + hochladen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4271"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4301"/>
         <source>All actions</source>
         <translation>Alle Aktionen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4276"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4306"/>
         <source>Per-hotkey task presets</source>
         <translation>Aufgabenvorlagen je Tastenkürzel</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4246"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4276"/>
         <source>Upload clipboard</source>
         <translation>Zwischenablage hochladen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4247"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4277"/>
         <source>Hotkey: upload the copied file, image or text.</source>
         <translation>Tastenkürzel: die kopierte Datei, das Bild oder den Text hochladen.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4280"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4310"/>
         <source>Each screenshot hotkey can run its own action profile without changing the global After capture switches.</source>
         <translation>Jedes Tastenkürzel für Bildschirmfotos kann sein eigenes Aktionsprofil ausführen, ohne die allgemeinen Schalter unter „Nach der Aufnahme“ zu ändern.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4285"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4315"/>
         <source>Full screen hotkey</source>
         <translation>Tastenkürzel für Vollbild</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4253"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4283"/>
         <source>QR code of copied text</source>
         <translation>QR-Code des kopierten Texts</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4078"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2328"/>
+        <source>Pill: icon, title and the file name. Compact: icon and title. Dot: the icon alone. Tinted: the pill with its edge and title in the colour of what happened.</source>
+        <translation>Pille: Symbol, Titel und Dateiname. Kompakt: Symbol und Titel. Punkt: nur das Symbol. Getönt: die Pille mit Rand und Titel in der Farbe des Ereignisses.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="2369"/>
+        <source>Whole screen: the monitor under the pointer. Game window: only the game, even when something covers it.</source>
+        <translation>Ganzer Bildschirm: der Monitor unter dem Zeiger. Spielfenster: nur das Spiel, auch wenn etwas darüber liegt.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="2370"/>
+        <source>Game window finds the running game&apos;s window, or takes the window in front when no game is detected. On KDE Plasma the recording follows that window; on Windows its area is recorded; elsewhere the whole screen is. A change applies the next time instant replay starts.</source>
+        <translation>Spielfenster findet das Fenster des laufenden Spiels oder nimmt das vorderste Fenster, wenn kein Spiel erkannt wird. Unter KDE Plasma folgt die Aufnahme diesem Fenster; unter Windows wird sein Bereich aufgenommen; anderswo der ganze Bildschirm. Eine Änderung gilt beim nächsten Start der Sofortwiedergabe.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="2381"/>
+        <source>Stopping instant replay saves everything it recorded as one session recording, to cut clips from later on the Clips page.</source>
+        <translation>Das Stoppen der Sofortwiedergabe speichert alles Aufgenommene als eine Sitzungsaufnahme, aus der du später auf der Seite Clips Clips schneidest.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="2382"/>
+        <source>Up to the last 4 hours of a session, on disk in the cache while it runs: about 2 to 15 GB per hour, depending on the screen and the quality. Save clip still saves only the replay length. A change applies the next time instant replay starts.</source>
+        <translation>Bis zu den letzten 4 Stunden einer Sitzung, solange sie läuft auf der Festplatte im Cache: etwa 2 bis 15 GB pro Stunde, je nach Bildschirm und Qualität. Clip speichern speichert weiterhin nur die Wiedergabelänge. Eine Änderung gilt beim nächsten Start der Sofortwiedergabe.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="2388"/>
+        <source>When Unisic starts: from launch until you stop it. While a game is running: games started by Steam, and on Linux also Proton games from Heroic, Lutris or Bottles, games using GameMode, and cloud gaming in the GeForce NOW, Steam Link, Moonlight, Boosteroid or Greenlight app, or in a browser app window; it stops when the game closes. Starting a recording pauses it, and it comes back afterwards.</source>
+        <translation>Wenn Unisic startet: vom Start an, bis du sie stoppst. Während ein Spiel läuft: von Steam gestartete Spiele, unter Linux außerdem Proton-Spiele aus Heroic, Lutris oder Bottles, Spiele mit GameMode und Cloud-Gaming in der App GeForce NOW, Steam Link, Moonlight, Boosteroid oder Greenlight oder in einem Browser-App-Fenster; sie stoppt, wenn das Spiel schließt. Eine Aufnahme pausiert sie, danach kommt sie zurück.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="4108"/>
         <source>Screenshots</source>
         <translation>Bildschirmfotos</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4216"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4246"/>
         <source>Open in the clip editor</source>
         <translation>Im Clip-Editor öffnen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4217"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4247"/>
         <source>Hotkey: pick a recording and cut it in the clip editor.</source>
         <translation>Tastenkürzel: eine Aufnahme wählen und im Clip-Editor schneiden.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4230"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4260"/>
         <source>Files and sharing</source>
         <translation>Dateien und Teilen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4254"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4284"/>
         <source>Hotkey: show the copied text as a QR code.</source>
         <translation>Tastenkürzel: den kopierten Text als QR-Code zeigen.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4301"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="4319"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="4337"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4331"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4349"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4367"/>
         <source>Upload destination</source>
         <translation>Upload-Ziel</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4310"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4340"/>
         <source>Region hotkey</source>
         <translation>Tastenkürzel für Bereich</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4328"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4358"/>
         <source>Window hotkey</source>
         <translation>Tastenkürzel für Fenster</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4382"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4412"/>
         <source>Unisic can add these to %1 for you, using the keys above - they stay editable in %1&apos;s own keyboard settings.</source>
         <translation>Unisic kann sie mit den Tasten von oben für Sie zu %1 hinzufügen - sie bleiben in den eigenen Tastatureinstellungen von %1 änderbar.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4471"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4501"/>
         <source>Dev build. Compositor capabilities detected on this system. F8 (or the button) runs the full smoke test.</source>
         <translation>Entwicklerversion. Auf diesem System erkannte Fähigkeiten des Compositors. F8 (oder der Knopf) führt den vollständigen Testlauf aus.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4476"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4506"/>
         <source>Native notifications</source>
         <translation>Systemeigene Benachrichtigungen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4477"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4507"/>
         <source>Whether a desktop notification server is available.</source>
         <translation>Ob ein Benachrichtigungsserver der Arbeitsumgebung verfügbar ist.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4478"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4508"/>
         <source>Detected from org.freedesktop.Notifications on the session bus. Without it (e.g. bare Sway) capture cards need the layer-shell path instead.</source>
         <translation>Über org.freedesktop.Notifications auf dem Sitzungsbus erkannt. Ohne ihn (etwa bei blankem Sway) brauchen die Aufnahmekarten stattdessen den Layer-Shell-Weg.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4483"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4513"/>
         <source>Custom card (layer-shell)</source>
         <translation>Eigene Karte (Layer-Shell)</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4484"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4514"/>
         <source>Whether the compositor supports wlr-layer-shell surfaces.</source>
         <translation>Ob der Compositor wlr-layer-shell-Flächen unterstützt.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4485"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4515"/>
         <source>Layer-shell powers the always-on-top capture card, the selection overlay above fullscreen apps and the pinned preview. KWin, wlroots and COSMIC have it; GNOME does not.</source>
         <translation>Layer-Shell trägt die Aufnahmekarte im Vordergrund, die Auswahlebene über Vollbildanwendungen und die angeheftete Vorschau. KWin, wlroots und COSMIC haben es; GNOME nicht.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4490"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4520"/>
         <source>Recording border</source>
         <translation>Rahmen der Aufzeichnung</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4491"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4521"/>
         <source>Whether a border can be drawn around the recorded region.</source>
         <translation>Ob ein Rahmen um den aufgezeichneten Bereich gezeichnet werden kann.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4497"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4527"/>
         <source>KWin native recording</source>
         <translation>Native KWin-Aufzeichnung</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4498"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4528"/>
         <source>Whether recordings can start without the portal share dialog.</source>
         <translation>Ob Aufzeichnungen ohne den Freigabedialog des Portals starten können.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4499"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4529"/>
         <source>KWin&apos;s zkde_screencast protocol (the Spectacle path): the app names the screen, region or window itself, so no system dialog and no restore tokens are involved. Needs the X-KDE-Wayland-Interfaces grant in the installed desktop file; elsewhere recording falls back to the portal.</source>
         <translation>Das Protokoll zkde_screencast von KWin (der Spectacle-Weg): die Anwendung benennt Bildschirm, Bereich oder Fenster selbst, deshalb ist weder ein Systemdialog noch ein Wiederherstellungs-Token beteiligt. Benötigt die Freigabe X-KDE-Wayland-Interfaces in der installierten Desktop-Datei; sonst weicht die Aufzeichnung auf das Portal aus.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4504"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4534"/>
         <source>ScreenCast portal</source>
         <translation>ScreenCast-Portal</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4505"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4535"/>
         <source>Whether this desktop has a ScreenCast portal backend.</source>
         <translation>Ob diese Arbeitsumgebung ein ScreenCast-Portal-Backend hat.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4506"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4536"/>
         <source>Probed at startup by reading the version property of org.freedesktop.portal.ScreenCast. The backend is what asks for permission and opens the PipeWire stream; a running pipewire daemon does not imply one. KDE, GNOME, wlroots and COSMIC have it - the -xapp backend (Cinnamon, MATE, XFCE) and -lxqt do not.</source>
         <translation>Beim Start durch Lesen der Eigenschaft version von org.freedesktop.portal.ScreenCast geprüft. Das Backend ist es, das um Erlaubnis fragt und den PipeWire-Strom öffnet; ein laufender pipewire-Dienst bedeutet noch keines. KDE, GNOME, wlroots und COSMIC haben eines - das Backend -xapp (Cinnamon, MATE, XFCE) und -lxqt nicht.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4511"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4541"/>
         <source>Direct screen capture</source>
         <translation>Direkte Bildschirmaufnahme</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4512"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4542"/>
         <source>Whether recording can grab frames straight from the screen, without the ScreenCast portal.</source>
         <translation>Ob die Aufnahme Bilder direkt vom Bildschirm holen kann, ohne das ScreenCast-Portal.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4513"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4543"/>
         <source>On an X11 session (xcb platform) the frames come from XShm, on Windows from DXGI Desktop Duplication, so recording works without any ScreenCast portal backend - which is also how Cinnamon, MATE and XFCE on Xorg record. Recording a single window still needs the portal&apos;s window picker and stays unavailable there.</source>
         <translation>In einer X11-Sitzung (xcb-Plattform) kommen die Bilder aus XShm, unter Windows aus DXGI Desktop Duplication, daher funktioniert die Aufnahme ohne jedes ScreenCast-Portal-Backend - so nehmen auch Cinnamon, MATE und XFCE unter Xorg auf. Das Aufzeichnen eines einzelnen Fensters braucht weiterhin die Fensterauswahl des Portals und bleibt dort nicht verfügbar.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4518"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4548"/>
         <source>Video preview</source>
         <translation>Videovorschau</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4519"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4549"/>
         <source>Whether the trim editor can show a live video preview.</source>
         <translation>Ob das Zuschneidefenster eine Videovorschau in Echtzeit zeigen kann.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4520"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4550"/>
         <source>Needs the QtMultimedia QML module (qt6-qtmultimedia). Without it the trim editor falls back to a slider-only range picker.</source>
         <translation>Benötigt das QML-Modul QtMultimedia (qt6-qtmultimedia). Ohne es weicht das Zuschneidefenster auf eine Bereichsauswahl nur mit Schiebereglern aus.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4535"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4565"/>
         <source>Copy log</source>
         <translation>Protokoll kopieren</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4537"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4567"/>
         <source>Smoke test log copied</source>
         <translation>Protokoll des Testlaufs kopiert</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4607"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4637"/>
         <source>Card preview (3 s)</source>
         <translation>Kartenvorschau (3 s)</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4611"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4641"/>
         <source>Editor layouts</source>
         <translation>Editor-Anordnungen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4612"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4642"/>
         <source>Editor chrome</source>
         <translation>Editor-Bedienelemente</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4613"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4643"/>
         <source>Shape groups</source>
         <translation>Formgruppen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4614"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4644"/>
         <source>Shape menu</source>
         <translation>Formmenü</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4615"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4645"/>
         <source>Sticker library</source>
         <translation>Sticker-Bibliothek</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4616"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4646"/>
         <source>Auto-redact review</source>
         <translation>Prüfung des Auto-Schwärzens</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4618"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4648"/>
         <source>Capture page layout</source>
         <translation>Anordnung der Seite Aufnahme</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4619"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4649"/>
         <source>Header search</source>
         <translation>Suche in der Kopfleiste</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4642"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4672"/>
         <source>Move preview to the next screen</source>
         <translation>Vorschau auf den nächsten Bildschirm verschieben</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4645"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4675"/>
         <source>History drag payload</source>
         <translation>Ziehdaten aus dem Verlauf</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4653"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4683"/>
         <source>Failure Chain</source>
         <translation>Fehlerkette</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4654"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4684"/>
         <source>curl destination</source>
         <translation>curl-Ziel</translation>
     </message>
@@ -9486,93 +9622,93 @@ Gilt ab der nächsten Aufnahme.</translation>
         <translation type="vanished">Upload-Variablen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4656"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4686"/>
         <source>Still GIF</source>
         <translation>Statisches GIF</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4658"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4688"/>
         <source>Notification drag payload</source>
         <translation>Ziehdaten aus der Benachrichtigung</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4667"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4697"/>
         <source>Paste clipboard</source>
         <translation>Aus der Zwischenablage einfügen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4669"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4699"/>
         <source>Copy as</source>
         <translation>Kopieren als</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2993"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="4670"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3023"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4700"/>
         <source>Watermark</source>
         <translation>Wasserzeichen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4672"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4702"/>
         <source>Callout</source>
         <translation>Sprechblase</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4673"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4703"/>
         <source>Shift snap</source>
         <translation>Einrasten mit Shift</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4675"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4705"/>
         <source>QR preview</source>
         <translation>QR-Vorschau</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4723"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4753"/>
         <source>OCR highlight + redact</source>
         <translation>OCR hervorheben und schwärzen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4733"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4763"/>
         <source>Installer update (dry-run)</source>
         <translation>Aktualisierung des Installationsprogramms (Trockenlauf)</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4734"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4764"/>
         <source>Staged update (dry-run)</source>
         <translation>Vorbereitete Aktualisierung (Trockenlauf)</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4735"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4765"/>
         <source>Filename + save routing</source>
         <translation>Dateiname und Speicherziel</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4736"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4766"/>
         <source>Save-as dialog</source>
         <translation>Dialog „Speichern unter“</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4737"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4767"/>
         <source>Active window geometry</source>
         <translation>Geometrie des aktiven Fensters</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4738"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4768"/>
         <source>Record countdown</source>
         <translation>Countdown der Aufzeichnung</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4739"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4769"/>
         <source>Full-screen countdown</source>
         <translation>Countdown für das Vollbild</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4740"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4770"/>
         <source>Toggle autostart</source>
         <translation>Autostart umschalten</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4529"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4559"/>
         <source>Running…</source>
         <translation>Läuft…</translation>
     </message>
@@ -9637,27 +9773,27 @@ Gilt ab der nächsten Aufnahme.</translation>
         <translation>VP9 (WebM) hat hier keinen Hardware-Encoder und braucht ein Vielfaches der Zeit von MP4. Stellen Sie das Format oben auf MP4 um, damit das Speichern schnell und hardwarebeschleunigt läuft.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3518"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3548"/>
         <source>Custom themes</source>
         <translation>Eigene Farbschemata</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3519"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3549"/>
         <source>Drop .json theme files into the themes folder - they appear in the list above and reload live while you edit them.</source>
         <translation>Legen Sie .json-Dateien mit Farbschemata in den Ordner für Farbschemata - sie erscheinen in der Liste oben und werden beim Bearbeiten live neu geladen.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3520"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3550"/>
         <source>Opening the folder for the first time creates a commented example theme (8 colors are enough; everything else is derived, and any derived color can be overridden). Share the file to share the theme. A broken file is skipped and its reason is listed here.</source>
         <translation>Beim ersten Öffnen des Ordners wird ein kommentiertes Beispielschema angelegt (8 Farben genügen; alles andere wird daraus abgeleitet, und jede abgeleitete Farbe lässt sich überschreiben). Geben Sie die Datei weiter, um das Schema weiterzugeben. Eine fehlerhafte Datei wird übersprungen und ihr Grund hier aufgeführt.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3523"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3553"/>
         <source>Open themes folder</source>
         <translation>Farbschema-Ordner öffnen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3524"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3554"/>
         <source>Reload</source>
         <translation>Neu laden</translation>
     </message>
@@ -9667,12 +9803,12 @@ Gilt ab der nächsten Aufnahme.</translation>
         <translation>Bildschirm mit Zeiger</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4595"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4625"/>
         <source>Re-capture last region</source>
         <translation>Letzten Bereich erneut aufnehmen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4529"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4559"/>
         <source>Run full smoke test (F8)</source>
         <translation>Vollständigen Testlauf ausführen (F8)</translation>
     </message>
@@ -9693,7 +9829,7 @@ Gilt ab der nächsten Aufnahme.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="2203"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="4706"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4736"/>
         <source>Separate audio tracks</source>
         <translation>Getrennte Audiospuren</translation>
     </message>
@@ -9707,27 +9843,27 @@ Gilt ab der nächsten Aufnahme.</translation>
         <translation type="vanished">Für den Schnitt: Das Mikrofon bleibt vom Systemton getrennt, sodass sich das eine später gegen das andere absenken lässt. Braucht mindestens zwei Quellen - bei einer gibt es nichts zu trennen und die Aufnahme behält ihre einzelne Spur. Manche Player zeigen nur die erste Spur, für einen Clip zum direkten Anschauen also besser aus lassen.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3126"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3156"/>
         <source>Size</source>
         <translation>Größe</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3616"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3646"/>
         <source>A mode indicator and a colored screen frame on the selection overlay.</source>
         <translation>Eine Modusanzeige und ein farbiger Bildschirmrahmen auf dem Auswahl-Overlay.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3617"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3647"/>
         <source>The overlay looks the same whether you are taking a screenshot, measuring, reading text or starting a recording, so a mis-fired hotkey only shows itself once the shot is taken - or the recording has already started. With this on, the mode is drawn on the overlay (as a badge or a faded icon, whichever style is picked below), the screen edge and the selection handles take that mode&apos;s color, and the overlay&apos;s own colors come from the theme (a custom theme can set modeShot, modeMeasure, modeOcr, modeGif and modeVideo). The confirm button and the hint always name the right action, with this on or off.</source>
         <translation>Das Overlay sieht gleich aus, ob Sie ein Bildschirmfoto machen, messen, Text lesen oder eine Aufnahme starten, deshalb zeigt sich ein falsch getroffenes Tastenkürzel erst, wenn das Bild schon aufgenommen ist - oder die Aufnahme bereits läuft. Ist dies aktiv, wird der Modus auf dem Overlay gezeichnet (als Badge oder als abgeblendetes Symbol, je nach dem unten gewählten Stil), der Bildschirmrand und die Auswahlgriffe nehmen die Farbe dieses Modus an, und die Farben des Overlays kommen aus dem Thema (ein eigenes Thema kann modeShot, modeMeasure, modeOcr, modeGif und modeVideo setzen). Die Bestätigungsschaltfläche und der Hinweis benennen immer die richtige Aktion, egal ob dies aktiv ist oder nicht.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3621"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3651"/>
         <source>Mode indicator style</source>
         <translation>Stil der Modusanzeige</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3623"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3653"/>
         <source>Name the mode in a badge at the top, or draw its icon faded in the middle.</source>
         <translation>Den Modus oben mit einem Badge benennen oder sein Symbol abgeblendet in der Mitte zeichnen.</translation>
     </message>
@@ -9736,12 +9872,12 @@ Gilt ab der nächsten Aufnahme.</translation>
         <translation type="vanished">„Badge oben“ benennt den Modus in einer Pille über dem Bildschirm - nicht zu übersehen, aber ein Streifen Bedienoberfläche über der Arbeitsfläche, die Sie gleich aufnehmen. „Symbol in der Mitte“ zeichnet stattdessen das Symbol dieses Modus groß und abgeblendet in der Bildschirmmitte und nimmt es weg, sobald die Auswahl es erreicht, so liegt es nie über dem Bereich, den Sie einrahmen. Der farbige Bildschirmrahmen und die Auswahlgriffe bleiben in beiden.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3627"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3657"/>
         <source>Badge at the top</source>
         <translation>Badge oben</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3627"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3657"/>
         <source>Icon in the middle</source>
         <translation>Symbol in der Mitte</translation>
     </message>
@@ -9762,232 +9898,232 @@ Gilt ab der nächsten Aufnahme.</translation>
         <translation type="vanished">Fragt KWin nach dem Rechteck des aktiven Fensters und nimmt genau diesen Bereich als Region auf - ohne Auswahl, ohne Portal-Dialog. Die Aufnahme behält das Rechteck vom Start, ein späteres Verschieben des Fensters bewegt es also aus dem Bild. Dasselbe Rechteck ist in der Bereichsauswahl ein W entfernt.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4578"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4608"/>
         <source>Run a single action</source>
         <translation>Eine einzelne Aktion ausführen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4582"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4612"/>
         <source>Trigger each path on its own to verify it by hand. Every new feature must add its trigger here and to the smoke test.</source>
         <translation>Lösen Sie jeden Weg einzeln aus, um ihn von Hand zu prüfen. Jede neue Funktion muss ihren Auslöser hier und im Testlauf ergänzen.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4590"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4620"/>
         <source>Capture fullscreen</source>
         <translation>Vollbild aufnehmen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4591"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4621"/>
         <source>Capture region</source>
         <translation>Bereich aufnehmen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4592"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4622"/>
         <source>Capture window</source>
         <translation>Fenster aufnehmen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4593"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4623"/>
         <source>Capture screen at cursor</source>
         <translation>Bildschirm am Mauszeiger aufnehmen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4596"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4626"/>
         <source>Rec GIF (screen)</source>
         <translation>GIF aufzeichnen (Bildschirm)</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4597"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4627"/>
         <source>Rec GIF (region)</source>
         <translation>GIF aufzeichnen (Bereich)</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4598"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4628"/>
         <source>Rec MP4 (screen)</source>
         <translation>MP4 aufzeichnen (Bildschirm)</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4599"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4629"/>
         <source>Rec MP4 (region)</source>
         <translation>MP4 aufzeichnen (Bereich)</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4600"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4630"/>
         <source>Rec MP4 (window)</source>
         <translation>MP4 aufzeichnen (Fenster)</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4601"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4631"/>
         <source>Stop recording</source>
         <translation>Aufnahme stoppen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4602"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4632"/>
         <source>Record border (4 s)</source>
         <translation>Rahmen der Aufzeichnung (4 s)</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4605"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4635"/>
         <source>Native hotkeys probe</source>
         <translation>Test der nativen Tastenkürzel</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4606"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4636"/>
         <source>Test notification</source>
         <translation>Testbenachrichtigung</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4608"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4638"/>
         <source>Notification action order</source>
         <translation>Reihenfolge der Aktionen in der Benachrichtigung</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4609"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4639"/>
         <source>Open editor</source>
         <translation>Editor öffnen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4610"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4640"/>
         <source>Editor zoom</source>
         <translation>Editor-Zoom</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4617"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4647"/>
         <source>Leave filename field</source>
         <translation>Dateinamenfeld verlassen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4620"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4650"/>
         <source>Tool shortcuts (editor)</source>
         <translation>Werkzeugkürzel (Editor)</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4621"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4651"/>
         <source>Tool shortcuts (overlay)</source>
         <translation>Werkzeugkürzel (Ebene)</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4622"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4652"/>
         <source>Edit from history</source>
         <translation>Bearbeiten aus dem Verlauf</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4623"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4653"/>
         <source>Open a file…</source>
         <translation>Eine Datei öffnen…</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4624"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4654"/>
         <source>Drop import routing</source>
         <translation>Import per Ablegen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4625"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4655"/>
         <source>Paste import (Ctrl+V)</source>
         <translation>Import per Einfügen (Ctrl+V)</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4626"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4656"/>
         <source>Verify hotkey binds</source>
         <translation>Belegung der Tastenkürzel prüfen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4627"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4657"/>
         <source>Alternate hotkeys</source>
         <translation>Alternative Tastenkürzel</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4628"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4658"/>
         <source>Desktop shortcuts (bind commands)</source>
         <translation>Kurzbefehle der Arbeitsumgebung (Befehle binden)</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4629"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4659"/>
         <source>Upload test image</source>
         <translation>Testbild hochladen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4630"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4660"/>
         <source>Server test upload</source>
         <translation>Testupload zum Server</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4632"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4662"/>
         <source>Settings round-trip</source>
         <translation>Einstellungen schreiben und lesen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4633"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4663"/>
         <source>Install channel</source>
         <translation>Installationskanal</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4634"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4664"/>
         <source>Record page mode</source>
         <translation>Modus der Aufzeichnungsseite</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4635"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4665"/>
         <source>Tray menu entries</source>
         <translation>Einträge des Menüs im Systembereich</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4637"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4667"/>
         <source>Copy recording file</source>
         <translation>Aufnahmedatei kopieren</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4638"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4668"/>
         <source>Klipper clipboard history</source>
         <translation>Klipper-Zwischenablageverlauf</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4639"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4669"/>
         <source>Show capture in folder</source>
         <translation>Aufnahme im Ordner anzeigen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4640"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4670"/>
         <source>Open preview window</source>
         <translation>Vorschaufenster öffnen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4641"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4671"/>
         <source>Pin preview from history</source>
         <translation>Vorschau aus dem Verlauf anheften</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4643"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4673"/>
         <source>Add history entry</source>
         <translation>Verlaufseintrag hinzufügen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4644"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4674"/>
         <source>Add starred history entry</source>
         <translation>Markierten Verlaufseintrag hinzufügen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4646"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4676"/>
         <source>History search + filters</source>
         <translation>Suche und Filter im Verlauf</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4647"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4677"/>
         <source>Screenshot statistics</source>
         <translation>Screenshot-Statistik</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4648"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4678"/>
         <source>Export ZIP</source>
         <translation>ZIP exportieren</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4649"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4679"/>
         <source>Imgur Client-ID guard</source>
         <translation>Schutz vor der Imgur-Client-ID</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4650"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4680"/>
         <source>vgy.me support</source>
         <translation>vgy.me-Unterstützung</translation>
     </message>
@@ -9996,167 +10132,167 @@ Gilt ab der nächsten Aufnahme.</translation>
         <translation type="vanished">GitHub-Pages-Unterstützung</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4659"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4689"/>
         <source>OCR region</source>
         <translation>OCR eines Bereichs</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4662"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4692"/>
         <source>Record start sound</source>
         <translation>Klang beim Start der Aufzeichnung</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4663"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4693"/>
         <source>Trash sound</source>
         <translation>Klang für den Papierkorb</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4664"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4694"/>
         <source>Text render</source>
         <translation>Textdarstellung</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4665"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4695"/>
         <source>Keystroke badge</source>
         <translation>Marke für Tastendrücke</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4666"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4696"/>
         <source>Custom theme</source>
         <translation>Eigenes Farbschema</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4674"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4704"/>
         <source>Pen line click</source>
         <translation>Stiftlinie per Klick</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4684"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4714"/>
         <source>Diagnostic log</source>
         <translation>Diagnoseprotokoll</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4685"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4715"/>
         <source>Log viewer</source>
         <translation>Protokollansicht</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4686"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4716"/>
         <source>Crash report</source>
         <translation>Absturzbericht</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4687"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4717"/>
         <source>Dependency report</source>
         <translation>Bericht zu den Abhängigkeiten</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4688"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4718"/>
         <source>System check dialog</source>
         <translation>Dialog der Systemprüfung</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4689"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4719"/>
         <source>Do not disturb</source>
         <translation>Nicht stören</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4690"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4720"/>
         <source>Hide while capturing</source>
         <translation>Während der Aufnahme ausblenden</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4693"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4723"/>
         <source>Task preset</source>
         <translation>Aufgabenvorlage</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4694"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4724"/>
         <source>CLI output</source>
         <translation>CLI-Ausgabe</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4695"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4725"/>
         <source>Scrolling stitch</source>
         <translation>Scroll-Zusammenfügung</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4696"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4726"/>
         <source>Scrolling hand-off</source>
         <translation>Bildlauf-Übergabe</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4698"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4728"/>
         <source>Hardware encoder</source>
         <translation>Hardware-Encoder</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4699"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4729"/>
         <source>Freeze recorder (watchdog)</source>
         <translation>Hängende Aufzeichnung (Watchdog)</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4700"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4730"/>
         <source>Per-app audio</source>
         <translation>Ton je Anwendung</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4702"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4732"/>
         <source>Trim recording</source>
         <translation>Aufnahme zuschneiden</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4705"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4735"/>
         <source>Video quality scale</source>
         <translation>Videoqualitätsskala</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4707"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4737"/>
         <source>Audio input devices</source>
         <translation>Audio-Eingabegeräte</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4708"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4738"/>
         <source>Live audio capture</source>
         <translation>Live-Tonaufnahme</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4709"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4739"/>
         <source>Trim audio edit</source>
         <translation>Audiobearbeitung beim Zuschneiden</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4710"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4740"/>
         <source>Screenshot cursor</source>
         <translation>Mauszeiger im Bildschirmfoto</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4711"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4741"/>
         <source>Shape edit</source>
         <translation>Form bearbeiten</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4720"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4750"/>
         <source>Overlay mode badge</source>
         <translation>Modus-Badge im Overlay</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4721"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4751"/>
         <source>Overlay preview</source>
         <translation>Vorschau der Ebene</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4722"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4752"/>
         <source>OCR boxes</source>
         <translation>OCR-Rahmen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4724"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4754"/>
         <source>Auto-redact</source>
         <translation>Auto-Schwärzen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4732"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4762"/>
         <source>Auto-restart gate</source>
         <translation>Sperre für den Neustart</translation>
     </message>
@@ -10225,7 +10361,7 @@ Gilt ab der nächsten Aufnahme.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1866"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="4682"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4712"/>
         <source>Watched folder</source>
         <translation>Überwachter Ordner</translation>
     </message>
@@ -10250,57 +10386,57 @@ Gilt ab der nächsten Aufnahme.</translation>
         <translation>Das ist kein Ordner, also wird nichts überwacht.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4594"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4624"/>
         <source>Capture first monitor by name</source>
         <translation>Ersten Monitor nach Namen aufnehmen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4631"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4661"/>
         <source>S3 signing</source>
         <translation>S3-Signatur</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4676"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4706"/>
         <source>QR of text</source>
         <translation>QR aus Text</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4677"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4707"/>
         <source>Share sources</source>
         <translation>Freigabequellen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4678"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4708"/>
         <source>Link shortener</source>
         <translation>Linkkürzer</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4679"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4709"/>
         <source>Print</source>
         <translation>Drucken</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4680"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4710"/>
         <source>Trash after upload</source>
         <translation>Papierkorb nach Upload</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4713"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4743"/>
         <source>Spotlight</source>
         <translation>Spotlight</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4714"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4744"/>
         <source>Rotate and resize</source>
         <translation>Drehen und Größe</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4715"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4745"/>
         <source>Cut out a strip</source>
         <translation>Streifen ausschneiden</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4716"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4746"/>
         <source>Stickers</source>
         <translation>Sticker</translation>
     </message>
@@ -10320,43 +10456,43 @@ Gilt ab der nächsten Aufnahme.</translation>
         <translation>Löschen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2581"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="4681"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2611"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4711"/>
         <source>Background removal</source>
         <translation>Hintergrund entfernen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2597"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2627"/>
         <source>ONNX Runtime: not installed, it is downloaded with the model</source>
         <translation>ONNX Runtime: nicht installiert, wird mit dem Modell heruntergeladen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2600"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2630"/>
         <source>ONNX Runtime: not installed - install the onnxruntime package from your distribution</source>
         <translation>ONNX Runtime: nicht installiert - installieren Sie das Paket onnxruntime Ihrer Distribution</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2602"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2632"/>
         <source>Model: downloaded</source>
         <translation>Modell: heruntergeladen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2602"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2632"/>
         <source>Model: not downloaded</source>
         <translation>Modell: nicht heruntergeladen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2625"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2655"/>
         <source>Download (%1)</source>
         <translation>Herunterladen (%1)</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2632"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2662"/>
         <source>Cancel</source>
         <translation>Abbrechen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2640"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2670"/>
         <source>Delete downloaded files</source>
         <translation>Heruntergeladene Dateien löschen</translation>
     </message>
@@ -10418,19 +10554,19 @@ Gilt ab der nächsten Aufnahme.</translation>
     </message>
     <message>
         <location filename="../qml/pages/RecordPage.qml" line="167"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="4169"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4199"/>
         <source>GIF of the full screen</source>
         <translation>GIF des ganzen Bildschirms</translation>
     </message>
     <message>
         <location filename="../qml/pages/RecordPage.qml" line="168"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="4162"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4192"/>
         <source>Video of the full screen</source>
         <translation>Video des ganzen Bildschirms</translation>
     </message>
     <message>
         <location filename="../qml/pages/RecordPage.qml" line="199"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="4176"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4206"/>
         <source>Video of a window</source>
         <translation>Video eines Fensters</translation>
     </message>

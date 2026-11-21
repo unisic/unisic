@@ -28,6 +28,7 @@
 #include <QDir>
 #include <QFile>
 #include <QSaveFile>
+#include <QRegularExpression>
 #include <QUuid>
 #include <QScreen>
 #include <QSet>
@@ -87,6 +88,20 @@ GifRecorder::~GifRecorder()
         m_replaySnapshot->waitForFinished();
     }
     abort();
+    // A session export still running at quit: its half-written file and its
+    // segments go with it (minutes of a long session take seconds to copy, so
+    // this is a quit within those seconds).
+    for (QProcess *p : findChildren<QProcess *>(Qt::FindDirectChildrenOnly)) {
+        const QString dir = p->property("sessionDir").toString();
+        if (dir.isEmpty())
+            continue;
+        const QString out = p->property("sessionOut").toString();
+        p->disconnect(this);
+        p->kill();
+        p->waitForFinished(3000);
+        QFile::remove(out);
+        QDir(dir).removeRecursively();
+    }
 }
 
 void GifRecorder::watchProgress(QProcess *p, qint64 totalMs, qreal from, qreal to)
@@ -211,6 +226,8 @@ void GifRecorder::start(Output output, SourceType source, const QRect &cropPhysi
     m_committed = false;
     m_heldStreamSize = QSize();
     m_output = output;
+    m_keepSession = output == Replay && m_settings->clipKeepSession();
+    m_sessionGame = m_replayGame;
     m_source = source;
     m_crop = (source == Region) ? cropPhysical : QRect();
     m_streamScale = streamScale;
@@ -446,6 +463,8 @@ bool GifRecorder::tryOpenKWinStream()
                              m_crop.width() / dpr, m_crop.height() / dpr);
         stream = m_kwinCast->createRegionStream(logical.toAlignedRect(),
                                                 m_streamScale > 0 ? m_streamScale : dpr, mode);
+    } else if (m_source == Window && !m_windowUuid.isEmpty()) {
+        stream = m_kwinCast->createWindowStream(std::exchange(m_windowUuid, QString()), mode);
     } else if (m_source == Window) {
         // Interactive pick: KWin's own click-a-window mode resolves the uuid.
         openKWinWindowStream(mode);
@@ -830,6 +849,15 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
     if (m_output == Replay) {
         m_replayDir = tmpBase + QStringLiteral("/unisic-replay-ring");
         QDir(m_replayDir).removeRecursively();
+        // Sessions a crash left behind; a running session export keeps its own.
+        QStringList exporting;
+        for (QProcess *p : findChildren<QProcess *>(Qt::FindDirectChildrenOnly))
+            exporting << p->property("sessionDir").toString();
+        for (const QFileInfo &stale : QDir(tmpBase).entryInfoList(
+                 {QStringLiteral("unisic-replay-ring-session-*")}, QDir::Dirs | QDir::NoDotAndDotDot)) {
+            if (!exporting.contains(stale.absoluteFilePath()))
+                QDir(stale.absoluteFilePath()).removeRecursively();
+        }
         QDir().mkpath(m_replayDir);
         m_tempPath = m_replayDir + QStringLiteral("/segment-%03d.mkv");
         m_outPath.clear();
@@ -1101,7 +1129,8 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
                                                 : QStringList{audioLabels.value(0)};
     }
     if (m_output == Replay) {
-        const int segments = replaySegmentCount(m_settings->instantReplaySeconds());
+        const int segments = m_keepSession ? kSessionSeconds / 2 + 2
+                                           : replaySegmentCount(m_settings->instantReplaySeconds());
         m_replayWrap = segments;
         // The segment muxer can only cut on a keyframe. libx264(rgb) at
         // -preset ultrafast has no forced GOP, so keyint defaults to 250 frames
@@ -1165,8 +1194,29 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
                        << ") - converting the salvageable temp anyway";
         }
         if (m_output == Replay) {
+            // A ring that keeps the session leaves its segments to the
+            // session export: moved aside (a rename, same directory) so
+            // cleanup() and the next ring cannot touch them.
+            QString session;
+            QStringList segments;
+            if (m_keepSession) {
+                for (const QFileInfo &f : QDir(m_replayDir).entryInfoList(
+                         {QStringLiteral("segment-*.mkv")}, QDir::Files, QDir::Time | QDir::Reversed)) {
+                    if (f.size() > 0)
+                        segments << f.fileName();
+                }
+                session = m_replayDir + QStringLiteral("-session-")
+                          + QUuid::createUuid().toString(QUuid::WithoutBraces);
+                if (segments.isEmpty() || !QDir().rename(m_replayDir, session))
+                    session.clear();
+            }
             cleanup();
             emit finished({});
+            if (!session.isEmpty()) {
+                for (QString &name : segments)
+                    name.prepend(session + QLatin1Char('/'));
+                exportReplaySnapshot(session, segments, /*session=*/true);
+            }
         } else {
             maybeExcisePauses([this] {
                 if (m_output == Gif)
@@ -1518,6 +1568,11 @@ void GifRecorder::saveInstantReplay()
     // while the copy below reads it: leave it out.
     if (segments.size() > 1 && segments.size() + 1 >= m_replayWrap)
         segments.removeFirst();
+    // A ring that keeps the whole session still saves a clip of the usual
+    // length: the last instantReplaySeconds, as the short ring would hold.
+    const int clipSegments = replaySegmentCount(m_settings->instantReplaySeconds()) - 2;
+    while (segments.size() > clipSegments)
+        segments.removeFirst();
     const QString snapshot = QStandardPaths::writableLocation(QStandardPaths::CacheLocation)
                              + QStringLiteral("/unisic-replay-save-")
                              + QUuid::createUuid().toString(QUuid::WithoutBraces);
@@ -1557,7 +1612,39 @@ void GifRecorder::saveInstantReplay()
     }));
 }
 
-void GifRecorder::exportReplaySnapshot(const QString &snapshot, const QStringList &linked)
+bool GifRecorder::canStreamWindow()
+{
+    if (!m_kwinCast)
+        m_kwinCast = new KWinScreencasting(this);
+    return m_kwinCast->isAvailable();
+}
+
+void GifRecorder::setReplayGame(const QString &name)
+{
+    m_replayGame = name;
+    if (!name.isEmpty() && m_state != Idle)
+        m_sessionGame = name;
+}
+
+// "Unisic_Replay_<stamp>" or "Unisic_Session_<stamp>", "_<game>" after it
+// when one was detected, with what a file name cannot hold made a dash.
+QString GifRecorder::replayStem(const QString &kind, const QString &game) const
+{
+    QString stem = QStringLiteral("Unisic_%1_%2").arg(
+        kind, QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd_HH-mm-ss")));
+    QString tag = game;
+    tag.replace(QRegularExpression(QStringLiteral("[/\\\\:*?\"<>|\\x00-\\x1f]")), QStringLiteral("-"));
+    tag = tag.trimmed().left(60);
+    if (!tag.isEmpty() && !tag.startsWith(QLatin1Char('.')))
+        stem += QLatin1Char('_') + tag;
+    return stem;
+}
+
+// session: the whole ring of a stopped session (its directory is the
+// snapshot), written beside the clips as a recording to cut clips from. It
+// runs alongside a clip export and outlives abort(): only the destructor
+// stops it (the "sessionDir" property tells it which processes those are).
+void GifRecorder::exportReplaySnapshot(const QString &snapshot, const QStringList &linked, bool session)
 {
     if (linked.isEmpty()) {
         QDir(snapshot).removeRecursively();
@@ -1585,50 +1672,56 @@ void GifRecorder::exportReplaySnapshot(const QString &snapshot, const QStringLis
     if (outDir.isEmpty())
         outDir = m_settings->videoSaveDirectory();
     QDir().mkpath(outDir);
-    const QString stem = QStringLiteral("Unisic_Replay_%1")
-                             .arg(QDateTime::currentDateTime().toString(
-                                 QStringLiteral("yyyy-MM-dd_HH-mm-ss")));
+    const QString stem = session ? replayStem(QStringLiteral("Session"), m_sessionGame)
+                                 : replayStem(QStringLiteral("Replay"), m_replayGame);
     QString out = outDir + QLatin1Char('/') + stem + QStringLiteral(".mp4");
     for (int i = 1; QFileInfo::exists(out); ++i)
         out = outDir + QLatin1Char('/') + stem + QStringLiteral("-%1.mp4").arg(i);
     auto *process = new QProcess(this);
-    m_replayExporter = process;
-    m_replaySnapshotDir = snapshot;
-    m_replayExportPath = out;
+    if (session) {
+        process->setProperty("sessionDir", snapshot);
+        process->setProperty("sessionOut", out);
+    } else {
+        m_replayExporter = process;
+        m_replaySnapshotDir = snapshot;
+        m_replayExportPath = out;
+    }
     const auto completed = std::make_shared<bool>(false);
     watchProgress(process, qint64(linked.size()) * 2000, 0.4, 1); // 2 s segments
     connect(process, &QProcess::finished, this,
-            [this, process, snapshot, out, completed](int code, QProcess::ExitStatus status) {
+            [this, process, snapshot, out, completed, session](int code, QProcess::ExitStatus status) {
         if (*completed)
             return;
         *completed = true;
         const QString diagnostic = QString::fromUtf8(process->readAllStandardError()).trimmed();
-        if (m_replayExporter == process)
+        if (m_replayExporter == process) {
             m_replayExporter = nullptr;
+            m_replaySnapshotDir.clear();
+            m_replayExportPath.clear();
+        }
         process->deleteLater();
         QDir(snapshot).removeRecursively();
-        m_replaySnapshotDir.clear();
-        m_replayExportPath.clear();
         if (code != 0 || status != QProcess::NormalExit) {
             QFile::remove(out);
             emit replayExportFailed(diagnostic.isEmpty() ? tr("Instant replay export failed")
                                                           : diagnostic);
             return;
         }
-        emit finished(out, /*fromInstantReplay=*/true);
+        emit finished(out, session ? QStringLiteral("session") : QStringLiteral("replay"));
     });
     connect(process, &QProcess::errorOccurred, this,
             [this, process, snapshot, out, completed](QProcess::ProcessError error) {
         if (error != QProcess::FailedToStart || *completed)
             return;
         *completed = true;
-        if (m_replayExporter == process)
+        if (m_replayExporter == process) {
             m_replayExporter = nullptr;
+            m_replaySnapshotDir.clear();
+            m_replayExportPath.clear();
+        }
         process->deleteLater();
         QFile::remove(out);
         QDir(snapshot).removeRecursively();
-        m_replaySnapshotDir.clear();
-        m_replayExportPath.clear();
         emit replayExportFailed(tr("Instant replay export failed"));
     });
     QStringList exportArgs{QStringLiteral("-y"), QStringLiteral("-nostats"),
@@ -2223,6 +2316,7 @@ void GifRecorder::cleanup()
     m_encodeCrop = {};
     m_encodeSize = {};
     m_replayStamp = {};
+    m_windowUuid.clear();
     m_targetScreen = nullptr;
     m_hasAudio = false;
     m_audioTrackTitles.clear();

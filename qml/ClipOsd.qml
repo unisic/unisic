@@ -22,12 +22,20 @@ Window {
     property string detail
     // "rec" (replay running), "busy" (saving), "ok" (saved), "error"
     property string tone: "rec"
+    // Settings::clipIndicatorStyle: "pill" (icon, title, detail), "compact"
+    // (no detail), "dot" (the icon alone, in a small circle) or "tinted"
+    // (the pill's edge and title take the tone's colour).
+    property string look: "pill"
+    readonly property color toneColor: tone === "rec" ? Theme.recDot
+                                     : tone === "busy" ? Theme.accent
+                                     : tone === "ok" ? Theme.success : Theme.danger
     signal done()
 
-    function flash(t, d, k, ms) {
+    function flash(t, d, k, ms, l) {
         title = t
         detail = d
         tone = k
+        look = l || "pill"
         hideTimer.interval = Math.max(800, ms)
         hideTimer.restart()
         pill.opacity = 1
@@ -42,13 +50,13 @@ Window {
         id: pill
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.verticalCenter: parent.verticalCenter
-        width: Math.min(osd.width, row.implicitWidth + 2 * Theme.spacingM)
+        width: osd.look === "dot" ? height : Math.min(osd.width, row.implicitWidth + 2 * Theme.spacingM)
         height: row.implicitHeight + 2 * Theme.spacingS + 4
         radius: height / 2
         color: Theme.recBadgeBg
         // Edge for a dark game scene, where the dark pill alone disappears.
-        border.width: 1
-        border.color: Theme.alpha(Theme.recBadgeText, 0.18)
+        border.width: osd.look === "tinted" ? 2 : 1
+        border.color: osd.look === "tinted" ? osd.toneColor : Theme.alpha(Theme.recBadgeText, 0.18)
         opacity: 0
         Behavior on opacity { NumberAnimation { duration: 160 } }
         onOpacityChanged: if (opacity === 0 && !hideTimer.running) osd.done()
@@ -84,16 +92,17 @@ Window {
                 }
             }
             Column {
+                visible: osd.look !== "dot"
                 anchors.verticalCenter: parent.verticalCenter
                 Text {
                     text: osd.title
-                    color: Theme.recBadgeText
+                    color: osd.look === "tinted" ? osd.toneColor : Theme.recBadgeText
                     font.pixelSize: Theme.fontM
                     font.weight: Font.DemiBold
                     Accessible.ignored: true
                 }
                 Text {
-                    visible: osd.detail !== ""
+                    visible: osd.detail !== "" && osd.look !== "compact"
                     width: Math.min(implicitWidth, osd.width - 80)
                     text: osd.detail
                     elide: Text.ElideMiddle

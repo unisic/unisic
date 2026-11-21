@@ -31,11 +31,12 @@ public:
     // saved (see NotifCard::effectiveSettings); empty for a real capture.
     void show(CaptureNotification *n, const QVariantMap &overrides = {});
 
-private:
     // Before the first show(): keep `win` on top and put it in the corner that
-    // `position` names ("top-left", "bottom-right"...), `edge` px in from the
-    // screen edge. CardSurface.cpp / CardSurface_win.cpp.
+    // `position` names ("top-left", "bottom-right"...; "top" centers it), `edge`
+    // px in from the screen edge. CardSurface.cpp / CardSurface_win.cpp. ClipOsd
+    // places its pill through it too.
     static void place(QQuickWindow *win, QScreen *screen, const QString &position, int edge);
 
+private:
     AppContext *m_app;
 };

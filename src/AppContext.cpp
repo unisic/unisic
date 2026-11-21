@@ -51,6 +51,7 @@
 #include "notify/DesktopNotifier.h"
 #include "notify/NotificationInhibitor.h"
 #include "notify/LayerShellNotifier.h"
+#include "notify/ClipOsd.h"
 #include <LayerShellQt/window.h>
 #include <QMargins>
 #include "theme/ThemeController.h"
@@ -277,8 +278,21 @@ AppContext::AppContext(QObject *parent)
         // end. Never for the instant-replay ring: that rolls for as long as the
         // user leaves it armed, and taking the window away for an open-ended
         // period is not "for the duration of a capture", it is losing the window.
-        if (!m_recorder->instantReplayActive())
+        if (!m_recorder->instantReplayActive()) {
             hideOwnWindowForCapture();
+        } else {
+            const int secs = m_settings->instantReplaySeconds();
+            const QString length = secs < 60 ? tr("%1 s").arg(secs) : tr("%1 min").arg(secs / 60);
+            const QString keys = m_settings->hotkeyInstantReplay().section(QLatin1Char(','), 0, 0).trimmed();
+            showClipIndicator(tr("Instant replay on"),
+                              keys.isEmpty()
+                                  ? tr("Keeping the last %1").arg(length)
+                                  : tr("%1 saves the last %2")
+                                        .arg(QKeySequence::fromString(keys, QKeySequence::PortableText)
+                                                 .toString(QKeySequence::NativeText),
+                                             length),
+                              QStringLiteral("rec"));
+        }
     });
     connect(m_recorder, &GifRecorder::elapsedChanged, this, &AppContext::recordSecondsChanged);
     connect(m_recorder, &GifRecorder::converting, this, [this] {
@@ -288,6 +302,8 @@ AppContext::AppContext(QObject *parent)
         emit recordingChanged();
         if (!m_recorder->instantReplayActive()) // stopping the ring encodes nothing
             showToast(tr("Encoding…"));
+        else
+            showClipIndicator(tr("Instant replay off"), QString(), QStringLiteral("rec"), 1800);
     });
     connect(m_recorder, &GifRecorder::finished, this, &AppContext::onRecordingFinished);
     connect(m_recorder, &GifRecorder::saveProgress, this, &AppContext::setSaveProgress);
@@ -301,6 +317,7 @@ AppContext::AppContext(QObject *parent)
     QTimer::singleShot(3000, this, &AppContext::applyInstantReplayAuto);
     connect(m_recorder, &GifRecorder::replayExportFailed, this, [this](const QString &error) {
         showToast(tr("Instant replay failed: %1").arg(error), true);
+        showClipIndicator(tr("Clip not saved"), error, QStringLiteral("error"), 4000);
     });
     connect(m_recorder, &GifRecorder::failed, this, [this](const QString &e) {
         m_converting = false;
@@ -517,6 +534,9 @@ void AppContext::dispatchHotkey(const QString &action)
         else startVideoRegion();
     } else if (action == QLatin1String("instant-replay")) {
         if (instantReplayActive()) saveInstantReplay();
+        else if (!recording()) startInstantReplay();
+    } else if (action == QLatin1String("replay-toggle")) {
+        if (instantReplayActive()) stopRecording();
         else if (!recording()) startInstantReplay();
     } else if (action == QLatin1String("record-screen")) {
         if (manualRecording()) stopRecording();
@@ -1828,8 +1848,22 @@ void AppContext::saveInstantReplay()
         showToast(tr("Start instant replay first"), true);
         return;
     }
+    // Before the save: a refusal inside it (no segment yet) replaces the pill.
+    // Held until "Clip saved" or "Clip not saved"; the 2-minute cap only
+    // matters if neither arrives.
+    showClipIndicator(tr("Saving clip…"), QString(), QStringLiteral("busy"), 120000);
     m_recorder->saveInstantReplay();
     showToast(tr("Saving instant replay…"));
+}
+
+void AppContext::showClipIndicator(const QString &title, const QString &detail,
+                                   const QString &tone, int ms)
+{
+    if (!m_settings->clipIndicator() || QCoreApplication::closingDown())
+        return;
+    if (!m_clipOsd)
+        m_clipOsd = new ClipOsd(this, m_layerShellAvailable, this);
+    m_clipOsd->show(title, detail, tone, ms);
 }
 
 void AppContext::setSaveProgress(qreal p)
@@ -3437,8 +3471,11 @@ void AppContext::finishRecordingEntry(const QString &path, const QImage &thumb, 
     if (m_settings->copyToClipboard())
         copyFileToClipboard(path);
     runExternalAction(thumb, path);
-    if (fromInstantReplay && m_settings->clipOpenReplay())
-        openTrimRecording(path);
+    if (fromInstantReplay) {
+        showClipIndicator(tr("Clip saved"), QFileInfo(path).fileName(), QStringLiteral("ok"), 3500);
+        if (m_settings->clipOpenReplay())
+            openTrimRecording(path);
+    }
 
     // Inhibition is sampled NOW, not at recording start: a recording can run
     // for minutes, and muteOnFullscreen must reflect what is on screen when
@@ -6020,7 +6057,7 @@ QVector<AppContext::HotkeyAction> AppContext::hotkeyActions() const
         {QStringLiteral("record-video"), tr("Record video (start/stop)"), m_settings->hotkeyRecord()},
         {QStringLiteral("ocr-region"), tr("OCR region (copy text)"), m_settings->hotkeyOcr()},
         {QStringLiteral("copy-last"), tr("Copy last capture"), m_settings->hotkeyCopyLast()},
-        {QStringLiteral("instant-replay"), tr("Start/save instant replay"), m_settings->hotkeyInstantReplay()},
+        {QStringLiteral("instant-replay"), tr("Save clip (instant replay)"), m_settings->hotkeyInstantReplay()},
         {QStringLiteral("record-screen"), tr("Record video (full screen)"), m_settings->hotkeyRecordScreen()},
         {QStringLiteral("gif-screen"), tr("Record GIF (full screen)"), m_settings->hotkeyGifScreen()},
         {QStringLiteral("record-window"), tr("Record video (window)"), m_settings->hotkeyRecordWindow()},
@@ -6031,6 +6068,7 @@ QVector<AppContext::HotkeyAction> AppContext::hotkeyActions() const
         {QStringLiteral("upload-file"), tr("Upload a file…"), m_settings->hotkeyUploadFile()},
         {QStringLiteral("upload-clipboard"), tr("Upload clipboard"), m_settings->hotkeyUploadClipboard()},
         {QStringLiteral("qr-clipboard"), tr("QR code of copied text"), m_settings->hotkeyQrClipboard()},
+        {QStringLiteral("replay-toggle"), tr("Instant replay on/off"), m_settings->hotkeyReplayToggle()},
     };
 }
 
@@ -6223,6 +6261,7 @@ void AppContext::syncHotkeyFromDaemon(const QString &actionId, const QString &po
     else if (actionId == QLatin1String("upload-file")) m_settings->setHotkeyUploadFile(portable);
     else if (actionId == QLatin1String("upload-clipboard")) m_settings->setHotkeyUploadClipboard(portable);
     else if (actionId == QLatin1String("qr-clipboard")) m_settings->setHotkeyQrClipboard(portable);
+    else if (actionId == QLatin1String("replay-toggle")) m_settings->setHotkeyReplayToggle(portable);
     else return;
     // Rare + important: flush so a SIGTERM/logout doesn't resurrect the stale key.
     m_settings->raw()->sync();

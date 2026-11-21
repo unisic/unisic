@@ -2277,6 +2277,76 @@ Item {
                     spacing: Theme.spacingS
                     SectionTitle { text: qsTr("Instant replay") }
                     SettingRow {
+                        label: qsTr("Instant replay status")
+                        help: App.instantReplayActive ? qsTr("Running: the last moments are kept, ready to save as a clip.")
+                                                      : qsTr("Off: nothing is being kept.")
+                        available: App.recordingAvailable
+                        Row {
+                            spacing: Theme.spacingS
+                            UButton {
+                                width: 110
+                                compact: true
+                                variant: "tonal"
+                                text: App.instantReplayActive ? qsTr("Stop") : qsTr("Start")
+                                enabled: App.instantReplayActive || !App.recording
+                                onClicked: App.instantReplayActive ? App.stopRecording() : App.startInstantReplay()
+                            }
+                            UButton {
+                                width: 110
+                                compact: true
+                                text: qsTr("Save clip")
+                                enabled: App.instantReplayActive
+                                onClicked: App.saveInstantReplay()
+                            }
+                        }
+                    }
+                    HotkeyRow {
+                        visible: App.hotkeysAvailable || App.desktopShortcutsAuto
+                        label: qsTr("Save clip")
+                        help: qsTr("Hotkey: save the last moments as a clip. Starts instant replay when it is off.")
+                        actionId: "instant-replay"
+                        shortcuts: App.settings.hotkeyInstantReplay
+                        onChanged: (t) => { App.settings.hotkeyInstantReplay = t; App.applyHotkey("instant-replay") }
+                    }
+                    HotkeyRow {
+                        visible: App.hotkeysAvailable || App.desktopShortcutsAuto
+                        label: qsTr("Instant replay on/off")
+                        help: qsTr("Hotkey: start instant replay, or stop it.")
+                        actionId: "replay-toggle"
+                        shortcuts: App.settings.hotkeyReplayToggle
+                        onChanged: (t) => { App.settings.hotkeyReplayToggle = t; App.applyHotkey("replay-toggle") }
+                    }
+                    SettingRow {
+                        label: qsTr("On-screen indicator")
+                        help: qsTr("A small sign at the top of the screen when instant replay starts or stops, and when a clip is saving or saved.")
+                        helpDetail: qsTr("Shown over fullscreen games too, and never takes a click. Instant replay records the screen, so a clip that covers the moment the sign was up shows it.")
+                        USwitch { checked: App.settings.clipIndicator; onToggled: (c) => App.settings.clipIndicator = c }
+                    }
+                    Text {
+                        id: clipDirLabel
+                        text: qsTr("Clips folder")
+                        color: Theme.textSecondary
+                        font.pixelSize: Theme.fontS
+                    }
+                    Row {
+                        width: parent.width
+                        spacing: Theme.spacingM
+                        UTextField {
+                            width: parent.width - 110 - Theme.spacingM
+                            accessibleName: clipDirLabel.text
+                            placeholder: qsTr("Same as recordings: %1").arg(App.settings.videoSaveDirectory)
+                            text: App.settings.clipSaveDirectory
+                            onEdited: (t) => App.settings.clipSaveDirectory = t
+                        }
+                        UButton {
+                            width: 110; text: qsTr("Open"); variant: "tonal"
+                            accessibleDescription: clipDirLabel.text
+                            onClicked: App.openDirectory(App.settings.clipSaveDirectory.trim() !== ""
+                                                         ? App.settings.clipSaveDirectory
+                                                         : App.settings.videoSaveDirectory)
+                        }
+                    }
+                    SettingRow {
                         label: qsTr("Instant replay length")
                         help: qsTr("Keeps only the most recent encoded seconds while replay is active.")
                         helpDetail: qsTr("The ring uses fixed-count two-second segments in the disk cache, not raw frames in RAM, and drops the oldest as it goes. Saving snapshots completed segments without stopping the ring. Long replays take gigabytes of disk space, and saving one copies it first.")
@@ -3970,6 +4040,42 @@ Item {
                               ? qsTr("The emergency stop %1 is taken by %2 and cannot be changed here. Free it on the Shortcuts page of System Settings.").arg(stop.keys).arg(stop.owner)
                               : qsTr("The emergency stop %1 is taken by another application and cannot be changed here. Free it in that application.").arg(stop.keys)
                     }
+                    UButton {
+                        anchors.right: parent.right
+                        text: App.hotkeysAvailable ? qsTr("Apply hotkeys")
+                                                   : qsTr("Add shortcuts to %1").arg(App.desktopShortcutName)
+                        compact: true
+                        onClicked: {
+                            if (App.hotkeysAvailable) { App.applyHotkeys(); App.showToast(qsTr("Hotkeys re-registered")) }
+                            else App.installDesktopShortcuts()
+                        }
+                    }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: !App.hotkeysAvailable
+                              ? qsTr("Changing a key here updates the stored shortcut; press “Add shortcuts to %1” to write it into the desktop.").arg(App.desktopShortcutName)
+                              : App.hotkeyBackend === "portal"
+                              ? qsTr("Keys recorded here are suggestions passed to the portal; the system dialog confirms or adjusts them.")
+                              : App.hotkeyBackend === "x11"
+                              ? qsTr("Shortcuts apply immediately on this X11 session (grabbed straight from the X server).")
+                              : App.hotkeyBackend === "win32"
+                              ? qsTr("Shortcuts apply immediately. A key another app already registered is reported as taken.")
+                              : qsTr("Shortcuts apply immediately and stay in sync with KDE System Settings; an edit made there shows up here too.")
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
+                    }
+                }
+            }
+            SettingsGroup {
+                visible: App.hotkeysAvailable || App.desktopShortcutsAuto
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    // One card per kind of work, every action in view: the old
+                    // "advanced" fold hid half of them, Instant replay included.
+                    SectionTitle { text: qsTr("Screenshots") }
                     HotkeyRow {
                         label: qsTr("Full screen")
                         help: qsTr("Hotkey: capture all monitors at once.")
@@ -4003,6 +4109,38 @@ Item {
                         onChanged: (t) => { App.settings.hotkeyWindow = t; App.applyHotkey("capture-window") }
                     }
                     HotkeyRow {
+                        label: qsTr("OCR region (copy text)")
+                        help: qsTr("Hotkey: select a region, its text lands in the clipboard.")
+                        helpDetail: qsTr("Opens the region selector and runs OCR on the crop. Nothing is saved and no notification is shown; the recognized text is simply copied. QR and bar codes are read too: a code in the region copies its content instead.")
+                        actionId: "ocr-region"
+                        shortcuts: App.settings.hotkeyOcr
+                        onChanged: (t) => { App.settings.hotkeyOcr = t; App.applyHotkey("ocr-region") }
+                    }
+                    HotkeyRow {
+                        label: qsTr("Copy last capture")
+                        help: qsTr("Hotkey: puts the most recent screenshot back on the clipboard.")
+                        helpDetail: qsTr("Copies the last screenshot taken in this session, whenever you press it. A dedicated shortcut never collides with the normal Ctrl+C - this replaces the old 2-second Ctrl+C grab, which could steal an ordinary copy right after a capture.")
+                        actionId: "copy-last"
+                        shortcuts: App.settings.hotkeyCopyLast
+                        onChanged: (t) => { App.settings.hotkeyCopyLast = t; App.applyHotkey("copy-last") }
+                    }
+                    HotkeyRow {
+                        label: qsTr("Measure")
+                        help: qsTr("Hotkey: select a region and measure distances and angles in it.")
+                        actionId: "measure"
+                        shortcuts: App.settings.hotkeyMeasure
+                        onChanged: (t) => { App.settings.hotkeyMeasure = t; App.applyHotkey("measure") }
+                    }
+                }
+            }
+            SettingsGroup {
+                visible: App.hotkeysAvailable || App.desktopShortcutsAuto
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Recording") }
+                    HotkeyRow {
                         label: qsTr("Video start/stop")
                         help: qsTr("Hotkey: toggle video recording.")
                         helpDetail: App.hotkeyBackend === "win32"
@@ -4020,52 +4158,7 @@ Item {
                         shortcuts: App.settings.hotkeyGif
                         onChanged: (t) => { App.settings.hotkeyGif = t; App.applyHotkey("record-gif") }
                     }
-                    // Everything above is a capture everyone takes. What
-                    // follows is a habit not everyone has, and those rows in a
-                    // row buried the ones that matter.
-                    DisclosureRow {
-                        id: advancedHotkeys
-                        label: expanded ? qsTr("Hide advanced shortcuts")
-                                        : qsTr("Show advanced shortcuts")
-                        summary: qsTr("OCR region, Copy last capture, Instant replay, more recording, Measure, Edit and Upload")
-                    }
                     HotkeyRow {
-                        // A conflicting row shows even while collapsed: it is
-                        // the only place the conflict is reported.
-                        visible: advancedHotkeys.expanded || page.searchActive || problem
-                        discloser: advancedHotkeys
-                        label: qsTr("OCR region (copy text)")
-                        help: qsTr("Hotkey: select a region, its text lands in the clipboard.")
-                        helpDetail: qsTr("Opens the region selector and runs OCR on the crop. Nothing is saved and no notification is shown; the recognized text is simply copied. QR and bar codes are read too: a code in the region copies its content instead.")
-                        actionId: "ocr-region"
-                        shortcuts: App.settings.hotkeyOcr
-                        onChanged: (t) => { App.settings.hotkeyOcr = t; App.applyHotkey("ocr-region") }
-                    }
-                    HotkeyRow {
-                        visible: advancedHotkeys.expanded || page.searchActive || problem
-                        discloser: advancedHotkeys
-                        label: qsTr("Copy last capture")
-                        help: qsTr("Hotkey: puts the most recent screenshot back on the clipboard.")
-                        helpDetail: qsTr("Copies the last screenshot taken in this session, whenever you press it. A dedicated shortcut never collides with the normal Ctrl+C - this replaces the old 2-second Ctrl+C grab, which could steal an ordinary copy right after a capture.")
-                        actionId: "copy-last"
-                        shortcuts: App.settings.hotkeyCopyLast
-                        onChanged: (t) => { App.settings.hotkeyCopyLast = t; App.applyHotkey("copy-last") }
-                    }
-                    HotkeyRow {
-                        visible: advancedHotkeys.expanded || page.searchActive || problem
-                        discloser: advancedHotkeys
-                        label: qsTr("Instant replay")
-                        help: qsTr("Starts the rolling replay ring; later presses save the recent segment window.")
-                        helpDetail: qsTr("The first press opens the screen-sharing portal and starts the bounded encoded ring. While it is active, each press saves the latest configured duration without stopping capture.")
-                        actionId: "instant-replay"
-                        shortcuts: App.settings.hotkeyInstantReplay
-                        onChanged: (t) => { App.settings.hotkeyInstantReplay = t; App.applyHotkey("instant-replay") }
-                    }
-                    // The page tiles that had no hotkey. Unbound until the user
-                    // records one.
-                    HotkeyRow {
-                        visible: advancedHotkeys.expanded || page.searchActive || problem
-                        discloser: advancedHotkeys
                         label: qsTr("Video of the full screen")
                         help: qsTr("Hotkey: start or stop a video of the whole screen.")
                         actionId: "record-screen"
@@ -4073,8 +4166,6 @@ Item {
                         onChanged: (t) => { App.settings.hotkeyRecordScreen = t; App.applyHotkey("record-screen") }
                     }
                     HotkeyRow {
-                        visible: advancedHotkeys.expanded || page.searchActive || problem
-                        discloser: advancedHotkeys
                         label: qsTr("GIF of the full screen")
                         help: qsTr("Hotkey: start or stop a GIF of the whole screen.")
                         actionId: "gif-screen"
@@ -4082,8 +4173,6 @@ Item {
                         onChanged: (t) => { App.settings.hotkeyGifScreen = t; App.applyHotkey("gif-screen") }
                     }
                     HotkeyRow {
-                        visible: advancedHotkeys.expanded || page.searchActive || problem
-                        discloser: advancedHotkeys
                         label: qsTr("Video of a window")
                         help: qsTr("Hotkey: start or stop a video of one window you pick.")
                         available: App.capRecordWindowSource
@@ -4093,26 +4182,53 @@ Item {
                         onChanged: (t) => { App.settings.hotkeyRecordWindow = t; App.applyHotkey("record-window") }
                     }
                     HotkeyRow {
-                        visible: advancedHotkeys.expanded || page.searchActive || problem
-                        discloser: advancedHotkeys
                         label: qsTr("Pause or resume recording")
                         help: qsTr("Hotkey: pause the running recording, or resume it.")
                         actionId: "pause-recording"
                         shortcuts: App.settings.hotkeyPauseRecording
                         onChanged: (t) => { App.settings.hotkeyPauseRecording = t; App.applyHotkey("pause-recording") }
                     }
+                }
+            }
+            SettingsGroup {
+                visible: App.hotkeysAvailable || App.desktopShortcutsAuto
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Clips") }
                     HotkeyRow {
-                        visible: advancedHotkeys.expanded || page.searchActive || problem
-                        discloser: advancedHotkeys
-                        label: qsTr("Measure")
-                        help: qsTr("Hotkey: select a region and measure distances and angles in it.")
-                        actionId: "measure"
-                        shortcuts: App.settings.hotkeyMeasure
-                        onChanged: (t) => { App.settings.hotkeyMeasure = t; App.applyHotkey("measure") }
+                        label: qsTr("Save clip")
+                        help: qsTr("Hotkey: save the last moments as a clip. Starts instant replay when it is off.")
+                        helpDetail: qsTr("The first press opens the screen-sharing portal and starts the bounded encoded ring. While it is active, each press saves the latest configured duration without stopping capture.")
+                        actionId: "instant-replay"
+                        shortcuts: App.settings.hotkeyInstantReplay
+                        onChanged: (t) => { App.settings.hotkeyInstantReplay = t; App.applyHotkey("instant-replay") }
                     }
                     HotkeyRow {
-                        visible: advancedHotkeys.expanded || page.searchActive || problem
-                        discloser: advancedHotkeys
+                        label: qsTr("Instant replay on/off")
+                        help: qsTr("Hotkey: start instant replay, or stop it.")
+                        actionId: "replay-toggle"
+                        shortcuts: App.settings.hotkeyReplayToggle
+                        onChanged: (t) => { App.settings.hotkeyReplayToggle = t; App.applyHotkey("replay-toggle") }
+                    }
+                    HotkeyRow {
+                        label: qsTr("Open in the clip editor")
+                        help: qsTr("Hotkey: pick a recording and cut it in the clip editor.")
+                        actionId: "trim-video"
+                        shortcuts: App.settings.hotkeyTrimVideo
+                        onChanged: (t) => { App.settings.hotkeyTrimVideo = t; App.applyHotkey("trim-video") }
+                    }
+                }
+            }
+            SettingsGroup {
+                visible: App.hotkeysAvailable || App.desktopShortcutsAuto
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Files and sharing") }
+                    HotkeyRow {
                         label: qsTr("Edit an image")
                         help: qsTr("Hotkey: pick an image file and open it in the editor.")
                         actionId: "edit-image"
@@ -4120,17 +4236,6 @@ Item {
                         onChanged: (t) => { App.settings.hotkeyEditImage = t; App.applyHotkey("edit-image") }
                     }
                     HotkeyRow {
-                        visible: advancedHotkeys.expanded || page.searchActive || problem
-                        discloser: advancedHotkeys
-                        label: qsTr("Trim a video")
-                        help: qsTr("Hotkey: pick a recording and open it in the trim window.")
-                        actionId: "trim-video"
-                        shortcuts: App.settings.hotkeyTrimVideo
-                        onChanged: (t) => { App.settings.hotkeyTrimVideo = t; App.applyHotkey("trim-video") }
-                    }
-                    HotkeyRow {
-                        visible: advancedHotkeys.expanded || page.searchActive || problem
-                        discloser: advancedHotkeys
                         label: qsTr("Upload a file")
                         help: qsTr("Hotkey: pick any file and upload it.")
                         actionId: "upload-file"
@@ -4138,8 +4243,6 @@ Item {
                         onChanged: (t) => { App.settings.hotkeyUploadFile = t; App.applyHotkey("upload-file") }
                     }
                     HotkeyRow {
-                        visible: advancedHotkeys.expanded || page.searchActive || problem
-                        discloser: advancedHotkeys
                         label: qsTr("Upload clipboard")
                         help: qsTr("Hotkey: upload the copied file, image or text.")
                         actionId: "upload-clipboard"
@@ -4147,38 +4250,11 @@ Item {
                         onChanged: (t) => { App.settings.hotkeyUploadClipboard = t; App.applyHotkey("upload-clipboard") }
                     }
                     HotkeyRow {
-                        visible: advancedHotkeys.expanded || page.searchActive || problem
-                        discloser: advancedHotkeys
                         label: qsTr("QR code of copied text")
                         help: qsTr("Hotkey: show the copied text as a QR code.")
                         actionId: "qr-clipboard"
                         shortcuts: App.settings.hotkeyQrClipboard
                         onChanged: (t) => { App.settings.hotkeyQrClipboard = t; App.applyHotkey("qr-clipboard") }
-                    }
-                    UButton {
-                        anchors.right: parent.right
-                        text: App.hotkeysAvailable ? qsTr("Apply hotkeys")
-                                                   : qsTr("Add shortcuts to %1").arg(App.desktopShortcutName)
-                        compact: true
-                        onClicked: {
-                            if (App.hotkeysAvailable) { App.applyHotkeys(); App.showToast(qsTr("Hotkeys re-registered")) }
-                            else App.installDesktopShortcuts()
-                        }
-                    }
-                    Text {
-                        width: parent.width
-                        wrapMode: Text.WordWrap
-                        text: !App.hotkeysAvailable
-                              ? qsTr("Changing a key here updates the stored shortcut; press “Add shortcuts to %1” to write it into the desktop.").arg(App.desktopShortcutName)
-                              : App.hotkeyBackend === "portal"
-                              ? qsTr("Keys recorded here are suggestions passed to the portal; the system dialog confirms or adjusts them.")
-                              : App.hotkeyBackend === "x11"
-                              ? qsTr("Shortcuts apply immediately on this X11 session (grabbed straight from the X server).")
-                              : App.hotkeyBackend === "win32"
-                              ? qsTr("Shortcuts apply immediately. A key another app already registered is reported as taken.")
-                              : qsTr("Shortcuts apply immediately and stay in sync with KDE System Settings; an edit made there shows up here too.")
-                        color: Theme.textTertiary
-                        font.pixelSize: Theme.fontS
                     }
                 }
             }

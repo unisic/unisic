@@ -52,6 +52,7 @@ class NotificationInhibitor;
 class ExternalActionRunner;
 class PreviewController;
 class LayerShellNotifier;
+class ClipOsd;
 class ScrollCaptureController;
 
 // Application facade exposed to QML as the "App" context property.
@@ -1145,6 +1146,9 @@ private:
     bool manualRecording() const { return recording() && !autoReplayActive(); }
     void setSaveProgress(qreal p);
     void continueAfterRecording();
+    // The on-screen clip pill (Settings > Clips > indicator); see ClipOsd.
+    void showClipIndicator(const QString &title, const QString &detail, const QString &tone,
+                           int ms = 2600);
     bool m_recordBorderCountdownOnly = false; // frame is a bare countdown (full-screen/window)
     int m_pendingCountdownSecs = 0;  // visible countdown length for the hold
     CaptureNotification *showCaptureNotification(const QImage &img, const QString &path,
@@ -1339,6 +1343,7 @@ private:
     NotificationInhibitor *m_dnd = nullptr;
     ExternalActionRunner *m_actionRunner = nullptr;
     LayerShellNotifier *m_layerNotifier = nullptr; // set when layer-shell is usable, and on Windows
+    ClipOsd *m_clipOsd = nullptr;                  // built on the first clip event
     bool m_layerShellAvailable = false;            // compositor exposes zwlr_layer_shell_v1
     QPointer<QQuickWindow> m_recordBorderWindow; // live region-recording frame
     QPointer<PreviewController> m_lastPreview;   // newest preview, for previewHopCheck

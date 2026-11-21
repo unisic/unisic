@@ -161,6 +161,9 @@ class Settings : public QObject
     Q_PROPERTY(bool clipOpenReplay READ clipOpenReplay WRITE setClipOpenReplay NOTIFY clipOpenReplayChanged)
     Q_PROPERTY(QString clipAspect READ clipAspect WRITE setClipAspect NOTIFY clipAspectChanged)
     Q_PROPERTY(int clipShortSide READ clipShortSide WRITE setClipShortSide NOTIFY clipShortSideChanged)
+    Q_PROPERTY(QString clipSaveDirectory READ clipSaveDirectory WRITE setClipSaveDirectory NOTIFY clipSaveDirectoryChanged)
+    Q_PROPERTY(bool clipIndicator READ clipIndicator WRITE setClipIndicator NOTIFY clipIndicatorChanged)
+    Q_PROPERTY(QString hotkeyReplayToggle READ hotkeyReplayToggle WRITE setHotkeyReplayToggle NOTIFY hotkeyReplayToggleChanged)
     Q_PROPERTY(QString hotkeyInstantReplay READ hotkeyInstantReplay WRITE setHotkeyInstantReplay NOTIFY hotkeyInstantReplayChanged)
     Q_PROPERTY(QString hotkeyRecord READ hotkeyRecord WRITE setHotkeyRecord NOTIFY hotkeyRecordChanged)
     Q_PROPERTY(QString hotkeyOcr READ hotkeyOcr WRITE setHotkeyOcr NOTIFY hotkeyOcrChanged)
@@ -667,6 +670,12 @@ public:
     U_SETTING(bool, clipOpenReplay, setClipOpenReplay, "clips/openReplay", false)
     U_SETTING(QString, clipAspect, setClipAspect, "clips/aspect", QStringLiteral("original"))
     U_SETTING(int, clipShortSide, setClipShortSide, "clips/shortSide", 0)
+    // Saved instant replays land here; empty = videoSaveDirectory.
+    U_SETTING(QString, clipSaveDirectory, setClipSaveDirectory, "clips/saveDirectory", QString())
+    // The on-screen pill (ClipOsd) for replay on/off, saving and saved.
+    U_SETTING(bool, clipIndicator, setClipIndicator, "clips/indicator", true)
+    // Turns the replay ring on or off; hotkeyInstantReplay saves (or starts).
+    U_SETTING(QString, hotkeyReplayToggle, setHotkeyReplayToggle, "hotkeys/replayToggle", QString())
     U_SETTING(QString, hotkeyInstantReplay, setHotkeyInstantReplay,
               "hotkeys/instantReplay", QStringLiteral("Meta+Shift+I"))
     U_SETTING(QString, hotkeyRecord, setHotkeyRecord, "hotkeys/record", QStringLiteral(UNISIC_HOTKEY_RECORD))
@@ -845,6 +854,7 @@ public:
         emit instantReplaySecondsChanged(); emit hotkeyInstantReplayChanged(); emit instantReplayAutoChanged();
         emit replayWatermarkEnabledChanged(); emit replayWatermarkTextChanged(); emit replayWatermarkPositionChanged();
         emit clipOpenReplayChanged(); emit clipAspectChanged(); emit clipShortSideChanged();
+        emit clipSaveDirectoryChanged(); emit clipIndicatorChanged(); emit hotkeyReplayToggleChanged();
         emit showCapturePopupChanged(); emit capturePopupPositionChanged();
         emit capturePopupDurationSecChanged(); emit capturePopupStyleChanged(); emit capturePopupMarginChanged();
         emit hiddenNotifActionsChanged(); emit notificationActionOrderChanged();
@@ -981,6 +991,9 @@ signals:
     void clipOpenReplayChanged();
     void clipAspectChanged();
     void clipShortSideChanged();
+    void clipSaveDirectoryChanged();
+    void clipIndicatorChanged();
+    void hotkeyReplayToggleChanged();
     void hotkeyRecordChanged();
     void hotkeyOcrChanged();
     void hotkeyRecordScreenChanged();

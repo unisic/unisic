@@ -1581,7 +1581,9 @@ void GifRecorder::exportReplaySnapshot(const QString &snapshot, const QStringLis
         return;
     }
 
-    QString outDir = m_settings->videoSaveDirectory();
+    QString outDir = m_settings->clipSaveDirectory().trimmed();
+    if (outDir.isEmpty())
+        outDir = m_settings->videoSaveDirectory();
     QDir().mkpath(outDir);
     const QString stem = QStringLiteral("Unisic_Replay_%1")
                              .arg(QDateTime::currentDateTime().toString(

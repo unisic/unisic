@@ -213,6 +213,7 @@ qt_add_executable(unisic
     src/notify/DesktopNotifier.h src/notify/DesktopNotifier.cpp
     src/notify/NotifCard.h
     src/notify/NotificationHelper.h src/notify/NotificationHelper.cpp
+    src/notify/ClipOsd.h src/notify/ClipOsd.cpp
     src/notify/NotificationInhibitor.h src/notify/NotificationInhibitor.cpp
     src/notify/NativeSound.h src/notify/NativeSound.cpp
     # AppContext's desktop-integration half: autostart, "show in folder" and
@@ -331,6 +332,7 @@ qt_add_qml_module(unisic
         qml/EditorWindow.qml
         qml/NotificationPopup.qml
         qml/RecordBorder.qml
+        qml/ClipOsd.qml
         qml/ScrollCaptureOverlay.qml
         qml/PreviewWindow.qml
         qml/TrimWindow.qml

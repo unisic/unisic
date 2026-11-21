@@ -20,13 +20,13 @@
     </message>
     <message>
         <location line="+3369"/>
-        <location line="+1883"/>
+        <location line="+1910"/>
         <location line="+20"/>
         <source>Copied to clipboard</source>
         <translation>已复制到剪贴板</translation>
     </message>
     <message>
-        <location line="-4731"/>
+        <location line="-4758"/>
         <location line="+25"/>
         <source>Nothing to recognize</source>
         <translation>没有可识别的内容</translation>
@@ -82,7 +82,7 @@
         <translation>Dev: 形状编辑：%1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="+5399"/>
+        <location filename="../src/AppContext.cpp" line="+5426"/>
         <location filename="../src/diag/SmokeTests.cpp" line="+818"/>
         <location line="+3580"/>
         <source>Quit</source>
@@ -114,7 +114,7 @@
         <translation>Dev: 释放时截图：%1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="-6286"/>
+        <location filename="../src/AppContext.cpp" line="-6313"/>
         <source>Opened a terminal to install the update.</source>
         <translation>已打开终端以安装更新。</translation>
     </message>
@@ -345,14 +345,14 @@
     <message>
         <location filename="../src/AppContext.cpp" line="+1184"/>
         <location line="+212"/>
-        <location line="+1517"/>
+        <location line="+1544"/>
         <source>Saved %1</source>
         <translation>已保存 %1</translation>
     </message>
     <message>
-        <location line="-1708"/>
+        <location line="-1735"/>
         <location line="+177"/>
-        <location line="+1125"/>
+        <location line="+1152"/>
         <location line="+17"/>
         <location line="+188"/>
         <location filename="../src/upload/UploadSources.cpp" line="+130"/>
@@ -360,7 +360,7 @@
         <translation>上传失败：%1</translation>
     </message>
     <message>
-        <location line="-1386"/>
+        <location line="-1413"/>
         <source>Could not save to %1. Check the save folder in Settings</source>
         <translation>无法保存到 %1。请检查设置中的保存文件夹</translation>
     </message>
@@ -396,7 +396,7 @@
         <translation>打开录像进行剪辑</translation>
     </message>
     <message>
-        <location line="+1831"/>
+        <location line="+1858"/>
         <location line="+34"/>
         <source>None of the selected captures are saved on disk.</source>
         <translation>所选截图中没有任何一项已保存到磁盘。</translation>
@@ -455,7 +455,7 @@
         <translation>复制上次截图</translation>
     </message>
     <message>
-        <location line="-2760"/>
+        <location line="-2787"/>
         <source>Uploaded, link copied</source>
         <translation>已上传，链接已复制</translation>
     </message>
@@ -1111,7 +1111,7 @@
         <translation>%1 失败，已上传到 %2：%3。%4</translation>
     </message>
     <message>
-        <location line="+700"/>
+        <location line="+727"/>
         <source>Can&apos;t open %1 for editing</source>
         <translation>无法打开 %1 进行编辑</translation>
     </message>
@@ -1172,12 +1172,12 @@
         <translation>正在上传 %1…</translation>
     </message>
     <message>
-        <location line="-1010"/>
+        <location line="-1037"/>
         <source>Uploaded</source>
         <translation>已上传</translation>
     </message>
     <message>
-        <location line="+1178"/>
+        <location line="+1205"/>
         <source>Couldn&apos;t open preview</source>
         <translation>无法打开预览</translation>
     </message>
@@ -1203,7 +1203,7 @@
         <translation>请先保存或上传截图，才能将其复制为链接</translation>
     </message>
     <message>
-        <location line="-1947"/>
+        <location line="-1974"/>
         <source>Could not encode the capture</source>
         <translation>无法编码截图</translation>
     </message>
@@ -1284,14 +1284,14 @@
         <translation>无法读取录像时长</translation>
     </message>
     <message>
-        <location line="+148"/>
+        <location line="+175"/>
         <source>Invalid trim range</source>
         <translation>无效的剪辑范围</translation>
     </message>
     <message>
-        <location line="-91"/>
-        <location line="+21"/>
-        <location line="+74"/>
+        <location line="-117"/>
+        <location line="+46"/>
+        <location line="+75"/>
         <source>Trimming requires ffmpeg</source>
         <translation>剪辑需要 ffmpeg</translation>
     </message>
@@ -1463,14 +1463,14 @@
         <translation>Dev: X11 录制抓帧：%1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="-383"/>
-        <location line="+1217"/>
+        <location filename="../src/AppContext.cpp" line="-410"/>
+        <location line="+1244"/>
         <location filename="../src/upload/UploadSources.cpp" line="+10"/>
         <source>Can&apos;t find %1</source>
         <translation>找不到 %1</translation>
     </message>
     <message>
-        <location line="-1210"/>
+        <location line="-1237"/>
         <location line="+53"/>
         <source>Unisic opens files, not folders</source>
         <translation>Unisic 只能打开文件，不能打开文件夹</translation>
@@ -1507,7 +1507,7 @@
         <translation>剪贴板里没有可粘贴的图像</translation>
     </message>
     <message>
-        <location line="+172"/>
+        <location line="+199"/>
         <location line="+15"/>
         <location line="+134"/>
         <source>Trim failed: %1</source>
@@ -1801,7 +1801,7 @@
         <translation>开始/保存即时回放</translation>
     </message>
     <message>
-        <location line="-4374"/>
+        <location line="-4401"/>
         <source>No monitor named %1. Connected: %2</source>
         <translation>没有名为 %1 的显示器。已连接的显示器：%2</translation>
     </message>
@@ -1826,7 +1826,7 @@
         <translation>已上传，但 %1 无法缩短链接（%2）。已使用完整链接。</translation>
     </message>
     <message>
-        <location line="+2423"/>
+        <location line="+2450"/>
         <location line="+119"/>
         <source>Stop recording (emergency)</source>
         <translation>停止录制（紧急）</translation>
@@ -10182,7 +10182,7 @@ Applies to the next capture.</source>
 <context>
     <name>TrimController</name>
     <message>
-        <location filename="../src/record/TrimController.cpp" line="+238"/>
+        <location filename="../src/record/TrimController.cpp" line="+242"/>
         <source>Track %1</source>
         <translation>音轨 %1</translation>
     </message>
@@ -10191,12 +10191,17 @@ Applies to the next capture.</source>
     <name>TrimWindow</name>
     <message>
         <location filename="../qml/TrimWindow.qml" line="+12"/>
-        <location line="+313"/>
+        <location line="+358"/>
         <source>Trim recording</source>
         <translation>剪辑录像</translation>
     </message>
     <message>
-        <location line="-30"/>
+        <location line="+42"/>
+        <source>Ctrl+S</source>
+        <translation>Ctrl+S</translation>
+    </message>
+    <message>
+        <location line="+14"/>
         <source>Minimize</source>
         <translation>最小化</translation>
     </message>
@@ -10211,7 +10216,7 @@ Applies to the next capture.</source>
         <translation>关闭</translation>
     </message>
     <message>
-        <location line="+101"/>
+        <location line="+215"/>
         <source>No thumbnails for this file</source>
         <translation>此文件没有缩略图</translation>
     </message>
@@ -10221,7 +10226,7 @@ Applies to the next capture.</source>
         <translation>正在加载缩略图…</translation>
     </message>
     <message>
-        <location line="+69"/>
+        <location line="+70"/>
         <source>Playhead</source>
         <translation>播放头</translation>
     </message>
@@ -10231,7 +10236,7 @@ Applies to the next capture.</source>
         <translation>%1，共 %2 秒。方向键微调，Home 和 End 跳转。</translation>
     </message>
     <message>
-        <location line="+48"/>
+        <location line="+59"/>
         <source>Trim start</source>
         <translation>剪辑起点</translation>
     </message>
@@ -10251,67 +10256,65 @@ Applies to the next capture.</source>
         <translation>%1 秒。按 O 键将其移到播放头。</translation>
     </message>
     <message>
-        <location line="+41"/>
+        <location line="-230"/>
         <source>%1 / %2</source>
         <translation>%1 / %2</translation>
     </message>
     <message>
-        <location line="+7"/>
         <source>Selection: %1 → %2 (%3)</source>
-        <translation>选区：%1 → %2（%3）</translation>
+        <translation type="vanished">选区：%1 → %2（%3）</translation>
     </message>
     <message>
-        <location line="+16"/>
+        <location line="-16"/>
         <source>Play the selection (Space)</source>
         <translation>播放选区（空格键）</translation>
     </message>
     <message>
-        <location line="+7"/>
+        <location line="+10"/>
         <source>Loop the selection (L)</source>
         <translation>循环播放选区（L）</translation>
     </message>
     <message>
-        <location line="+3"/>
+        <location line="+21"/>
         <source>Set start (I)</source>
         <translation>设置起点（I）</translation>
     </message>
     <message>
-        <location line="+1"/>
+        <location line="+8"/>
         <source>Set end (O)</source>
         <translation>设置终点（O）</translation>
     </message>
     <message>
-        <location line="+10"/>
         <source>Install qt6-qtmultimedia for a video preview. Adjust the range below.</source>
-        <translation>安装 qt6-qtmultimedia 即可预览视频。在下方调整范围。</translation>
+        <translation type="vanished">安装 qt6-qtmultimedia 即可预览视频。在下方调整范围。</translation>
     </message>
     <message>
-        <location line="+3"/>
         <source>Start: %1 s</source>
-        <translation>起点：%1 秒</translation>
+        <translation type="vanished">起点：%1 秒</translation>
     </message>
     <message>
-        <location line="+2"/>
+        <location line="+313"/>
+        <location line="+7"/>
         <source>Start</source>
         <translation>起点</translation>
     </message>
     <message>
-        <location line="+9"/>
         <source>End: %1 s</source>
-        <translation>终点：%1 秒</translation>
+        <translation type="vanished">终点：%1 秒</translation>
     </message>
     <message>
-        <location line="+2"/>
+        <location line="+10"/>
+        <location line="+5"/>
         <source>End</source>
         <translation>终点</translation>
     </message>
     <message>
-        <location line="+17"/>
+        <location line="+39"/>
         <source>Audio tracks</source>
         <translation>音轨</translation>
     </message>
     <message>
-        <location line="+7"/>
+        <location line="+5"/>
         <source>(the mix track is rebuilt from the tracks below)</source>
         <translation>（混音轨会根据下方音轨重新生成）</translation>
     </message>
@@ -10321,22 +10324,48 @@ Applies to the next capture.</source>
         <translation>保留音轨 %1</translation>
     </message>
     <message>
-        <location line="+17"/>
+        <location line="+16"/>
         <source>Volume of %1</source>
         <translation>%1 的音量</translation>
     </message>
     <message>
-        <location line="+8"/>
+        <location line="+9"/>
         <source>off</source>
         <translation>关</translation>
     </message>
     <message>
-        <location line="+40"/>
+        <location line="-75"/>
         <source>Fast lossless cut</source>
         <translation>快速无损剪辑</translation>
     </message>
     <message>
-        <location line="+7"/>
+        <location line="-88"/>
+        <source>Trim options</source>
+        <translation>剪辑选项</translation>
+    </message>
+    <message>
+        <location line="+32"/>
+        <source>Selection</source>
+        <translation>选区</translation>
+    </message>
+    <message>
+        <location line="+9"/>
+        <source>%1 of %2</source>
+        <extracomment>Trim window: length of the selection, then of the whole recording.</extracomment>
+        <translation>%1 / %2</translation>
+    </message>
+    <message>
+        <location line="+9"/>
+        <source>Range</source>
+        <translation>范围</translation>
+    </message>
+    <message>
+        <location line="+35"/>
+        <source>Saving</source>
+        <translation>保存</translation>
+    </message>
+    <message>
+        <location line="+8"/>
         <source>Off: the selection is re-encoded and starts on the exact frame.</source>
         <translation>关：选区会重新编码，从精确帧开始。</translation>
     </message>
@@ -10356,22 +10385,21 @@ Applies to the next capture.</source>
         <translation>未找到关键帧，保存时将改为重新编码。</translation>
     </message>
     <message>
-        <location line="+11"/>
+        <location line="-7"/>
         <source>A GIF is always re-rendered, so the cut lands on the exact frame.</source>
         <translation>GIF 每次都会重新渲染，因此剪辑点会落在精确帧上。</translation>
     </message>
     <message>
-        <location line="+9"/>
         <source>Cancel</source>
-        <translation>取消</translation>
+        <translation type="vanished">取消</translation>
     </message>
     <message>
-        <location line="+2"/>
+        <location line="-521"/>
         <source>Save trimmed copy</source>
         <translation>保存剪辑副本</translation>
     </message>
     <message>
-        <location line="+55"/>
+        <location line="+82"/>
         <source>First frame · %1</source>
         <translation>第一帧 · %1</translation>
     </message>

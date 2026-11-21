@@ -1252,7 +1252,8 @@ private:
     // One ffmpeg step of a trim. `done(ok, diagnostic)` runs on the GUI thread;
     // the GIF cut chains two of these (palettegen, then paletteuse).
     void runTrimStep(const QStringList &args,
-                     std::function<void(bool, const QString &)> done);
+                     std::function<void(bool, const QString &)> done,
+                     qint64 progressMs = 0, qreal from = 0, qreal to = 1);
     void trimGif(const QString &path, const QString &output, qreal start, qreal end);
     // Dev harness: cut a generated clip both ways through the real trim path and
     // report whether the files came out where the selection said they would,

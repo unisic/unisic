@@ -332,7 +332,7 @@
         <translation>Dev: łączenie przewijania: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4293"/>
+        <location filename="../src/AppContext.cpp" line="4320"/>
         <location filename="../src/diag/SmokeTests.cpp" line="1610"/>
         <source>Mix</source>
         <translation>Miks</translation>
@@ -374,7 +374,7 @@
         <translation>Dev: lupa pikselowa: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6499"/>
+        <location filename="../src/AppContext.cpp" line="6526"/>
         <location filename="../src/diag/SmokeTests.cpp" line="2849"/>
         <location filename="../src/diag/SmokeTests.cpp" line="6429"/>
         <source>Quit</source>
@@ -955,54 +955,54 @@
         <translation>Nie udało się: %1, wysłano na %2: %3. %4</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4440"/>
+        <location filename="../src/AppContext.cpp" line="4467"/>
         <source>Can&apos;t open %1 for editing</source>
         <translation>Nie można otworzyć %1 do edycji</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4450"/>
+        <location filename="../src/AppContext.cpp" line="4477"/>
         <source>Can&apos;t open %1 for preview</source>
         <translation>Nie można otworzyć %1 do podglądu</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4623"/>
+        <location filename="../src/AppContext.cpp" line="4650"/>
         <source>Add capture sound</source>
         <translation>Dodaj dźwięk przechwytywania</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4630"/>
+        <location filename="../src/AppContext.cpp" line="4657"/>
         <source>Unsupported sound format (use WAV or OGG)</source>
         <translation>Nieobsługiwany format dźwięku (użyj WAV lub OGG)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4639"/>
+        <location filename="../src/AppContext.cpp" line="4666"/>
         <source>Could not copy the sound file</source>
         <translation>Nie udało się skopiować pliku dźwiękowego</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4643"/>
+        <location filename="../src/AppContext.cpp" line="4670"/>
         <source>Added capture sound &quot;%1&quot;</source>
         <translation>Dodano dźwięk przechwytywania &quot;%1&quot;</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4651"/>
+        <location filename="../src/AppContext.cpp" line="4678"/>
         <source>Can&apos;t open %1 to copy</source>
         <translation>Nie można otworzyć %1 do skopiowania</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4662"/>
-        <location filename="../src/AppContext.cpp" line="5584"/>
+        <location filename="../src/AppContext.cpp" line="4689"/>
+        <location filename="../src/AppContext.cpp" line="5611"/>
         <source>Save the capture first to copy its file path</source>
         <translation>Najpierw zapisz przechwycenie, aby skopiować jego ścieżkę pliku</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4901"/>
+        <location filename="../src/AppContext.cpp" line="4928"/>
         <source>Couldn&apos;t open preview</source>
         <translation>Nie udało się otworzyć podglądu</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5319"/>
-        <location filename="../src/AppContext.cpp" line="5405"/>
+        <location filename="../src/AppContext.cpp" line="5346"/>
+        <location filename="../src/AppContext.cpp" line="5432"/>
         <source>Saved as PNG to keep transparency</source>
         <translation>Zapisano jako PNG, aby zachować przezroczystość</translation>
     </message>
@@ -1011,17 +1011,17 @@
         <translation type="vanished">Brak poprawnego linku do zamiany na kod QR</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5560"/>
+        <location filename="../src/AppContext.cpp" line="5587"/>
         <source>Could not create QR code</source>
         <translation>Nie udało się utworzyć kodu QR</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5564"/>
+        <location filename="../src/AppContext.cpp" line="5591"/>
         <source>QR code preview</source>
         <translation>Podgląd kodu QR</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5604"/>
+        <location filename="../src/AppContext.cpp" line="5631"/>
         <source>Save or upload the capture first to copy it as a link</source>
         <translation>Najpierw zapisz lub prześlij przechwycenie, aby skopiować je jako link</translation>
     </message>
@@ -1084,7 +1084,7 @@
     </message>
     <message>
         <location filename="../src/AppContext.cpp" line="3910"/>
-        <location filename="../src/AppContext.cpp" line="5127"/>
+        <location filename="../src/AppContext.cpp" line="5154"/>
         <location filename="../src/upload/UploadSources.cpp" line="61"/>
         <source>Can&apos;t find %1</source>
         <translation>Nie można znaleźć %1</translation>
@@ -1127,120 +1127,120 @@
         <translation>W schowku nie ma obrazu do wklejenia</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4749"/>
+        <location filename="../src/AppContext.cpp" line="4776"/>
         <source>Could not encode %1 for upload</source>
         <translation>Nie udało się zakodować %1 do wysyłki</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4964"/>
+        <location filename="../src/AppContext.cpp" line="4991"/>
         <source>Upload to %1 failed: %2</source>
         <translation>Wysyłanie na %1 nie powiodło się: %2</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5131"/>
+        <location filename="../src/AppContext.cpp" line="5158"/>
         <source>Already a %1 file</source>
         <translation>To już jest plik %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5140"/>
+        <location filename="../src/AppContext.cpp" line="5167"/>
         <source>%1 is animated. Trim it instead</source>
         <translation>%1 jest animowany. Przytnij go zamiast tego</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5145"/>
+        <location filename="../src/AppContext.cpp" line="5172"/>
         <source>Can&apos;t read %1</source>
         <translation>Nie można odczytać %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5158"/>
+        <location filename="../src/AppContext.cpp" line="5185"/>
         <source>Couldn&apos;t convert %1</source>
         <translation>Nie udało się przekonwertować %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5253"/>
+        <location filename="../src/AppContext.cpp" line="5280"/>
         <source>Over %1 MB, so it was converted to %2 (%3 instead of %4)</source>
         <translation>Ponad %1 MB, więc plik przekonwertowano do %2 (%3 zamiast %4)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5272"/>
+        <location filename="../src/AppContext.cpp" line="5299"/>
         <source>GIF needs ffmpeg. Use Save as to write another format</source>
         <translation>GIF wymaga ffmpeg. Użyj Zapisz jako, aby zapisać w innym formacie</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5273"/>
+        <location filename="../src/AppContext.cpp" line="5300"/>
         <source>Can&apos;t write %1 back as %2. Use Save as</source>
         <translation>Nie można zapisać %1 z powrotem jako %2. Użyj Zapisz jako</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5283"/>
-        <location filename="../src/AppContext.cpp" line="5288"/>
-        <location filename="../src/AppContext.cpp" line="5348"/>
-        <location filename="../src/AppContext.cpp" line="5353"/>
+        <location filename="../src/AppContext.cpp" line="5310"/>
+        <location filename="../src/AppContext.cpp" line="5315"/>
+        <location filename="../src/AppContext.cpp" line="5375"/>
+        <location filename="../src/AppContext.cpp" line="5380"/>
         <source>Can&apos;t write %1</source>
         <translation>Nie można zapisać %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5321"/>
-        <location filename="../src/AppContext.cpp" line="5407"/>
+        <location filename="../src/AppContext.cpp" line="5348"/>
+        <location filename="../src/AppContext.cpp" line="5434"/>
         <source>GIF needs ffmpeg. Saved as PNG</source>
         <translation>GIF wymaga ffmpeg. Zapisano jako PNG</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5323"/>
-        <location filename="../src/AppContext.cpp" line="5409"/>
+        <location filename="../src/AppContext.cpp" line="5350"/>
+        <location filename="../src/AppContext.cpp" line="5436"/>
         <source>%1 could not hold this image. Saved as PNG</source>
         <translation>%1 nie pomieścił tego obrazu. Zapisano jako PNG</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5614"/>
+        <location filename="../src/AppContext.cpp" line="5641"/>
         <source>Unknown copy format</source>
         <translation>Nieznany format kopiowania</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5689"/>
+        <location filename="../src/AppContext.cpp" line="5716"/>
         <source>Export Unisic settings</source>
         <translation>Eksportuj ustawienia Unisic</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5691"/>
-        <location filename="../src/AppContext.cpp" line="5702"/>
+        <location filename="../src/AppContext.cpp" line="5718"/>
+        <location filename="../src/AppContext.cpp" line="5729"/>
         <source>Unisic settings (*.json)</source>
         <translation>Ustawienia Unisic (*.json)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5695"/>
+        <location filename="../src/AppContext.cpp" line="5722"/>
         <source>Settings exported</source>
         <translation>Ustawienia wyeksportowane</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5701"/>
+        <location filename="../src/AppContext.cpp" line="5728"/>
         <source>Import Unisic settings</source>
         <translation>Importuj ustawienia Unisic</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5706"/>
-        <location filename="../src/AppContext.cpp" line="5899"/>
+        <location filename="../src/AppContext.cpp" line="5733"/>
+        <location filename="../src/AppContext.cpp" line="5926"/>
         <source>Settings imported</source>
         <translation>Ustawienia zaimportowane</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5721"/>
-        <location filename="../src/AppContext.cpp" line="5755"/>
+        <location filename="../src/AppContext.cpp" line="5748"/>
+        <location filename="../src/AppContext.cpp" line="5782"/>
         <source>None of the selected captures are saved on disk.</source>
         <translation>Żaden z zaznaczonych zrzutów nie jest zapisany na dysku.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5725"/>
+        <location filename="../src/AppContext.cpp" line="5752"/>
         <source>Export captures to ZIP</source>
         <translation>Eksportuj zrzuty do ZIP</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5727"/>
+        <location filename="../src/AppContext.cpp" line="5754"/>
         <source>ZIP archive (*.zip)</source>
         <translation>Archiwum ZIP (*.zip)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5730"/>
+        <location filename="../src/AppContext.cpp" line="5757"/>
         <source>Exporting %1 captures…</source>
         <translation>Eksportowanie %1 zrzutów…</translation>
     </message>
@@ -1255,7 +1255,7 @@
         <translation>Nie udało się utworzyć folderu tymczasowego: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5784"/>
+        <location filename="../src/AppContext.cpp" line="5811"/>
         <source>Exported %1 captures to %2</source>
         <translation>Wyeksportowano %1 zrzutów do %2</translation>
     </message>
@@ -1276,39 +1276,39 @@
         <translation>Nie udało się uruchomić programu „zip”.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5827"/>
-        <location filename="../src/AppContext.cpp" line="5838"/>
+        <location filename="../src/AppContext.cpp" line="5854"/>
+        <location filename="../src/AppContext.cpp" line="5865"/>
         <source>Cannot write %1</source>
         <translation>Nie można zapisać %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5841"/>
+        <location filename="../src/AppContext.cpp" line="5868"/>
         <source>Settings exported to %1</source>
         <translation>Ustawienia wyeksportowane do %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5850"/>
+        <location filename="../src/AppContext.cpp" line="5877"/>
         <source>Cannot read %1</source>
         <translation>Nie można odczytać %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5853"/>
+        <location filename="../src/AppContext.cpp" line="5880"/>
         <source>Not a Unisic settings file</source>
         <translation>To nie jest plik ustawień Unisic</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5898"/>
+        <location filename="../src/AppContext.cpp" line="5925"/>
         <source>Settings imported. The external action is off: check its command, then switch it on</source>
         <translation>Ustawienia zaimportowane. Zewnętrzna akcja jest wyłączona: sprawdź jej polecenie i włącz ją</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5910"/>
-        <location filename="../src/AppContext.cpp" line="6482"/>
+        <location filename="../src/AppContext.cpp" line="5937"/>
+        <location filename="../src/AppContext.cpp" line="6509"/>
         <source>Capture scrolling region</source>
         <translation>Przechwyć przewijany obszar</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5911"/>
+        <location filename="../src/AppContext.cpp" line="5938"/>
         <source>Capture active window</source>
         <translation>Przechwyć aktywne okno</translation>
     </message>
@@ -1317,61 +1317,61 @@
         <translation type="vanished">Nagraj aktywne okno (start/stop)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5921"/>
-        <location filename="../src/AppContext.cpp" line="6484"/>
+        <location filename="../src/AppContext.cpp" line="5948"/>
+        <location filename="../src/AppContext.cpp" line="6511"/>
         <source>Measure</source>
         <translation>Pomiar</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6485"/>
+        <location filename="../src/AppContext.cpp" line="6512"/>
         <location filename="../src/diag/SmokeTests.cpp" line="6427"/>
         <source>Select text…</source>
         <translation>Zaznacz tekst…</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5917"/>
-        <location filename="../src/AppContext.cpp" line="6487"/>
+        <location filename="../src/AppContext.cpp" line="5944"/>
+        <location filename="../src/AppContext.cpp" line="6514"/>
         <source>Record video (full screen)</source>
         <translation>Nagraj wideo (pełny ekran)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5918"/>
-        <location filename="../src/AppContext.cpp" line="6490"/>
+        <location filename="../src/AppContext.cpp" line="5945"/>
+        <location filename="../src/AppContext.cpp" line="6517"/>
         <source>Record GIF (full screen)</source>
         <translation>Nagraj GIF (pełny ekran)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6491"/>
+        <location filename="../src/AppContext.cpp" line="6518"/>
         <source>Start instant replay</source>
         <translation>Rozpocznij instant replay</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6492"/>
+        <location filename="../src/AppContext.cpp" line="6519"/>
         <source>Save instant replay</source>
         <translation>Zapisz instant replay</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6569"/>
+        <location filename="../src/AppContext.cpp" line="6596"/>
         <source>Restart to update to Unisic %1</source>
         <translation>Uruchom ponownie, aby zaktualizować do Unisic %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6575"/>
+        <location filename="../src/AppContext.cpp" line="6602"/>
         <source>Install update to Unisic %1</source>
         <translation>Zainstaluj aktualizację Unisic %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6579"/>
+        <location filename="../src/AppContext.cpp" line="6606"/>
         <source>Update available - Unisic %1</source>
         <translation>Dostępna aktualizacja - Unisic %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6847"/>
+        <location filename="../src/AppContext.cpp" line="6874"/>
         <source>Could not copy the icon into %1</source>
         <translation>Nie udało się skopiować ikony do %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6853"/>
+        <location filename="../src/AppContext.cpp" line="6880"/>
         <source>Icon added to your tray icons</source>
         <translation>Ikona dodana do ikon zasobnika</translation>
     </message>
@@ -1408,23 +1408,23 @@
         <translation>Przechwytywanie nie powiodło się: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5908"/>
-        <location filename="../src/AppContext.cpp" line="6477"/>
+        <location filename="../src/AppContext.cpp" line="5935"/>
+        <location filename="../src/AppContext.cpp" line="6504"/>
         <location filename="../src/diag/SmokeTests.cpp" line="6428"/>
         <source>Capture full screen</source>
         <translation>Przechwyć pełny ekran</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5909"/>
-        <location filename="../src/AppContext.cpp" line="6476"/>
+        <location filename="../src/AppContext.cpp" line="5936"/>
+        <location filename="../src/AppContext.cpp" line="6503"/>
         <location filename="../src/diag/SmokeTests.cpp" line="6427"/>
         <source>Capture region</source>
         <translation>Przechwyć obszar</translation>
     </message>
     <message>
         <location filename="../src/AppContext.cpp" line="3689"/>
-        <location filename="../src/AppContext.cpp" line="5572"/>
-        <location filename="../src/AppContext.cpp" line="5592"/>
+        <location filename="../src/AppContext.cpp" line="5599"/>
+        <location filename="../src/AppContext.cpp" line="5619"/>
         <source>Copied to clipboard</source>
         <translation>Skopiowano do schowka</translation>
     </message>
@@ -1507,14 +1507,14 @@
         <translation>Nie udało się odczytać czasu trwania nagrania</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4257"/>
+        <location filename="../src/AppContext.cpp" line="4284"/>
         <source>Invalid trim range</source>
         <translation>Nieprawidłowy zakres przycinania</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4166"/>
-        <location filename="../src/AppContext.cpp" line="4187"/>
-        <location filename="../src/AppContext.cpp" line="4261"/>
+        <location filename="../src/AppContext.cpp" line="4167"/>
+        <location filename="../src/AppContext.cpp" line="4213"/>
+        <location filename="../src/AppContext.cpp" line="4288"/>
         <source>Trimming requires ffmpeg</source>
         <translation>Przycinanie wymaga ffmpeg</translation>
     </message>
@@ -1561,71 +1561,71 @@
         <translation type="vanished">Nie udało się: %1, wysłano na %2: %3</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4230"/>
-        <location filename="../src/AppContext.cpp" line="4245"/>
-        <location filename="../src/AppContext.cpp" line="4379"/>
+        <location filename="../src/AppContext.cpp" line="4257"/>
+        <location filename="../src/AppContext.cpp" line="4272"/>
+        <location filename="../src/AppContext.cpp" line="4406"/>
         <source>Trim failed: %1</source>
         <translation>Przycinanie nie powiodło się: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4271"/>
+        <location filename="../src/AppContext.cpp" line="4298"/>
         <source>Trimming recording…</source>
         <translation>Przycinanie nagrania…</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4400"/>
+        <location filename="../src/AppContext.cpp" line="4427"/>
         <source>External action failed: %1</source>
         <translation>Zewnętrzna akcja nie powiodła się: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4406"/>
+        <location filename="../src/AppContext.cpp" line="4433"/>
         <source>External action created %1</source>
         <translation>Zewnętrzna akcja utworzyła %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4408"/>
+        <location filename="../src/AppContext.cpp" line="4435"/>
         <source>External action finished</source>
         <translation>Zewnętrzna akcja zakończona</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4426"/>
+        <location filename="../src/AppContext.cpp" line="4453"/>
         <source>Could not prepare the external action input</source>
         <translation>Nie udało się przygotować wejścia zewnętrznej akcji</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5915"/>
-        <location filename="../src/AppContext.cpp" line="6208"/>
-        <location filename="../src/AppContext.cpp" line="6494"/>
+        <location filename="../src/AppContext.cpp" line="5942"/>
+        <location filename="../src/AppContext.cpp" line="6235"/>
+        <location filename="../src/AppContext.cpp" line="6521"/>
         <source>Copy last capture</source>
         <translation>Kopiuj ostatnie przechwycenie</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5920"/>
+        <location filename="../src/AppContext.cpp" line="5947"/>
         <source>Pause/resume recording</source>
         <translation>Wstrzymaj/wznów nagrywanie</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5922"/>
+        <location filename="../src/AppContext.cpp" line="5949"/>
         <source>Edit an image</source>
         <translation>Edytuj obraz</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5923"/>
+        <location filename="../src/AppContext.cpp" line="5950"/>
         <source>Trim a video</source>
         <translation>Przytnij film</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5969"/>
+        <location filename="../src/AppContext.cpp" line="5996"/>
         <source>This desktop can&apos;t be set up automatically - use the commands below.</source>
         <translation>Tego środowiska nie można skonfigurować automatycznie - użyj poniższych poleceń.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5974"/>
+        <location filename="../src/AppContext.cpp" line="6001"/>
         <source>Could not add shortcuts: %1</source>
         <translation>Nie udało się dodać skrótów: %1</translation>
     </message>
     <message numerus="yes">
-        <location filename="../src/AppContext.cpp" line="5978"/>
+        <location filename="../src/AppContext.cpp" line="6005"/>
         <source>Added %n shortcut(s) to %1</source>
         <translation>
             <numerusform>Dodano %n skrót do %1</numerusform>
@@ -1634,22 +1634,22 @@
         </translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5982"/>
+        <location filename="../src/AppContext.cpp" line="6009"/>
         <source>(skipped, no mappable key: %1)</source>
         <translation>(pominięto, brak mapowalnego klawisza: %1)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5989"/>
+        <location filename="../src/AppContext.cpp" line="6016"/>
         <source>%1 already uses these keys - change them in Hotkeys: %2</source>
         <translation>%1 już używa tych klawiszy - zmień je w sekcji Skróty: %2</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6000"/>
+        <location filename="../src/AppContext.cpp" line="6027"/>
         <source>Could not remove shortcuts: %1</source>
         <translation>Nie udało się usunąć skrótów: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6003"/>
+        <location filename="../src/AppContext.cpp" line="6030"/>
         <source>Removed Unisic shortcuts from %1</source>
         <translation>Usunięto skróty Unisic z %1</translation>
     </message>
@@ -1659,24 +1659,24 @@
         <translation>Dev: skróty pulpitu: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6214"/>
+        <location filename="../src/AppContext.cpp" line="6241"/>
         <source>Open quick task chooser</source>
         <translation>Otwórz wybór szybkiego zadania</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5916"/>
+        <location filename="../src/AppContext.cpp" line="5943"/>
         <source>Start/save instant replay</source>
         <translation>Uruchom/zapisz powtórkę błyskawiczną</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6221"/>
-        <location filename="../src/AppContext.cpp" line="6478"/>
+        <location filename="../src/AppContext.cpp" line="6248"/>
+        <location filename="../src/AppContext.cpp" line="6505"/>
         <source>Capture screen under cursor</source>
         <translation>Zrzut ekranu pod kursorem</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6223"/>
-        <location filename="../src/AppContext.cpp" line="6483"/>
+        <location filename="../src/AppContext.cpp" line="6250"/>
+        <location filename="../src/AppContext.cpp" line="6510"/>
         <source>Re-capture last region</source>
         <translation>Ponów zrzut ostatniego obszaru</translation>
     </message>
@@ -1711,50 +1711,50 @@
         <translation type="vanished">Nie udało się przypisać %1; klawisz jest zajęty przez inny skrót</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6481"/>
+        <location filename="../src/AppContext.cpp" line="6508"/>
         <source>Capture window</source>
         <translation>Przechwyć okno</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6486"/>
+        <location filename="../src/AppContext.cpp" line="6513"/>
         <source>Record video (region)</source>
         <translation>Nagraj wideo (obszar)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5919"/>
-        <location filename="../src/AppContext.cpp" line="6488"/>
+        <location filename="../src/AppContext.cpp" line="5946"/>
+        <location filename="../src/AppContext.cpp" line="6515"/>
         <source>Record video (window)</source>
         <translation>Nagraj wideo (okno)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6489"/>
+        <location filename="../src/AppContext.cpp" line="6516"/>
         <source>Record GIF (region)</source>
         <translation>Nagraj GIF (obszar)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6493"/>
+        <location filename="../src/AppContext.cpp" line="6520"/>
         <source>Stop recording</source>
         <translation>Zatrzymaj nagrywanie</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6498"/>
+        <location filename="../src/AppContext.cpp" line="6525"/>
         <location filename="../src/diag/SmokeTests.cpp" line="6429"/>
         <source>Open Unisic</source>
         <translation>Otwórz Unisic</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6822"/>
+        <location filename="../src/AppContext.cpp" line="6849"/>
         <source>Images (*.png *.svg *.svgz *.xpm *.ico *.jpg *.jpeg *.webp)</source>
         <translation>Obrazy (*.png *.svg *.svgz *.xpm *.ico *.jpg *.jpeg *.webp)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6821"/>
+        <location filename="../src/AppContext.cpp" line="6848"/>
         <source>Add a tray icon</source>
         <translation>Dodaj ikonę zasobnika</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6827"/>
-        <location filename="../src/AppContext.cpp" line="6866"/>
+        <location filename="../src/AppContext.cpp" line="6854"/>
+        <location filename="../src/AppContext.cpp" line="6893"/>
         <source>Could not load that image as an icon</source>
         <translation>Nie udało się wczytać obrazu jako ikony</translation>
     </message>
@@ -1855,7 +1855,7 @@
         <translation>Dev: wysyłanie obrazu testowego do „%1”…</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6202"/>
+        <location filename="../src/AppContext.cpp" line="6229"/>
         <source>Developer smoke test</source>
         <translation>Deweloperski test dymny</translation>
     </message>
@@ -1875,12 +1875,12 @@
         <translation>Skróty: wszystkie %1 przypisane w usłudze</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4655"/>
+        <location filename="../src/AppContext.cpp" line="4682"/>
         <source>Image copied</source>
         <translation>Obraz skopiowany</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5796"/>
+        <location filename="../src/AppContext.cpp" line="5823"/>
         <source>No file selected</source>
         <translation>Nie wybrano pliku</translation>
     </message>
@@ -1896,7 +1896,7 @@
         <translation>Nic do rozpoznania</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5914"/>
+        <location filename="../src/AppContext.cpp" line="5941"/>
         <source>OCR region (copy text)</source>
         <translation>OCR obszaru (kopiuj tekst)</translation>
     </message>
@@ -1906,12 +1906,12 @@
         <translation>Rozpoznawanie tekstu…</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5912"/>
+        <location filename="../src/AppContext.cpp" line="5939"/>
         <source>Record GIF (start/stop)</source>
         <translation>Nagraj GIF (start/stop)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5913"/>
+        <location filename="../src/AppContext.cpp" line="5940"/>
         <source>Record video (start/stop)</source>
         <translation>Nagraj wideo (start/stop)</translation>
     </message>
@@ -1923,7 +1923,7 @@
     <message>
         <location filename="../src/AppContext.cpp" line="3435"/>
         <location filename="../src/AppContext.cpp" line="3647"/>
-        <location filename="../src/AppContext.cpp" line="5164"/>
+        <location filename="../src/AppContext.cpp" line="5191"/>
         <source>Saved %1</source>
         <translation>Zapisano %1</translation>
     </message>
@@ -1932,18 +1932,18 @@
         <translation type="vanished">Niektórych skrótów nie udało się przypisać (klawisze zajęte); pokazano faktyczny stan</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4620"/>
+        <location filename="../src/AppContext.cpp" line="4647"/>
         <source>Sounds (*.wav *.ogg *.oga)</source>
         <translation>Dźwięki (*.wav *.ogg *.oga)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4621"/>
+        <location filename="../src/AppContext.cpp" line="4648"/>
         <source>Sounds (*.wav)</source>
         <translation>Dźwięki (*.wav)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6189"/>
-        <location filename="../src/AppContext.cpp" line="6308"/>
+        <location filename="../src/AppContext.cpp" line="6216"/>
+        <location filename="../src/AppContext.cpp" line="6335"/>
         <source>Stop recording (emergency)</source>
         <translation>Zatrzymaj nagrywanie (awaryjnie)</translation>
     </message>
@@ -1955,9 +1955,9 @@
     <message>
         <location filename="../src/AppContext.cpp" line="3456"/>
         <location filename="../src/AppContext.cpp" line="3633"/>
-        <location filename="../src/AppContext.cpp" line="4758"/>
-        <location filename="../src/AppContext.cpp" line="4775"/>
-        <location filename="../src/AppContext.cpp" line="4963"/>
+        <location filename="../src/AppContext.cpp" line="4785"/>
+        <location filename="../src/AppContext.cpp" line="4802"/>
+        <location filename="../src/AppContext.cpp" line="4990"/>
         <location filename="../src/upload/UploadSources.cpp" line="130"/>
         <source>Upload failed: %1</source>
         <translation>Wysyłanie nie powiodło się: %1</translation>
@@ -1978,7 +1978,7 @@
         <translation>Wysłano: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4733"/>
+        <location filename="../src/AppContext.cpp" line="4760"/>
         <source>Uploading %1…</source>
         <translation>Wysyłanie %1…</translation>
     </message>
@@ -2053,17 +2053,17 @@
         <translation>Wysłano, ale %1 nie skrócił linku (%2). Używany jest pełny link.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4672"/>
+        <location filename="../src/AppContext.cpp" line="4699"/>
         <source>Can&apos;t open %1 to print</source>
         <translation>Nie można otworzyć %1 do wydruku</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5549"/>
+        <location filename="../src/AppContext.cpp" line="5576"/>
         <source>Nothing to turn into a QR code</source>
         <translation>Brak tekstu do zamiany na kod QR</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5553"/>
+        <location filename="../src/AppContext.cpp" line="5580"/>
         <source>Too long for a QR code: %1 bytes, at most %2</source>
         <translation>Za długie na kod QR (rozmiar w bajtach: %1, limit: %2)</translation>
     </message>
@@ -2094,26 +2094,26 @@
         <translation type="vanished">Wysłano, ale is.gd nie skrócił linku (%1). Używany jest pełny link.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6480"/>
+        <location filename="../src/AppContext.cpp" line="6507"/>
         <location filename="../src/diag/SmokeTests.cpp" line="6398"/>
         <source>Capture monitor</source>
         <translation>Zrzut monitora</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5924"/>
-        <location filename="../src/AppContext.cpp" line="6495"/>
+        <location filename="../src/AppContext.cpp" line="5951"/>
+        <location filename="../src/AppContext.cpp" line="6522"/>
         <source>Upload a file…</source>
         <translation>Wyślij plik…</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5925"/>
-        <location filename="../src/AppContext.cpp" line="6496"/>
+        <location filename="../src/AppContext.cpp" line="5952"/>
+        <location filename="../src/AppContext.cpp" line="6523"/>
         <source>Upload clipboard</source>
         <translation>Wyślij schowek</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5926"/>
-        <location filename="../src/AppContext.cpp" line="6497"/>
+        <location filename="../src/AppContext.cpp" line="5953"/>
+        <location filename="../src/AppContext.cpp" line="6524"/>
         <source>QR code of copied text</source>
         <translation>Kod QR skopiowanego tekstu</translation>
     </message>
@@ -10596,7 +10596,7 @@ Dotyczy następnego przechwycenia.</translation>
 <context>
     <name>TrimController</name>
     <message>
-        <location filename="../src/record/TrimController.cpp" line="238"/>
+        <location filename="../src/record/TrimController.cpp" line="242"/>
         <source>Track %1</source>
         <translation>Ścieżka %1</translation>
     </message>
@@ -10605,197 +10605,225 @@ Dotyczy następnego przechwycenia.</translation>
     <name>TrimWindow</name>
     <message>
         <location filename="../qml/TrimWindow.qml" line="12"/>
-        <location filename="../qml/TrimWindow.qml" line="325"/>
+        <location filename="../qml/TrimWindow.qml" line="370"/>
         <source>Trim recording</source>
         <translation>Przytnij nagranie</translation>
     </message>
     <message>
-        <location filename="../qml/TrimWindow.qml" line="295"/>
+        <location filename="../qml/TrimWindow.qml" line="412"/>
+        <source>Ctrl+S</source>
+        <translation>Ctrl+S</translation>
+    </message>
+    <message>
+        <location filename="../qml/TrimWindow.qml" line="426"/>
         <source>Minimize</source>
         <translation>Minimalizuj</translation>
     </message>
     <message>
-        <location filename="../qml/TrimWindow.qml" line="300"/>
+        <location filename="../qml/TrimWindow.qml" line="431"/>
         <source>Maximize</source>
         <translation>Maksymalizuj</translation>
     </message>
     <message>
-        <location filename="../qml/TrimWindow.qml" line="306"/>
+        <location filename="../qml/TrimWindow.qml" line="437"/>
         <source>Close</source>
         <translation>Zamknij</translation>
     </message>
     <message>
-        <location filename="../qml/TrimWindow.qml" line="407"/>
+        <location filename="../qml/TrimWindow.qml" line="652"/>
         <source>No thumbnails for this file</source>
         <translation>Brak miniatur dla tego pliku</translation>
     </message>
     <message>
-        <location filename="../qml/TrimWindow.qml" line="408"/>
+        <location filename="../qml/TrimWindow.qml" line="653"/>
         <source>Loading thumbnails…</source>
         <translation>Wczytywanie miniatur…</translation>
     </message>
     <message>
-        <location filename="../qml/TrimWindow.qml" line="477"/>
+        <location filename="../qml/TrimWindow.qml" line="723"/>
         <source>Playhead</source>
         <translation>Głowica odtwarzania</translation>
     </message>
     <message>
-        <location filename="../qml/TrimWindow.qml" line="478"/>
+        <location filename="../qml/TrimWindow.qml" line="724"/>
         <source>%1 of %2 seconds. Arrow keys scrub, Home and End jump.</source>
         <translation>%1 z %2 sekund. Strzałki przewijają, Home i End przeskakują.</translation>
     </message>
     <message>
-        <location filename="../qml/TrimWindow.qml" line="526"/>
+        <location filename="../qml/TrimWindow.qml" line="783"/>
         <source>Trim start</source>
         <translation>Początek przycięcia</translation>
     </message>
     <message>
-        <location filename="../qml/TrimWindow.qml" line="526"/>
+        <location filename="../qml/TrimWindow.qml" line="783"/>
         <source>Trim end</source>
         <translation>Koniec przycięcia</translation>
     </message>
     <message>
-        <location filename="../qml/TrimWindow.qml" line="528"/>
+        <location filename="../qml/TrimWindow.qml" line="785"/>
         <source>%1 seconds. Press I to move it to the playhead.</source>
         <translation>%1 sekund. Naciśnij I, aby przenieść go do głowicy odtwarzania.</translation>
     </message>
     <message>
-        <location filename="../qml/TrimWindow.qml" line="530"/>
+        <location filename="../qml/TrimWindow.qml" line="787"/>
         <source>%1 seconds. Press O to move it to the playhead.</source>
         <translation>%1 sekund. Naciśnij O, aby przenieść go do głowicy odtwarzania.</translation>
     </message>
     <message>
-        <location filename="../qml/TrimWindow.qml" line="571"/>
+        <location filename="../qml/TrimWindow.qml" line="557"/>
         <source>%1 / %2</source>
         <translation>%1 / %2</translation>
     </message>
     <message>
-        <location filename="../qml/TrimWindow.qml" line="578"/>
         <source>Selection: %1 → %2 (%3)</source>
-        <translation>Zaznaczenie: %1 → %2 (%3)</translation>
+        <translation type="vanished">Zaznaczenie: %1 → %2 (%3)</translation>
     </message>
     <message>
-        <location filename="../qml/TrimWindow.qml" line="594"/>
+        <location filename="../qml/TrimWindow.qml" line="541"/>
         <source>Play the selection (Space)</source>
         <translation>Odtwórz zaznaczenie (Spacja)</translation>
     </message>
     <message>
-        <location filename="../qml/TrimWindow.qml" line="601"/>
+        <location filename="../qml/TrimWindow.qml" line="551"/>
         <source>Loop the selection (L)</source>
         <translation>Zapętl zaznaczenie (L)</translation>
     </message>
     <message>
-        <location filename="../qml/TrimWindow.qml" line="604"/>
+        <location filename="../qml/TrimWindow.qml" line="572"/>
         <source>Set start (I)</source>
         <translation>Ustaw początek (I)</translation>
     </message>
     <message>
-        <location filename="../qml/TrimWindow.qml" line="605"/>
+        <location filename="../qml/TrimWindow.qml" line="580"/>
         <source>Set end (O)</source>
         <translation>Ustaw koniec (O)</translation>
     </message>
     <message>
-        <location filename="../qml/TrimWindow.qml" line="615"/>
         <source>Install qt6-qtmultimedia for a video preview. Adjust the range below.</source>
-        <translation>Zainstaluj qt6-qtmultimedia dla podglądu wideo. Dostosuj zakres poniżej.</translation>
+        <translation type="vanished">Zainstaluj qt6-qtmultimedia dla podglądu wideo. Dostosuj zakres poniżej.</translation>
     </message>
     <message>
-        <location filename="../qml/TrimWindow.qml" line="618"/>
         <source>Start: %1 s</source>
-        <translation>Początek: %1 s</translation>
+        <translation type="vanished">Początek: %1 s</translation>
     </message>
     <message>
-        <location filename="../qml/TrimWindow.qml" line="620"/>
+        <location filename="../qml/TrimWindow.qml" line="893"/>
+        <location filename="../qml/TrimWindow.qml" line="900"/>
         <source>Start</source>
         <translation>Początek</translation>
     </message>
     <message>
-        <location filename="../qml/TrimWindow.qml" line="629"/>
         <source>End: %1 s</source>
-        <translation>Koniec: %1 s</translation>
+        <translation type="vanished">Koniec: %1 s</translation>
     </message>
     <message>
-        <location filename="../qml/TrimWindow.qml" line="631"/>
+        <location filename="../qml/TrimWindow.qml" line="910"/>
+        <location filename="../qml/TrimWindow.qml" line="915"/>
         <source>End</source>
         <translation>Koniec</translation>
     </message>
     <message>
-        <location filename="../qml/TrimWindow.qml" line="648"/>
+        <location filename="../qml/TrimWindow.qml" line="954"/>
         <source>Audio tracks</source>
         <translation>Ścieżki audio</translation>
     </message>
     <message>
-        <location filename="../qml/TrimWindow.qml" line="655"/>
+        <location filename="../qml/TrimWindow.qml" line="959"/>
         <source>(the mix track is rebuilt from the tracks below)</source>
         <translation>(ścieżka miksu jest budowana na nowo z poniższych)</translation>
     </message>
     <message>
-        <location filename="../qml/TrimWindow.qml" line="675"/>
+        <location filename="../qml/TrimWindow.qml" line="979"/>
         <source>Keep track %1</source>
         <translation>Zachowaj ścieżkę %1</translation>
     </message>
     <message>
-        <location filename="../qml/TrimWindow.qml" line="692"/>
+        <location filename="../qml/TrimWindow.qml" line="995"/>
         <source>Volume of %1</source>
         <translation>Głośność %1</translation>
     </message>
     <message>
-        <location filename="../qml/TrimWindow.qml" line="700"/>
+        <location filename="../qml/TrimWindow.qml" line="1004"/>
         <source>off</source>
         <translation>wył.</translation>
     </message>
     <message>
-        <location filename="../qml/TrimWindow.qml" line="740"/>
+        <location filename="../qml/TrimWindow.qml" line="929"/>
         <source>Fast lossless cut</source>
         <translation>Szybkie cięcie bezstratne</translation>
     </message>
     <message>
-        <location filename="../qml/TrimWindow.qml" line="747"/>
+        <location filename="../qml/TrimWindow.qml" line="841"/>
+        <source>Trim options</source>
+        <translation>Opcje przycinania</translation>
+    </message>
+    <message>
+        <location filename="../qml/TrimWindow.qml" line="873"/>
+        <source>Selection</source>
+        <translation>Zaznaczenie</translation>
+    </message>
+    <message>
+        <location filename="../qml/TrimWindow.qml" line="882"/>
+        <source>%1 of %2</source>
+        <extracomment>Trim window: length of the selection, then of the whole recording.</extracomment>
+        <translation>%1 z %2</translation>
+    </message>
+    <message>
+        <location filename="../qml/TrimWindow.qml" line="891"/>
+        <source>Range</source>
+        <translation>Zakres</translation>
+    </message>
+    <message>
+        <location filename="../qml/TrimWindow.qml" line="926"/>
+        <source>Saving</source>
+        <translation>Zapis</translation>
+    </message>
+    <message>
+        <location filename="../qml/TrimWindow.qml" line="934"/>
         <source>Off: the selection is re-encoded and starts on the exact frame.</source>
         <translation>Wyłączone: zaznaczenie zostanie przekodowane i zacznie się na dokładnej klatce.</translation>
     </message>
     <message>
-        <location filename="../qml/TrimWindow.qml" line="749"/>
+        <location filename="../qml/TrimWindow.qml" line="936"/>
         <source>Reading keyframes…</source>
         <translation>Odczyt klatek kluczowych…</translation>
     </message>
     <message>
-        <location filename="../qml/TrimWindow.qml" line="751"/>
+        <location filename="../qml/TrimWindow.qml" line="938"/>
         <source>On: copies the streams, so the start snaps to a keyframe (ticks).</source>
         <translation>Włączone: kopiuje strumienie, więc początek przeskakuje do klatki kluczowej (kreski).</translation>
     </message>
     <message>
-        <location filename="../qml/TrimWindow.qml" line="752"/>
+        <location filename="../qml/TrimWindow.qml" line="939"/>
         <source>No keyframes found - saving will re-encode instead.</source>
         <translation>Nie znaleziono klatek kluczowych - zapis przekoduje nagranie.</translation>
     </message>
     <message>
-        <location filename="../qml/TrimWindow.qml" line="763"/>
+        <location filename="../qml/TrimWindow.qml" line="932"/>
         <source>A GIF is always re-rendered, so the cut lands on the exact frame.</source>
         <translation>GIF jest zawsze renderowany od nowa, więc cięcie trafia w dokładną klatkę.</translation>
     </message>
     <message>
-        <location filename="../qml/TrimWindow.qml" line="772"/>
         <source>Cancel</source>
-        <translation>Anuluj</translation>
+        <translation type="vanished">Anuluj</translation>
     </message>
     <message>
-        <location filename="../qml/TrimWindow.qml" line="774"/>
+        <location filename="../qml/TrimWindow.qml" line="411"/>
         <source>Save trimmed copy</source>
         <translation>Zapisz przyciętą kopię</translation>
     </message>
     <message>
-        <location filename="../qml/TrimWindow.qml" line="829"/>
+        <location filename="../qml/TrimWindow.qml" line="493"/>
         <source>First frame · %1</source>
         <translation>Pierwsza klatka · %1</translation>
     </message>
     <message>
-        <location filename="../qml/TrimWindow.qml" line="830"/>
+        <location filename="../qml/TrimWindow.qml" line="494"/>
         <source>Last frame · %1</source>
         <translation>Ostatnia klatka · %1</translation>
     </message>
     <message>
-        <location filename="../qml/TrimWindow.qml" line="841"/>
+        <location filename="../qml/TrimWindow.qml" line="505"/>
         <source>No video preview available.</source>
         <translation>Brak dostępnego podglądu wideo.</translation>
     </message>

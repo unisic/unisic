@@ -44,6 +44,7 @@ whole per release (not per individual change).
 - **A watermark for instant replays**: Settings > Recording > Replay watermark marks every replay with its own text in the corner you pick, separate from the screenshot watermark.
 - **Progress while saving and uploading**: the top bar shows how far a recording, a GIF or a replay is saved, and how far an upload is, as a percentage with a bar. The capture card shows the upload's progress too.
 - **Uploading and copying the link are separate**: the Capture page's step is now Upload to the server, and copying the link afterwards is its own switch under Settings > Capture > After upload > Show advanced options (still on by default).
+- **A new trim window**: it now looks like the editor, with the file name in the header, Save trimmed copy (<kbd>Ctrl</kbd>+<kbd>S</kbd>) at the top right, the preview with the transport and timeline below it, and the range, the fast lossless cut and the audio tracks in a column on the right. Saving shows its progress in the main window's header.
 
 **Fixed**
 - **No more "Hotkey taken by another app" at every start**: Unisic showed that message on each launch when another program held one of its hotkeys, and also when a release and a dev build of Unisic were both installed and held the same keys. The message is gone. A taken hotkey, the emergency stop included, is now shown in red on Settings > Hotkeys with the name of whoever holds it, or that it is the other Unisic build.
@@ -67,6 +68,7 @@ whole per release (not per individual change).
 - **No black bar beside the recording badge on COSMIC**: the REC badge with its pause and stop buttons showed an opaque black bar to its right while recording. Its window was wider than the badge, and COSMIC drew that unused width black. The window is now exactly as wide as the badge.
 - **Auto-redact bars cover the whole text**: a bar ended where text recognition said the letters end, so the tails of letters such as "y" and "p" and the edge of a slanted first character could show beside it. Bars from Auto-redact and Redact selection now reach a little past the text on every side.
 - **The Auto-redact list stays where it opened**: in the Panels layout the list of shapes sat above the Auto-redact button and grew with every bar, so switching a kind on moved the list down under the pointer. The whole-image actions now come before the list of shapes.
+- **Trimming**: the preview showed a black frame until you pressed play; playing a selection that reaches the end of the file now loops instead of stopping; the recording's own mix track is recognized in Chinese and in files written by ffmpeg 8, so it is no longer listed next to the tracks it is rebuilt from. On Windows the trim window had no video preview at all, because the Windows build shipped without Qt Multimedia; it does now.
 
 ### Polski
 **Dodane**
@@ -104,6 +106,7 @@ whole per release (not per individual change).
 - **Znak wodny powtórki**: Ustawienia > Nagrywanie > Znak wodny powtórki oznacza każdą powtórkę własnym tekstem w wybranym miejscu, niezależnie od znaku wodnego zrzutów.
 - **Postęp zapisu i wysyłania**: górny pasek pokazuje, ile nagrania, GIF-a albo powtórki jest już zapisane i ile pliku wysłano, w procentach i na pasku. Karta przechwycenia też pokazuje postęp wysyłania.
 - **Wysyłanie i kopiowanie linku są osobno**: krok na stronie Przechwytywanie to teraz Wyślij na serwer, a kopiowanie linku po wysłaniu ma własny przełącznik w Ustawienia > Przechwytywanie > Po wysłaniu > Pokaż opcje zaawansowane (nadal domyślnie włączony).
+- **Nowe okno przycinania**: wygląda teraz jak edytor, z nazwą pliku w nagłówku, przyciskiem Zapisz przyciętą kopię (<kbd>Ctrl</kbd>+<kbd>S</kbd>) w prawym górnym rogu, podglądem z przyciskami odtwarzania i osią czasu pod nim oraz zakresem, szybkim cięciem bezstratnym i ścieżkami dźwięku w kolumnie po prawej. Postęp zapisu widać w nagłówku głównego okna.
 
 **Naprawione**
 - **Koniec z komunikatem „Skrót zajęty przez inną aplikację” przy każdym starcie**: Unisic pokazywał go przy każdym uruchomieniu, gdy inny program trzymał któryś z jego skrótów, a także gdy zainstalowane były wersja wydana i deweloperska Unisic i obie trzymały te same klawisze. Komunikatu już nie ma. Zajęty skrót, także awaryjne zatrzymanie, jest teraz pokazywany na czerwono w Ustawieniach > Skróty razem z nazwą tego, kto go trzyma, albo z informacją, że to druga wersja Unisic.
@@ -127,6 +130,7 @@ whole per release (not per individual change).
 - **Brak czarnego paska obok plakietki nagrywania na COSMIC**: plakietka REC z przyciskami pauzy i stopu pokazywała podczas nagrywania nieprzezroczysty czarny pasek po prawej stronie. Jej okno było szersze niż plakietka, a COSMIC rysował niewykorzystaną szerokość na czarno. Okno ma teraz dokładnie szerokość plakietki.
 - **Paski Auto-redakcji zakrywają cały tekst**: pasek kończył się tam, gdzie według rozpoznawania tekstu kończą się litery, więc ogonki liter takich jak „y” i „p” oraz brzeg pochylonego pierwszego znaku mogły wystawać obok niego. Paski z Auto-redakcji i z Zredaguj zaznaczenie sięgają teraz odrobinę poza tekst z każdej strony.
 - **Lista Auto-redakcji zostaje tam, gdzie się otworzyła**: w układzie Panele lista kształtów stała nad przyciskiem Auto-redakcja i rosła z każdym paskiem, więc włączenie rodzaju przesuwało listę w dół pod kursorem. Działania na całym obrazie są teraz przed listą kształtów.
+- **Przycinanie**: podgląd pokazywał czarną klatkę, dopóki nie nacisnęło się odtwarzania; zaznaczenie sięgające końca pliku odtwarza się teraz w pętli zamiast się zatrzymywać; własna ścieżka miksu nagrania jest rozpoznawana po chińsku i w plikach zapisanych przez ffmpeg 8, więc nie pojawia się już obok ścieżek, z których jest odtwarzana. Na Windowsie okno przycinania nie miało w ogóle podglądu wideo, bo wersja dla Windows nie zawierała Qt Multimedia; teraz zawiera.
 
 ## 0.8.9
 

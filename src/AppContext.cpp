@@ -4159,7 +4159,8 @@ void AppContext::showTrimWindow(const QString &path, qreal duration, qreal frame
 }
 
 void AppContext::runTrimStep(const QStringList &args,
-                             std::function<void(bool, const QString &)> done)
+                             std::function<void(bool, const QString &)> done,
+                             qint64 progressMs, qreal from, qreal to)
 {
     const QString ffmpeg = QStandardPaths::findExecutable(QStringLiteral("ffmpeg"));
     if (ffmpeg.isEmpty()) {
@@ -4168,25 +4169,50 @@ void AppContext::runTrimStep(const QStringList &args,
     }
     auto *process = new QProcess(this);
     const auto completed = std::make_shared<bool>(false);
-    process->setProcessChannelMode(QProcess::MergedChannels);
+    QStringList fullArgs = args;
+    if (progressMs > 0) {
+        // Progress on stdout, the diagnostic stays on stderr.
+        fullArgs.prepend(QStringLiteral("pipe:1"));
+        fullArgs.prepend(QStringLiteral("-progress"));
+        setSaveProgress(from);
+        connect(process, &QProcess::readyReadStandardOutput, this,
+                [this, process, progressMs, from, to] {
+            while (process->canReadLine()) {
+                const QByteArray line = process->readLine().trimmed();
+                if (line.startsWith("out_time_us=")) {
+                    const qreal f = qBound(0.0, line.mid(12).toLongLong() / (progressMs * 1000.0), 1.0);
+                    setSaveProgress(from + (to - from) * f);
+                }
+            }
+        });
+    } else {
+        process->setProcessChannelMode(QProcess::MergedChannels);
+    }
+    const bool last = progressMs > 0 && to >= 1.0;
     connect(process, &QProcess::finished, this,
-            [process, completed, done](int code, QProcess::ExitStatus status) {
+            [this, process, completed, done, progressMs, last](int code, QProcess::ExitStatus status) {
         if (*completed)
             return;
         *completed = true;
-        const QString diagnostic = QString::fromUtf8(process->readAll()).trimmed();
+        const QString diagnostic = QString::fromUtf8(progressMs > 0 ? process->readAllStandardError()
+                                                                    : process->readAll()).trimmed();
         process->deleteLater();
-        done(code == 0 && status == QProcess::NormalExit, diagnostic);
+        const bool ok = code == 0 && status == QProcess::NormalExit;
+        if (progressMs > 0 && (last || !ok))
+            setSaveProgress(-1);
+        done(ok, diagnostic);
     });
     connect(process, &QProcess::errorOccurred, this,
-            [this, process, completed, done](QProcess::ProcessError error) {
+            [this, process, completed, done, progressMs](QProcess::ProcessError error) {
         if (error != QProcess::FailedToStart || *completed)
             return;
         *completed = true;
         process->deleteLater();
+        if (progressMs > 0)
+            setSaveProgress(-1);
         done(false, tr("Trimming requires ffmpeg"));
     });
-    process->start(ffmpeg, args);
+    process->start(ffmpeg, fullArgs);
 }
 
 void AppContext::trimGif(const QString &path, const QString &output, qreal start, qreal end)
@@ -4214,6 +4240,7 @@ void AppContext::trimGif(const QString &path, const QString &output, qreal start
     for (const QFileInfo &fi : stale)
         if (fi.lastModified() < cutoff)
             QFile::remove(fi.absoluteFilePath());
+    const qint64 lengthMs = qRound64((end - start) * 1000);
     static quint32 paletteSerial = 0;
     const QString palette = cache.filePath(QStringLiteral("trim-palette-%1-%2.png")
                                                .arg(QCoreApplication::applicationPid())
@@ -4224,7 +4251,7 @@ void AppContext::trimGif(const QString &path, const QString &output, qreal start
                  QStringLiteral("-vf"),
                  range + QLatin1Char(',') + FfmpegUtil::gifPaletteGenFilter(quality),
                  palette},
-                [this, path, output, palette, range, quality](bool ok, const QString &diagnostic) {
+                [this, path, output, palette, range, quality, lengthMs](bool ok, const QString &diagnostic) {
         if (!ok) {
             QFile::remove(palette);
             showToast(tr("Trim failed: %1").arg(diagnostic), true);
@@ -4246,8 +4273,8 @@ void AppContext::trimGif(const QString &path, const QString &output, qreal start
                 return;
             }
             onRecordingFinished(output);
-        });
-    });
+        }, lengthMs, 0.5, 1.0);
+    }, lengthMs, 0.0, 0.5);
 }
 
 void AppContext::trimRecording(const QString &path, qreal startSeconds, qreal endSeconds,
@@ -4380,7 +4407,7 @@ void AppContext::trimRecording(const QString &path, qreal startSeconds, qreal en
             return;
         }
         onRecordingFinished(output);
-    });
+    }, qRound64((endSeconds - startSeconds) * 1000));
 }
 
 void AppContext::runExternalAction(const QImage &image, const QString &savedPath)

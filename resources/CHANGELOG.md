@@ -49,6 +49,7 @@ whole per release (not per individual change).
 - **An on-screen clip indicator**: a small pill at the top of the screen says instant replay turned on (and which key saves it) or off, that a clip is saving, and that it is saved, with its file name. It shows over fullscreen games and never takes a click: through layer-shell on KDE, wlroots and COSMIC, an XWayland/X11 window on GNOME and X11 sessions, a topmost window on Windows. Turn it off in Settings > Clips.
 - **Clips in their own folder**: Settings > Clips > Clips folder; left empty, they stay in the recordings folder.
 - **Clip hotkeys**: a new key turns instant replay on and off, and the existing one is now called "Save clip". Both can also be set in Settings > Clips, next to Start/Stop and Save clip buttons.
+- **A Clips page in the main window**, third in the rail: start, stop and save instant replay, open any recording in the clip editor, see the latest clips (a click opens one for cutting), and keep the clip options at hand in the side column. The page shortcuts follow the rail, so Edit, History, Servers and Settings are now <kbd>Ctrl</kbd>+<kbd>4</kbd> to <kbd>Ctrl</kbd>+<kbd>7</kbd> (<kbd>Ctrl</kbd>+<kbd>,</kbd> still opens Settings).
 - **A tidier Hotkeys tab**: no more half of the actions folded under "show advanced"; every action is in view, in Screenshots, Recording, Clips, and Files and sharing cards.
 
 **Fixed**
@@ -116,6 +117,7 @@ whole per release (not per individual change).
 - **Wskaźnik klipów na ekranie**: mała plakietka u góry ekranu mówi, że powtórka błyskawiczna się włączyła (i który skrót ją zapisuje) albo wyłączyła, że klip się zapisuje i że jest zapisany, z nazwą pliku. Widać ją także nad grami na pełnym ekranie i nigdy nie przechwytuje kliknięć: na KDE, wlroots i COSMIC przez layer-shell, na GNOME i w sesji X11 przez okno XWayland/X11, na Windows jako okno zawsze na wierzchu. Wyłączysz ją w Ustawienia > Klipy.
 - **Klipy w osobnym folderze**: Ustawienia > Klipy > Folder klipów; puste pole zostawia je w folderze nagrań.
 - **Skróty klipów**: nowy skrót włącza i wyłącza powtórkę błyskawiczną, a dotychczasowy nazywa się teraz „Zapisz klip”. Oba można ustawić także w Ustawienia > Klipy, obok przycisków Uruchom/Zatrzymaj i Zapisz klip.
+- **Strona Klipy w głównym oknie**, trzecia na pasku: uruchamia, zatrzymuje i zapisuje powtórkę błyskawiczną, otwiera dowolne nagranie w edytorze klipów, pokazuje ostatnie klipy (kliknięcie otwiera klip do cięcia), a opcje klipów są pod ręką w bocznej kolumnie. Skróty stron idą za kolejnością paska, więc Edycja, Historia, Serwery i Ustawienia to teraz <kbd>Ctrl</kbd>+<kbd>4</kbd> do <kbd>Ctrl</kbd>+<kbd>7</kbd> (<kbd>Ctrl</kbd>+<kbd>,</kbd> dalej otwiera Ustawienia).
 - **Uporządkowana zakładka Skróty**: zamiast połowy akcji schowanej pod „pokaż zaawansowane” każda akcja jest widoczna, w kartach Zrzuty ekranu, Nagrywanie, Klipy oraz Pliki i udostępnianie.
 
 **Naprawione**

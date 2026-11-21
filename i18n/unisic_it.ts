@@ -884,11 +884,13 @@
         <translation>L&apos;aggiornamento si installa in background. Fai clic per aprire Unisic.</translation>
     </message>
     <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="134"/>
         <location filename="../src/AppContext.cpp" line="285"/>
         <source>%1 s</source>
         <translation>%1 s</translation>
     </message>
     <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="135"/>
         <location filename="../src/AppContext.cpp" line="285"/>
         <source>%1 min</source>
         <translation>%1 min</translation>
@@ -2721,6 +2723,106 @@
     </message>
 </context>
 <context>
+    <name>ClipsPage</name>
+    <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="52"/>
+        <source>Clips</source>
+        <translation>Clip</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="58"/>
+        <source>Instant replay is unavailable: this desktop has no ScreenCast portal backend, so nothing can hand Unisic the screen.</source>
+        <translation>La riproduzione istantanea non è disponibile: questo desktop non ha un backend del portale ScreenCast, quindi niente può fornire lo schermo a Unisic.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="60"/>
+        <source>Instant replay is running and keeps the last %1. Save a clip when something worth keeping happens.</source>
+        <translation>La riproduzione istantanea è attiva e conserva gli ultimi %1. Salva una clip quando succede qualcosa da tenere.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="61"/>
+        <source>Instant replay keeps the last moments of the screen in the background. Start it, then save a clip after the moment happened.</source>
+        <translation>La riproduzione istantanea conserva in background gli ultimi momenti dello schermo. Avviala, poi salva una clip dopo che il momento è accaduto.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="71"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="154"/>
+        <source>Instant replay</source>
+        <translation>Riproduzione istantanea</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="88"/>
+        <source>Stop replay</source>
+        <translation>Ferma riproduzione</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="88"/>
+        <source>Start replay</source>
+        <translation>Avvia riproduzione</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="89"/>
+        <source>Running</source>
+        <translation>In corso</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="89"/>
+        <source>Off</source>
+        <translation>Disattivata</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="98"/>
+        <source>Save clip</source>
+        <translation>Salva clip</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="100"/>
+        <source>The last %1</source>
+        <extracomment>%1 is the replay length, e.g. &quot;30 s&quot; or &quot;2 min&quot;.</extracomment>
+        <translation>Gli ultimi %1</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="109"/>
+        <source>Edit a clip</source>
+        <translation>Modifica una clip</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="110"/>
+        <source>Cut any recording</source>
+        <translation>Taglia qualsiasi registrazione</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="123"/>
+        <source>Recent clips</source>
+        <translation>Clip recenti</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="124"/>
+        <source>Saved clips show up here. Click one to cut it.</source>
+        <translation>Le clip salvate compaiono qui. Fai clic su una per tagliarla.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="144"/>
+        <source>Clip options</source>
+        <translation>Opzioni clip</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="174"/>
+        <source>Start automatically</source>
+        <translation>Avvia automaticamente</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="231"/>
+        <source>Open saved clips in the editor</source>
+        <translation>Apri le clip salvate nell’editor</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="266"/>
+        <source>All clip settings</source>
+        <translation>Tutte le impostazioni clip</translation>
+    </message>
+</context>
+<context>
     <name>DesktopNotifier</name>
     <message>
         <location filename="../src/notify/DesktopNotifier.cpp" line="112"/>
@@ -4305,7 +4407,7 @@
         <location filename="../qml/components/HeaderSearch.qml" line="38"/>
         <location filename="../qml/components/HeaderSearch.qml" line="39"/>
         <location filename="../qml/components/HeaderSearch.qml" line="40"/>
-        <location filename="../qml/components/HeaderSearch.qml" line="353"/>
+        <location filename="../qml/components/HeaderSearch.qml" line="354"/>
         <source>Screenshot</source>
         <translation>Screenshot</translation>
     </message>
@@ -4388,6 +4490,7 @@
         <location filename="../qml/components/HeaderSearch.qml" line="50"/>
         <location filename="../qml/components/HeaderSearch.qml" line="51"/>
         <location filename="../qml/components/HeaderSearch.qml" line="52"/>
+        <location filename="../qml/components/HeaderSearch.qml" line="53"/>
         <source>Page</source>
         <translation>Pagina</translation>
     </message>
@@ -4398,103 +4501,108 @@
     </message>
     <message>
         <location filename="../qml/components/HeaderSearch.qml" line="49"/>
+        <source>Clips</source>
+        <translation>Clip</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/HeaderSearch.qml" line="50"/>
         <source>Edit</source>
         <translation>Modifica</translation>
     </message>
     <message>
-        <location filename="../qml/components/HeaderSearch.qml" line="50"/>
+        <location filename="../qml/components/HeaderSearch.qml" line="51"/>
         <source>History</source>
         <translation>Cronologia</translation>
     </message>
     <message>
-        <location filename="../qml/components/HeaderSearch.qml" line="51"/>
+        <location filename="../qml/components/HeaderSearch.qml" line="52"/>
         <source>Servers</source>
         <translation>Server</translation>
     </message>
     <message>
-        <location filename="../qml/components/HeaderSearch.qml" line="52"/>
-        <location filename="../qml/components/HeaderSearch.qml" line="86"/>
-        <location filename="../qml/components/HeaderSearch.qml" line="89"/>
+        <location filename="../qml/components/HeaderSearch.qml" line="53"/>
+        <location filename="../qml/components/HeaderSearch.qml" line="87"/>
+        <location filename="../qml/components/HeaderSearch.qml" line="90"/>
         <source>Settings</source>
         <translation>Impostazioni</translation>
     </message>
     <message>
-        <location filename="../qml/components/HeaderSearch.qml" line="58"/>
+        <location filename="../qml/components/HeaderSearch.qml" line="59"/>
         <source>General</source>
         <comment>Settings category</comment>
         <translation>Generale</translation>
     </message>
     <message>
-        <location filename="../qml/components/HeaderSearch.qml" line="58"/>
+        <location filename="../qml/components/HeaderSearch.qml" line="59"/>
         <source>Capture</source>
         <comment>Settings category</comment>
         <translation>Cattura</translation>
     </message>
     <message>
-        <location filename="../qml/components/HeaderSearch.qml" line="59"/>
+        <location filename="../qml/components/HeaderSearch.qml" line="60"/>
         <source>Recording</source>
         <comment>Settings category</comment>
         <translation>Registrazione</translation>
     </message>
     <message>
-        <location filename="../qml/components/HeaderSearch.qml" line="59"/>
+        <location filename="../qml/components/HeaderSearch.qml" line="60"/>
         <source>Clips</source>
         <comment>Settings category</comment>
         <translation>Clip</translation>
     </message>
     <message>
-        <location filename="../qml/components/HeaderSearch.qml" line="60"/>
+        <location filename="../qml/components/HeaderSearch.qml" line="61"/>
         <source>Editor</source>
         <comment>Settings category</comment>
         <translation>Editor</translation>
     </message>
     <message>
-        <location filename="../qml/components/HeaderSearch.qml" line="61"/>
+        <location filename="../qml/components/HeaderSearch.qml" line="62"/>
         <source>Saving</source>
         <comment>Settings category</comment>
         <translation>Salvataggio</translation>
     </message>
     <message>
-        <location filename="../qml/components/HeaderSearch.qml" line="61"/>
+        <location filename="../qml/components/HeaderSearch.qml" line="62"/>
         <source>Notifications</source>
         <comment>Settings category</comment>
         <translation>Notifiche</translation>
     </message>
     <message>
-        <location filename="../qml/components/HeaderSearch.qml" line="62"/>
+        <location filename="../qml/components/HeaderSearch.qml" line="63"/>
         <source>Appearance</source>
         <comment>Settings category</comment>
         <translation>Aspetto</translation>
     </message>
     <message>
-        <location filename="../qml/components/HeaderSearch.qml" line="62"/>
+        <location filename="../qml/components/HeaderSearch.qml" line="63"/>
         <source>Hotkeys</source>
         <comment>Settings category</comment>
         <translation>Scorciatoie</translation>
     </message>
     <message>
-        <location filename="../qml/components/HeaderSearch.qml" line="64"/>
+        <location filename="../qml/components/HeaderSearch.qml" line="65"/>
         <source>Developer</source>
         <comment>Settings category</comment>
         <translation>Sviluppatore</translation>
     </message>
     <message>
-        <location filename="../qml/components/HeaderSearch.qml" line="89"/>
+        <location filename="../qml/components/HeaderSearch.qml" line="90"/>
         <source>Search settings for &quot;%1&quot;</source>
         <translation>Cerca «%1» nelle impostazioni</translation>
     </message>
     <message>
-        <location filename="../qml/components/HeaderSearch.qml" line="218"/>
+        <location filename="../qml/components/HeaderSearch.qml" line="219"/>
         <source>Search actions, settings and captures</source>
         <translation>Cerca azioni, impostazioni e catture</translation>
     </message>
     <message>
-        <location filename="../qml/components/HeaderSearch.qml" line="320"/>
+        <location filename="../qml/components/HeaderSearch.qml" line="321"/>
         <source>Captures</source>
         <translation>Catture</translation>
     </message>
     <message>
-        <location filename="../qml/components/HeaderSearch.qml" line="353"/>
+        <location filename="../qml/components/HeaderSearch.qml" line="354"/>
         <source>Video</source>
         <translation>Video</translation>
     </message>
@@ -4855,130 +4963,139 @@ Le catture con stella (preferite) nella selezione vengono mantenute - rimuovi pr
 <context>
     <name>Main</name>
     <message>
-        <location filename="../qml/Main.qml" line="143"/>
-        <location filename="../qml/Main.qml" line="204"/>
+        <location filename="../qml/Main.qml" line="144"/>
+        <location filename="../qml/Main.qml" line="206"/>
         <source>Recording in progress. Stop it before closing</source>
         <translation>Registrazione in corso. Interrompila prima di chiudere</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="147"/>
+        <location filename="../qml/Main.qml" line="148"/>
         <source>Close the editor first (unsaved annotations)</source>
         <translation>Chiudi prima l&apos;editor (annotazioni non salvate)</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="179"/>
+        <location filename="../qml/Main.qml" line="181"/>
         <source>Show / hide this list</source>
         <translation>Mostra / nascondi questo elenco</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="180"/>
+        <location filename="../qml/Main.qml" line="182"/>
         <source>Hide window to tray</source>
         <translation>Nascondi la finestra nell&apos;area di notifica</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="181"/>
+        <location filename="../qml/Main.qml" line="183"/>
         <source>Quit Unisic</source>
         <translation>Esci da Unisic</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="182"/>
+        <location filename="../qml/Main.qml" line="184"/>
         <source>Paste an image into the editor</source>
         <translation>Incolla un&apos;immagine nell&apos;editor</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="183"/>
+        <location filename="../qml/Main.qml" line="185"/>
         <source>Open Settings</source>
         <translation>Apri impostazioni</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="184"/>
+        <location filename="../qml/Main.qml" line="186"/>
         <source>Search actions, settings and captures</source>
         <translation>Cerca azioni, impostazioni e catture</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="185"/>
         <source>Jump to a page (Ctrl+1 … Ctrl+6)</source>
-        <translation>Vai a una pagina (Ctrl+1 … Ctrl+6)</translation>
+        <translation type="vanished">Vai a una pagina (Ctrl+1 … Ctrl+6)</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="428"/>
+        <location filename="../qml/Main.qml" line="430"/>
         <source>Open the release notes for this version</source>
         <translation>Apri le note di rilascio di questa versione</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="556"/>
-        <location filename="../qml/Main.qml" line="569"/>
+        <location filename="../qml/Main.qml" line="558"/>
+        <location filename="../qml/Main.qml" line="571"/>
         <source>Saving…</source>
         <translation>Salvataggio…</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="556"/>
-        <location filename="../qml/Main.qml" line="569"/>
+        <location filename="../qml/Main.qml" line="558"/>
+        <location filename="../qml/Main.qml" line="571"/>
         <source>Uploading…</source>
         <translation>Caricamento…</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="756"/>
+        <location filename="../qml/Main.qml" line="639"/>
+        <source>Clips</source>
+        <translation>Clip</translation>
+    </message>
+    <message>
+        <location filename="../qml/Main.qml" line="759"/>
         <source>Unisic did not shut down properly last time. Settings › General › Activity log has the report.</source>
         <translation>Unisic non si è chiuso correttamente l&apos;ultima volta. Il rapporto si trova in Impostazioni › Generale › Registro attività.</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="984"/>
+        <location filename="../qml/Main.qml" line="995"/>
         <source>Unisic cannot open what you dropped</source>
         <translation>Unisic non può aprire ciò che hai trascinato</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="1029"/>
+        <location filename="../qml/Main.qml" line="1040"/>
         <source>Drop to open in the editor</source>
         <translation>Rilascia per aprire nell&apos;editor</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="1030"/>
+        <location filename="../qml/Main.qml" line="1041"/>
         <source>Drop to open in the trim window</source>
         <translation>Rilascia per aprire nella finestra di ritaglio</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="1031"/>
+        <location filename="../qml/Main.qml" line="1042"/>
         <source>Unisic cannot open this</source>
         <translation>Unisic non può aprire questo file</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="1032"/>
+        <location filename="../qml/Main.qml" line="1043"/>
         <source>Drop to try opening it</source>
         <translation>Rilascia per provare ad aprirlo</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="1041"/>
+        <location filename="../qml/Main.qml" line="1052"/>
         <source>Images open in the editor, recordings in the trim window.</source>
         <translation>Le immagini si aprono nell&apos;editor, le registrazioni nella finestra di ritaglio.</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="584"/>
+        <location filename="../qml/Main.qml" line="586"/>
         <source>Minimize</source>
         <translation>Minimizza</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="591"/>
+        <location filename="../qml/Main.qml" line="187"/>
+        <source>Jump to a page (Ctrl+1 … Ctrl+7)</source>
+        <translation>Vai a una pagina (Ctrl+1 … Ctrl+7)</translation>
+    </message>
+    <message>
+        <location filename="../qml/Main.qml" line="593"/>
         <source>Maximize</source>
         <translation>Ingrandisci</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="599"/>
+        <location filename="../qml/Main.qml" line="601"/>
         <source>Close</source>
         <translation>Chiudi</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="635"/>
+        <location filename="../qml/Main.qml" line="637"/>
         <source>Capture</source>
         <translation>Cattura</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="636"/>
+        <location filename="../qml/Main.qml" line="638"/>
         <source>Record</source>
         <translation>Registra</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="637"/>
+        <location filename="../qml/Main.qml" line="640"/>
         <source>Edit</source>
         <translation>Modifica</translation>
     </message>
@@ -4987,59 +5104,59 @@ Le catture con stella (preferite) nella selezione vengono mantenute - rimuovi pr
         <translation type="vanished">Libreria</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="360"/>
+        <location filename="../qml/Main.qml" line="362"/>
         <source>Unisic %1</source>
         <extracomment>Spoken name of the version chip in the header: %1 is the version.</extracomment>
         <translation>Unisic %1</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="361"/>
+        <location filename="../qml/Main.qml" line="363"/>
         <source>Open the release notes</source>
         <translation>Apri le note di rilascio</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="499"/>
+        <location filename="../qml/Main.qml" line="501"/>
         <source>(paused)</source>
         <translation>(in pausa)</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="368"/>
+        <location filename="../qml/Main.qml" line="370"/>
         <source>What&apos;s new</source>
         <translation>Novità</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="517"/>
+        <location filename="../qml/Main.qml" line="519"/>
         <source>Resume recording</source>
         <translation>Riprendi la registrazione</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="518"/>
+        <location filename="../qml/Main.qml" line="520"/>
         <source>Pause recording</source>
         <translation>Metti in pausa la registrazione</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="526"/>
+        <location filename="../qml/Main.qml" line="528"/>
         <source>Stop recording</source>
         <translation>Ferma registrazione</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="397"/>
-        <location filename="../qml/Main.qml" line="427"/>
+        <location filename="../qml/Main.qml" line="399"/>
+        <location filename="../qml/Main.qml" line="429"/>
         <source>See patch notes</source>
         <translation>Vedi le novità</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="650"/>
+        <location filename="../qml/Main.qml" line="653"/>
         <source>History</source>
         <translation>Cronologia</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="651"/>
+        <location filename="../qml/Main.qml" line="654"/>
         <source>Servers</source>
         <translation>Server</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="659"/>
+        <location filename="../qml/Main.qml" line="662"/>
         <source>Settings</source>
         <translation>Impostazioni</translation>
     </message>
@@ -5789,6 +5906,7 @@ Le catture con stella (preferite) nella selezione vengono mantenute - rimuovi pr
         <translation type="vanished">Tiene ogni sorgente su una traccia dedicata con nome per il montaggio. Servono almeno due sorgenti, altrimenti la registrazione ha comunque una sola traccia.</translation>
     </message>
     <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="160"/>
         <location filename="../qml/pages/RecordPage.qml" line="510"/>
         <source>Replay length</source>
         <translation>Durata riproduzione</translation>
@@ -5845,11 +5963,13 @@ Le catture con stella (preferite) nella selezione vengono mantenute - rimuovi pr
         <translation>Includi il cursore del mouse</translation>
     </message>
     <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="192"/>
         <location filename="../qml/pages/RecordPage.qml" line="461"/>
         <source>Record system audio</source>
         <translation>Registra l&apos;audio di sistema</translation>
     </message>
     <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="201"/>
         <location filename="../qml/pages/RecordPage.qml" line="470"/>
         <source>Record microphone</source>
         <translation>Registra il microfono</translation>
@@ -6479,6 +6599,7 @@ Disattivato o non supportato: viene mostrata invece una notifica desktop nativa 
         <translation>Una cattura a schermo intero non dà alcun riscontro visivo, quindi può essere difficile capire se è avvenuta. Scegli un segnale incluso - Otturatore, Clic, Bip, Ding o Pop - un suono personalizzato, oppure Spento. I suoni personalizzati sono file .wav/.ogg in ~/.config/unisic/sounds (aggiungili lì o con il pulsante +). Il suono viene riprodotto tramite l&apos;audio di sistema (pw-play/paplay/aplay).</translation>
     </message>
     <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="184"/>
         <location filename="../qml/pages/SettingsPage.qml" line="2362"/>
         <location filename="../qml/pages/SettingsPage.qml" line="3333"/>
         <source>Off</source>
@@ -8626,6 +8747,7 @@ Si applica alla prossima cattura.</translation>
         <translation>Scorciatoia: avvia o ferma la riproduzione istantanea.</translation>
     </message>
     <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="210"/>
         <location filename="../qml/pages/SettingsPage.qml" line="2320"/>
         <source>On-screen indicator</source>
         <translation>Indicatore a schermo</translation>
@@ -9209,11 +9331,13 @@ Si applica alla prossima cattura.</translation>
         <translation>All&apos;avvio di Unisic: dall&apos;avvio finché non lo fermi. Mentre è in esecuzione un gioco: giochi avviati da Steam e, su Linux, giochi che usano GameMode (Lutris, Heroic, gamemoderun); si ferma alla chiusura del gioco. Avviare una registrazione lo mette in pausa, poi riprende.</translation>
     </message>
     <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="184"/>
         <location filename="../qml/pages/SettingsPage.qml" line="2362"/>
         <source>When Unisic starts</source>
         <translation>All&apos;avvio di Unisic</translation>
     </message>
     <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="185"/>
         <location filename="../qml/pages/SettingsPage.qml" line="2362"/>
         <source>While a game is running</source>
         <translation>Mentre è in esecuzione un gioco</translation>
@@ -9244,6 +9368,7 @@ Si applica alla prossima cattura.</translation>
         <translation>Posizione della filigrana del replay</translation>
     </message>
     <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="228"/>
         <location filename="../qml/pages/SettingsPage.qml" line="2399"/>
         <source>Clip editor</source>
         <translation>Editor di clip</translation>
@@ -9259,6 +9384,7 @@ Si applica alla prossima cattura.</translation>
         <translation>Un replay istantaneo salvato si apre nella finestra di taglio, pronto da tagliare e condividere.</translation>
     </message>
     <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="240"/>
         <location filename="../qml/pages/SettingsPage.qml" line="2406"/>
         <source>Default frame</source>
         <translation>Inquadratura predefinita</translation>
@@ -9269,6 +9395,8 @@ Si applica alla prossima cattura.</translation>
         <translation>L’inquadratura con cui si apre la finestra di taglio. Il verticale va bene per TikTok, Shorts e Reels.</translation>
     </message>
     <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="245"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="257"/>
         <location filename="../qml/pages/SettingsPage.qml" line="2411"/>
         <location filename="../qml/pages/SettingsPage.qml" line="2422"/>
         <source>As recorded</source>
@@ -9290,6 +9418,7 @@ Si applica alla prossima cattura.</translation>
         <translation>Quadrato 1:1</translation>
     </message>
     <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="252"/>
         <location filename="../qml/pages/SettingsPage.qml" line="2417"/>
         <source>Default clip size</source>
         <translation>Dimensione clip predefinita</translation>

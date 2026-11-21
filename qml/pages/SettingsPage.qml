@@ -883,7 +883,7 @@ Item {
             onClicked: nav._activate()
         }
 
-        // UKeys keeps the window shortcuts (Ctrl+1..6, Ctrl+,) bubbling past a
+        // UKeys keeps the window shortcuts (Ctrl+1..7, Ctrl+,) bubbling past a
         // focused rail row.
         activeFocusOnTab: true
         Keys.onSpacePressed: (e) => UKeys.activate(e, nav._activate)
@@ -1398,7 +1398,7 @@ Item {
                                 onClicked: settingsVersion._activate()
                             }
 
-                            // UKeys keeps the window's Ctrl+1..6, Ctrl+, and
+                            // UKeys keeps the window's Ctrl+1..7, Ctrl+, and
                             // Ctrl+/ bubbling past a focused version label.
                             activeFocusOnTab: true
                             Keys.onSpacePressed: (e) => UKeys.activate(e, settingsVersion._activate)

@@ -1213,17 +1213,19 @@
         <translation>更新会在后台自动安装。点击打开 Unisic。</translation>
     </message>
     <message>
-        <location line="+85"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="+134"/>
+        <location filename="../src/AppContext.cpp" line="+85"/>
         <source>%1 s</source>
         <translation>%1 秒</translation>
     </message>
     <message>
-        <location line="+0"/>
+        <location line="+1"/>
+        <location filename="../src/AppContext.cpp" line="+0"/>
         <source>%1 min</source>
         <translation>%1 分钟</translation>
     </message>
     <message>
-        <location line="+2"/>
+        <location filename="../src/AppContext.cpp" line="+2"/>
         <source>Instant replay on</source>
         <translation>即时回放已开启</translation>
     </message>
@@ -2629,6 +2631,106 @@
         <location line="+1"/>
         <source>Open Settings at Hotkeys</source>
         <translation>打开设置中的快捷键</translation>
+    </message>
+</context>
+<context>
+    <name>ClipsPage</name>
+    <message>
+        <location filename="../qml/pages/ClipsPage.qml" line="-83"/>
+        <source>Clips</source>
+        <translation>剪辑</translation>
+    </message>
+    <message>
+        <location line="+6"/>
+        <source>Instant replay is unavailable: this desktop has no ScreenCast portal backend, so nothing can hand Unisic the screen.</source>
+        <translation>即时回放不可用：此桌面没有 ScreenCast 门户后端，无法向 Unisic 提供屏幕画面。</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>Instant replay is running and keeps the last %1. Save a clip when something worth keeping happens.</source>
+        <translation>即时回放正在运行，保留最近 %1。发生值得保留的瞬间时保存剪辑。</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Instant replay keeps the last moments of the screen in the background. Start it, then save a clip after the moment happened.</source>
+        <translation>即时回放在后台保留屏幕最近的片刻。先开启它，精彩瞬间发生后再保存剪辑。</translation>
+    </message>
+    <message>
+        <location line="+10"/>
+        <location line="+83"/>
+        <source>Instant replay</source>
+        <translation>即时回放</translation>
+    </message>
+    <message>
+        <location line="-66"/>
+        <source>Stop replay</source>
+        <translation>停止回放</translation>
+    </message>
+    <message>
+        <location line="+0"/>
+        <source>Start replay</source>
+        <translation>开始回放</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Running</source>
+        <translation>运行中</translation>
+    </message>
+    <message>
+        <location line="+0"/>
+        <source>Off</source>
+        <translation>已关闭</translation>
+    </message>
+    <message>
+        <location line="+9"/>
+        <source>Save clip</source>
+        <translation>保存剪辑</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>The last %1</source>
+        <extracomment>%1 is the replay length, e.g. &quot;30 s&quot; or &quot;2 min&quot;.</extracomment>
+        <translation>最近 %1</translation>
+    </message>
+    <message>
+        <location line="+9"/>
+        <source>Edit a clip</source>
+        <translation>编辑剪辑</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Cut any recording</source>
+        <translation>剪辑任意录像</translation>
+    </message>
+    <message>
+        <location line="+13"/>
+        <source>Recent clips</source>
+        <translation>最近的剪辑</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Saved clips show up here. Click one to cut it.</source>
+        <translation>保存的剪辑会显示在这里。点击即可剪辑。</translation>
+    </message>
+    <message>
+        <location line="+20"/>
+        <source>Clip options</source>
+        <translation>剪辑选项</translation>
+    </message>
+    <message>
+        <location line="+30"/>
+        <source>Start automatically</source>
+        <translation>自动开启</translation>
+    </message>
+    <message>
+        <location line="+57"/>
+        <source>Open saved clips in the editor</source>
+        <translation>在编辑器中打开已保存的剪辑</translation>
+    </message>
+    <message>
+        <location line="+35"/>
+        <source>All clip settings</source>
+        <translation>全部剪辑设置</translation>
     </message>
 </context>
 <context>
@@ -4083,12 +4185,12 @@
         <location line="+1"/>
         <location line="+1"/>
         <location line="+1"/>
-        <location line="+313"/>
+        <location line="+314"/>
         <source>Screenshot</source>
         <translation>截图</translation>
     </message>
     <message>
-        <location line="-315"/>
+        <location line="-316"/>
         <source>Region</source>
         <translation>区域</translation>
     </message>
@@ -4166,13 +4268,19 @@
         <location line="+1"/>
         <location line="+1"/>
         <location line="+1"/>
+        <location line="+1"/>
         <source>Page</source>
         <translation>页面</translation>
     </message>
     <message>
-        <location line="-4"/>
+        <location line="-5"/>
         <source>Record</source>
         <translation>录制</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Clips</source>
+        <translation>剪辑</translation>
     </message>
     <message>
         <location line="+1"/>
@@ -4625,18 +4733,18 @@ Starred (favorite) captures in the selection are kept - un-star them first.</sou
 <context>
     <name>Main</name>
     <message>
-        <location filename="../qml/Main.qml" line="+143"/>
-        <location line="+61"/>
+        <location filename="../qml/Main.qml" line="+144"/>
+        <location line="+62"/>
         <source>Recording in progress. Stop it before closing</source>
         <translation>正在录制。请先停止录制再关闭</translation>
     </message>
     <message>
-        <location line="-57"/>
+        <location line="-58"/>
         <source>Close the editor first (unsaved annotations)</source>
         <translation>请先关闭编辑器（有未保存的标注）</translation>
     </message>
     <message>
-        <location line="+32"/>
+        <location line="+33"/>
         <source>Show / hide this list</source>
         <translation>显示 / 隐藏此列表</translation>
     </message>
@@ -4666,12 +4774,11 @@ Starred (favorite) captures in the selection are kept - un-star them first.</sou
         <translation>搜索操作、设置和截图</translation>
     </message>
     <message>
-        <location line="+1"/>
         <source>Jump to a page (Ctrl+1 … Ctrl+6)</source>
-        <translation>跳转到页面（Ctrl+1 … Ctrl+6）</translation>
+        <translation type="vanished">跳转到页面（Ctrl+1 … Ctrl+6）</translation>
     </message>
     <message>
-        <location line="+243"/>
+        <location line="+244"/>
         <source>Open the release notes for this version</source>
         <translation>打开此版本的更新日志</translation>
     </message>
@@ -4688,12 +4795,17 @@ Starred (favorite) captures in the selection are kept - un-star them first.</sou
         <translation>正在上传…</translation>
     </message>
     <message>
-        <location line="+187"/>
+        <location line="+68"/>
+        <source>Clips</source>
+        <translation>剪辑</translation>
+    </message>
+    <message>
+        <location line="+120"/>
         <source>Unisic did not shut down properly last time. Settings › General › Activity log has the report.</source>
         <translation>Unisic 上次没有正常退出。报告见设置 › 通用 › 活动日志。</translation>
     </message>
     <message>
-        <location line="+228"/>
+        <location line="+236"/>
         <source>Unisic cannot open what you dropped</source>
         <translation>Unisic 无法打开你拖入的内容</translation>
     </message>
@@ -4723,12 +4835,17 @@ Starred (favorite) captures in the selection are kept - un-star them first.</sou
         <translation>图像在编辑器中打开，录像在剪辑窗口中打开。</translation>
     </message>
     <message>
-        <location line="-457"/>
+        <location line="-466"/>
         <source>Minimize</source>
         <translation>最小化</translation>
     </message>
     <message>
-        <location line="+7"/>
+        <location line="-399"/>
+        <source>Jump to a page (Ctrl+1 … Ctrl+7)</source>
+        <translation>跳转到页面 (Ctrl+1 … Ctrl+7)</translation>
+    </message>
+    <message>
+        <location line="+406"/>
         <source>Maximize</source>
         <translation>最大化</translation>
     </message>
@@ -4748,7 +4865,7 @@ Starred (favorite) captures in the selection are kept - un-star them first.</sou
         <translation>录制</translation>
     </message>
     <message>
-        <location line="+1"/>
+        <location line="+2"/>
         <source>Edit</source>
         <translation>编辑</translation>
     </message>
@@ -4757,7 +4874,7 @@ Starred (favorite) captures in the selection are kept - un-star them first.</sou
         <translation type="vanished">素材库</translation>
     </message>
     <message>
-        <location line="-277"/>
+        <location line="-278"/>
         <source>Unisic %1</source>
         <extracomment>Spoken name of the version chip in the header: %1 is the version.</extracomment>
         <translation>Unisic %1</translation>
@@ -4799,7 +4916,7 @@ Starred (favorite) captures in the selection are kept - un-star them first.</sou
         <translation>查看更新日志</translation>
     </message>
     <message>
-        <location line="+223"/>
+        <location line="+224"/>
         <source>History</source>
         <translation>历史记录</translation>
     </message>
@@ -5531,12 +5648,13 @@ Starred (favorite) captures in the selection are kept - un-star them first.</sou
         <translation>为每个音频源保留一条独立的命名音轨以便编辑，第一条音轨为完整混音。需要两个或更多音频源，否则录制仍只有一条音轨。</translation>
     </message>
     <message>
-        <location line="+11"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="-106"/>
+        <location filename="../qml/pages/RecordPage.qml" line="+11"/>
         <source>Replay length</source>
         <translation>回放长度</translation>
     </message>
     <message>
-        <location line="+17"/>
+        <location filename="../qml/pages/RecordPage.qml" line="+17"/>
         <source>GIF has no audio track. For a clip with sound, switch to Video mode and record an MP4 or WebM instead.</source>
         <translation>GIF 没有音轨。如果要带声音的片段，请切换到视频模式，录制 MP4 或 WebM。</translation>
     </message>
@@ -5574,17 +5692,19 @@ Starred (favorite) captures in the selection are kept - un-star them first.</sou
         <translation>0 = 不限</translation>
     </message>
     <message>
-        <location line="+42"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="+32"/>
+        <location filename="../qml/pages/RecordPage.qml" line="+42"/>
         <source>Record system audio</source>
         <translation>录制系统音频</translation>
     </message>
     <message>
         <location line="+9"/>
+        <location filename="../qml/pages/RecordPage.qml" line="+9"/>
         <source>Record microphone</source>
         <translation>录制麦克风</translation>
     </message>
     <message>
-        <location line="-38"/>
+        <location filename="../qml/pages/RecordPage.qml" line="-38"/>
         <source>Include mouse cursor</source>
         <translation>包含鼠标指针</translation>
     </message>
@@ -6064,13 +6184,14 @@ Starred (favorite) captures in the selection are kept - un-star them first.</sou
         <translation>全屏截图没有屏幕反馈，所以很难察觉是否已经截图。可以选择内置提示音（快门、点击、蜂鸣、叮、弹响）、自定义音效，或关闭。自定义音效是 ~/.config/unisic/sounds 下的 .wav/.ogg 文件（可以直接放进去，或用 + 按钮添加）。音效通过系统音频播放（pw-play/paplay/aplay）。</translation>
     </message>
     <message>
-        <location line="-962"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="-17"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="-962"/>
         <location line="+971"/>
         <source>Off</source>
         <translation>关</translation>
     </message>
     <message>
-        <location line="+1"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="+1"/>
         <source>Shutter</source>
         <translation>快门</translation>
     </message>
@@ -8165,12 +8286,13 @@ Applies to the next capture.</source>
         <translation>快捷键：开启或停止即时回放。</translation>
     </message>
     <message>
-        <location line="-1890"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="+26"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="-1890"/>
         <source>On-screen indicator</source>
         <translation>屏幕指示</translation>
     </message>
     <message>
-        <location line="+1"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="+1"/>
         <source>A small sign at the top of the screen when instant replay starts or stops, and when a clip is saving or saved.</source>
         <translation>即时回放开启或停止、剪辑正在保存或已保存时，在屏幕顶部显示一个小提示。</translation>
     </message>
@@ -9151,17 +9273,19 @@ Applies to the next capture.</source>
         <translation>Unisic 启动时：从启动开始，直到你停止它。游戏运行时：由 Steam 启动的游戏，以及 Linux 上使用 GameMode 的游戏（Lutris、Heroic、gamemoderun）；游戏关闭时停止。开始录制会暂停它，录制结束后恢复。</translation>
     </message>
     <message>
-        <location line="+4"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="-26"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="+4"/>
         <source>When Unisic starts</source>
         <translation>Unisic 启动时</translation>
     </message>
     <message>
-        <location line="+0"/>
+        <location line="+1"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="+0"/>
         <source>While a game is running</source>
         <translation>游戏运行时</translation>
     </message>
     <message>
-        <location line="+6"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="+6"/>
         <source>Replay watermark</source>
         <translation>回放水印</translation>
     </message>
@@ -9203,12 +9327,13 @@ Applies to the next capture.</source>
         <translation>把每个来源写成各自命名的轨道，而不是混在一起。</translation>
     </message>
     <message>
-        <location line="+195"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="+43"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="+195"/>
         <source>Clip editor</source>
         <translation>剪辑编辑器</translation>
     </message>
     <message>
-        <location line="+2"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="+2"/>
         <source>Open saved replays in the clip editor</source>
         <translation>在剪辑编辑器中打开已保存的回放</translation>
     </message>
@@ -9218,23 +9343,26 @@ Applies to the next capture.</source>
         <translation>保存的即时回放会在裁剪窗口中打开，可直接剪辑和分享。</translation>
     </message>
     <message>
-        <location line="+4"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="+12"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="+4"/>
         <source>Default frame</source>
         <translation>默认画幅</translation>
     </message>
     <message>
-        <location line="+1"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="+1"/>
         <source>The frame the trim window starts with. Vertical fits TikTok, Shorts and Reels.</source>
         <translation>裁剪窗口启动时使用的画幅。竖屏适合 TikTok、Shorts 和 Reels。</translation>
     </message>
     <message>
-        <location line="+4"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="+5"/>
+        <location line="+12"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="+4"/>
         <location line="+11"/>
         <source>As recorded</source>
         <translation>与录制相同</translation>
     </message>
     <message>
-        <location line="-11"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="-11"/>
         <source>Landscape 16:9</source>
         <translation>横屏 16:9</translation>
     </message>
@@ -9249,12 +9377,13 @@ Applies to the next capture.</source>
         <translation>方形 1:1</translation>
     </message>
     <message>
-        <location line="+6"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="-5"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="+6"/>
         <source>Default clip size</source>
         <translation>默认剪辑尺寸</translation>
     </message>
     <message>
-        <location line="+1"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="+1"/>
         <source>Scales a saved clip so its shorter side has this many pixels. Never enlarges.</source>
         <translation>缩放保存的剪辑，使其短边为此像素数。不会放大。</translation>
     </message>

@@ -2334,6 +2334,11 @@ Item {
                             onActivated: (i) => App.settings.clipIndicatorStyle = ids[i]
                         }
                     }
+                    ClipOsdPreview {
+                        width: parent.width
+                        look: App.settings.clipIndicatorStyle
+                        opacity: App.settings.clipIndicator ? 1 : 0.5
+                    }
                     Text {
                         id: clipDirLabel
                         text: qsTr("Clips folder")
@@ -2379,8 +2384,47 @@ Item {
                     SettingRow {
                         label: qsTr("Keep the whole session")
                         help: qsTr("Stopping instant replay saves everything it recorded as one session recording, to cut clips from later on the Clips page.")
-                        helpDetail: qsTr("Up to the last 4 hours of a session, on disk in the cache while it runs: about 2 to 15 GB per hour, depending on the screen and the quality. Save clip still saves only the replay length. A change applies the next time instant replay starts.")
+                        helpDetail: qsTr("Up to the last 4 hours of a session, written into the session recordings folder while it runs: about 2 to 15 GB per hour, depending on the screen and the quality. Save clip still saves only the replay length. A change applies the next time instant replay starts.")
                         USwitch { checked: App.settings.clipKeepSession; onToggled: (c) => App.settings.clipKeepSession = c }
+                    }
+                    Text {
+                        id: sessionDirLabel
+                        text: qsTr("Session recordings folder")
+                        color: Theme.textSecondary
+                        opacity: App.settings.clipKeepSession ? 1 : 0.5
+                        font.pixelSize: Theme.fontS
+                    }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Pick a big second drive here: the session is also recorded into this folder while it runs, not onto the system disk.")
+                        color: Theme.textTertiary
+                        opacity: App.settings.clipKeepSession ? 1 : 0.5
+                        font.pixelSize: Theme.fontS
+                    }
+                    Row {
+                        width: parent.width
+                        spacing: Theme.spacingM
+                        enabled: App.settings.clipKeepSession
+                        readonly property string dir: App.settings.clipSessionDirectory.trim() !== ""
+                                                      ? App.settings.clipSessionDirectory
+                                                      : App.settings.clipSaveDirectory.trim() !== ""
+                                                        ? App.settings.clipSaveDirectory
+                                                        : App.settings.videoSaveDirectory
+                        UTextField {
+                            width: parent.width - 110 - Theme.spacingM
+                            accessibleName: sessionDirLabel.text
+                            placeholder: qsTr("Same as clips: %1").arg(App.settings.clipSaveDirectory.trim() !== ""
+                                                                       ? App.settings.clipSaveDirectory
+                                                                       : App.settings.videoSaveDirectory)
+                            text: App.settings.clipSessionDirectory
+                            onEdited: (t) => App.settings.clipSessionDirectory = t
+                        }
+                        UButton {
+                            width: 110; text: qsTr("Open"); variant: "tonal"
+                            accessibleDescription: sessionDirLabel.text
+                            onClicked: App.openDirectory(parent.dir)
+                        }
                     }
                     SettingRow {
                         label: qsTr("Start instant replay automatically")

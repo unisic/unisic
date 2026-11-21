@@ -318,4 +318,9 @@ private:
     void watchProgress(QProcess *p, qint64 totalMs, qreal from, qreal to);
     void exportReplaySnapshot(const QString &snapshot, const QStringList &linked, bool session = false);
     QString replayStem(const QString &kind, const QString &game) const;
+    // Clips: clipSaveDirectory, else recordings. Sessions: clipSessionDirectory,
+    // else the clips folder. The session ring sits hidden inside the latter.
+    static QString clipDirectory(const Settings *settings);
+    static QString sessionDirectory(const Settings *settings);
+    static QString sessionRingBase(const Settings *settings);
 };

@@ -166,6 +166,7 @@ class Settings : public QObject
     Q_PROPERTY(QString clipIndicatorStyle READ clipIndicatorStyle WRITE setClipIndicatorStyle NOTIFY clipIndicatorStyleChanged)
     Q_PROPERTY(QString clipSource READ clipSource WRITE setClipSource NOTIFY clipSourceChanged)
     Q_PROPERTY(bool clipKeepSession READ clipKeepSession WRITE setClipKeepSession NOTIFY clipKeepSessionChanged)
+    Q_PROPERTY(QString clipSessionDirectory READ clipSessionDirectory WRITE setClipSessionDirectory NOTIFY clipSessionDirectoryChanged)
     Q_PROPERTY(QStringList recentGames READ recentGames WRITE setRecentGames NOTIFY recentGamesChanged)
     Q_PROPERTY(QString hotkeyReplayToggle READ hotkeyReplayToggle WRITE setHotkeyReplayToggle NOTIFY hotkeyReplayToggleChanged)
     Q_PROPERTY(QString hotkeyInstantReplay READ hotkeyInstantReplay WRITE setHotkeyInstantReplay NOTIFY hotkeyInstantReplayChanged)
@@ -684,11 +685,14 @@ public:
     // The replay ring keeps the whole session (up to GifRecorder::kSessionSeconds) instead
     // of the last instantReplaySeconds, and stopping it saves the session as
     // one recording to cut clips from later.
+    U_SETTING(bool, clipKeepSession, setClipKeepSession, "clips/keepSession", false)
+    // Where session recordings and their ring go; empty = the clips folder.
+    // A big second disk is the point: the ring of a 4 h session is tens of GB.
+    U_SETTING(QString, clipSessionDirectory, setClipSessionDirectory, "clips/sessionDirectory", QString())
     // What instant replay records: "screen" (the monitor under the pointer)
     // or "window" (the game's window, else the window in front when it starts;
     // AppContext::startReplayRing).
     U_SETTING(QString, clipSource, setClipSource, "clips/source", QStringLiteral("screen"))
-    U_SETTING(bool, clipKeepSession, setClipKeepSession, "clips/keepSession", false)
     // Games GameDetector saw, newest first, "<epoch seconds>\t<name>", at
     // most 12 (AppContext::noteRecentGame).
     U_SETTING(QStringList, recentGames, setRecentGames, "clips/recentGames", QStringList())
@@ -873,7 +877,7 @@ public:
         emit replayWatermarkEnabledChanged(); emit replayWatermarkTextChanged(); emit replayWatermarkPositionChanged();
         emit clipOpenReplayChanged(); emit clipAspectChanged(); emit clipShortSideChanged();
         emit clipSaveDirectoryChanged(); emit clipIndicatorChanged(); emit hotkeyReplayToggleChanged();
-        emit clipIndicatorStyleChanged(); emit clipKeepSessionChanged(); emit clipSourceChanged(); emit recentGamesChanged();
+        emit clipIndicatorStyleChanged(); emit clipKeepSessionChanged(); emit clipSessionDirectoryChanged(); emit clipSourceChanged(); emit recentGamesChanged();
         emit showCapturePopupChanged(); emit capturePopupPositionChanged();
         emit capturePopupDurationSecChanged(); emit capturePopupStyleChanged(); emit capturePopupMarginChanged();
         emit hiddenNotifActionsChanged(); emit notificationActionOrderChanged();
@@ -1014,6 +1018,7 @@ signals:
     void clipIndicatorChanged();
     void clipIndicatorStyleChanged();
     void clipKeepSessionChanged();
+    void clipSessionDirectoryChanged();
     void clipSourceChanged();
     void recentGamesChanged();
     void hotkeyReplayToggleChanged();

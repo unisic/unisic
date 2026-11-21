@@ -847,16 +847,25 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
     const QString tmpBase = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
     QDir().mkpath(tmpBase);
     if (m_output == Replay) {
-        m_replayDir = tmpBase + QStringLiteral("/unisic-replay-ring");
+        // A session ring grows to tens of GB: it lives on the sessions disk,
+        // which also keeps the rename aside on one filesystem. The cache when
+        // that folder cannot be made (an unmounted drive).
+        const QString sessionBase = sessionRingBase(m_settings);
+        QString ringBase = tmpBase;
+        if (m_keepSession && QDir().mkpath(sessionBase) && QFileInfo(sessionBase).isWritable())
+            ringBase = sessionBase;
+        m_replayDir = ringBase + QStringLiteral("/unisic-replay-ring");
         QDir(m_replayDir).removeRecursively();
         // Sessions a crash left behind; a running session export keeps its own.
         QStringList exporting;
         for (QProcess *p : findChildren<QProcess *>(Qt::FindDirectChildrenOnly))
             exporting << p->property("sessionDir").toString();
-        for (const QFileInfo &stale : QDir(tmpBase).entryInfoList(
-                 {QStringLiteral("unisic-replay-ring-session-*")}, QDir::Dirs | QDir::NoDotAndDotDot)) {
-            if (!exporting.contains(stale.absoluteFilePath()))
-                QDir(stale.absoluteFilePath()).removeRecursively();
+        for (const QString &base : {tmpBase, sessionBase}) {
+            for (const QFileInfo &stale : QDir(base).entryInfoList(
+                     {QStringLiteral("unisic-replay-ring-session-*")}, QDir::Dirs | QDir::NoDotAndDotDot)) {
+                if (!exporting.contains(stale.absoluteFilePath()))
+                    QDir(stale.absoluteFilePath()).removeRecursively();
+            }
         }
         QDir().mkpath(m_replayDir);
         m_tempPath = m_replayDir + QStringLiteral("/segment-%03d.mkv");
@@ -1626,6 +1635,32 @@ void GifRecorder::setReplayGame(const QString &name)
         m_sessionGame = name;
 }
 
+// The hidden .unisic-ring a session left in the user's folder, once empty.
+static void dropEmptyRingBase(const QString &ringOrSession)
+{
+    const QFileInfo base(QFileInfo(ringOrSession).path());
+    if (base.fileName() == QLatin1String(".unisic-ring"))
+        QDir().rmdir(base.filePath());
+}
+
+QString GifRecorder::clipDirectory(const Settings *settings)
+{
+    const QString dir = settings->clipSaveDirectory().trimmed();
+    return dir.isEmpty() ? settings->videoSaveDirectory() : dir;
+}
+
+QString GifRecorder::sessionDirectory(const Settings *settings)
+{
+    const QString dir = settings->clipSessionDirectory().trimmed();
+    return dir.isEmpty() ? clipDirectory(settings) : dir;
+}
+
+// Hidden, so the sessions folder shows recordings only.
+QString GifRecorder::sessionRingBase(const Settings *settings)
+{
+    return sessionDirectory(settings) + QStringLiteral("/.unisic-ring");
+}
+
 // "Unisic_Replay_<stamp>" or "Unisic_Session_<stamp>", "_<game>" after it
 // when one was detected, with what a file name cannot hold made a dash.
 QString GifRecorder::replayStem(const QString &kind, const QString &game) const
@@ -1668,9 +1703,7 @@ void GifRecorder::exportReplaySnapshot(const QString &snapshot, const QStringLis
         return;
     }
 
-    QString outDir = m_settings->clipSaveDirectory().trimmed();
-    if (outDir.isEmpty())
-        outDir = m_settings->videoSaveDirectory();
+    const QString outDir = session ? sessionDirectory(m_settings) : clipDirectory(m_settings);
     QDir().mkpath(outDir);
     const QString stem = session ? replayStem(QStringLiteral("Session"), m_sessionGame)
                                  : replayStem(QStringLiteral("Replay"), m_replayGame);
@@ -1701,6 +1734,7 @@ void GifRecorder::exportReplaySnapshot(const QString &snapshot, const QStringLis
         }
         process->deleteLater();
         QDir(snapshot).removeRecursively();
+        dropEmptyRingBase(snapshot);
         if (code != 0 || status != QProcess::NormalExit) {
             QFile::remove(out);
             emit replayExportFailed(diagnostic.isEmpty() ? tr("Instant replay export failed")
@@ -1722,6 +1756,7 @@ void GifRecorder::exportReplaySnapshot(const QString &snapshot, const QStringLis
         process->deleteLater();
         QFile::remove(out);
         QDir(snapshot).removeRecursively();
+        dropEmptyRingBase(snapshot);
         emit replayExportFailed(tr("Instant replay export failed"));
     });
     QStringList exportArgs{QStringLiteral("-y"), QStringLiteral("-nostats"),
@@ -2310,8 +2345,10 @@ void GifRecorder::cleanup()
         m_replaySnapshotDir.clear();
     }
     m_audioFifoPaths.clear();
-    if (!m_replayDir.isEmpty())
+    if (!m_replayDir.isEmpty()) {
         QDir(m_replayDir).removeRecursively();
+        dropEmptyRingBase(m_replayDir);
+    }
     m_replayDir.clear();
     m_encodeCrop = {};
     m_encodeSize = {};

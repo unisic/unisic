@@ -362,6 +362,8 @@ qt_add_qml_module(unisic
         qml/components/SourceTile.qml
         qml/components/ActionTile.qml
         qml/components/RecentStrip.qml
+        qml/components/ClipOsdPill.qml
+        qml/components/ClipOsdPreview.qml
         qml/components/HeaderButton.qml
         qml/components/WindowOutline.qml
         qml/components/FilterToggle.qml

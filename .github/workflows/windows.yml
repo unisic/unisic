@@ -61,10 +61,12 @@ jobs:
           # libarchive writes ZIP exports; the configure stops without it.
           # cppwinrt is the header-only C++/WinRT projection Windows OCR is
           # written against (HAVE_WIN32_OCR); nothing of it is bundled.
+          # qt6-multimedia is the trim window's video preview, imported from
+          # QML only: without it the window opened with no picture at all.
           pacboy: >-
             cmake:p ninja:p gcc:p pkgconf:p
             qt6-base:p qt6-declarative:p qt6-svg:p qt6-imageformats:p
-            qt6-tools:p qt6-translations:p
+            qt6-tools:p qt6-translations:p qt6-multimedia:p
             tesseract-ocr:p tesseract-data-eng:p tesseract-data-pol:p
             leptonica:p zxing-cpp:p ffmpeg:p libarchive:p cppwinrt:p
 

@@ -2396,6 +2396,12 @@ Item {
                         helpDetail: qsTr("Burned into the replay while it records, so saving stays a quick copy. A change applies the next time instant replay starts.")
                         USwitch { checked: App.settings.replayWatermarkEnabled; onToggled: (c) => App.settings.replayWatermarkEnabled = c }
                     }
+                    WatermarkPreview {
+                        width: parent.width
+                        visible: App.settings.replayWatermarkEnabled
+                        source: App.replayWatermarkPreviewSource
+                        caption: qsTr("A sample frame, stamped by the same code your instant replays go through.")
+                    }
                     SettingRow {
                         visible: App.settings.replayWatermarkEnabled
                         label: qsTr("Watermark type")
@@ -3211,52 +3217,11 @@ Item {
                     // a screenshot gets. The mock has a light half and a dark
                     // one on purpose: a mark that reads over one can vanish over
                     // the other, and opacity and size are what decide it.
-                    Column {
+                    WatermarkPreview {
                         width: parent.width
-                        spacing: Theme.spacingXS
                         visible: App.settings.watermarkEnabled
-                        Rectangle {
-                            width: parent.width
-                            height: Math.round(width * 0.56)
-                            radius: Theme.radiusM
-                            color: Theme.surface
-                            border.width: 1
-                            border.color: Theme.divider
-                            clip: true
-                            Image {
-                                anchors.fill: parent
-                                anchors.margins: 1
-                                // Asked for in device pixels so the preview is
-                                // sharp on a scaled display; the provider paints
-                                // exactly what is requested.
-                                sourceSize: Qt.size(
-                                    Math.max(1, Math.round(width * (Screen.devicePixelRatio || 1))),
-                                    Math.max(1, Math.round(height * (Screen.devicePixelRatio || 1))))
-                                source: App.watermarkPreviewSource
-                                // Synchronous ON PURPOSE: `true` here moves the
-                                // provider onto a worker thread, where it reads
-                                // AppContext's settings unlocked. It refuses and
-                                // warns rather than racing, so this is a blank
-                                // box, not a crash - but make the provider
-                                // thread-safe before flipping it.
-                                asynchronous: false
-                                // Every setting change mints a new URL; caching
-                                // them would grow the pixmap cache for the whole
-                                // session over one drag of the opacity slider.
-                                cache: false
-                                fillMode: Image.PreserveAspectFit
-                                Accessible.role: Accessible.Graphic
-                                Accessible.name: qsTr("Watermark preview")
-                                Accessible.description: qsTr("A sample capture with the current watermark settings applied.")
-                            }
-                        }
-                        Text {
-                            width: parent.width
-                            wrapMode: Text.WordWrap
-                            text: qsTr("A sample capture, stamped by the same code your screenshots go through.")
-                            color: Theme.textTertiary
-                            font.pixelSize: Theme.fontS
-                        }
+                        source: App.watermarkPreviewSource
+                        caption: qsTr("A sample capture, stamped by the same code your screenshots go through.")
                     }
                     SettingRow {
                         available: App.settings.watermarkEnabled

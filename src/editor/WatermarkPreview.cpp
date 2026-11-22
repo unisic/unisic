@@ -2,6 +2,8 @@
 
 #include "AppContext.h"
 #include "ImageEffects.h"
+#include "Settings.h"
+#include "record/GifRecorder.h"
 
 #include <QLoggingCategory>
 #include <QThread>
@@ -15,7 +17,9 @@ WatermarkPreviewProvider::WatermarkPreviewProvider(const AppContext *app)
 QImage WatermarkPreviewProvider::requestImage(const QString &id, QSize *size,
                                               const QSize &requestedSize)
 {
-    Q_UNUSED(id) // revision only: it exists to make QML re-request the image
+    // "<rev>" is the screenshot watermark, "replay/<rev>" the instant replay's;
+    // the revision only makes QML re-request the image.
+    const bool replay = id.startsWith(QLatin1String("replay/"));
     // GUI thread only, and checked rather than assumed. stampWatermark reads
     // AppContext's settings and its cached watermark image with no lock, which
     // is safe exactly as long as QML calls this on the thread that owns them -
@@ -32,8 +36,12 @@ QImage WatermarkPreviewProvider::requestImage(const QString &id, QSize *size,
                              ? requestedSize
                              : QSize(440, 260);
     QImage img = UnisicImageEffects::mockCapture(target);
-    if (m_app)
+    if (m_app && replay) {
+        if (m_app->settings()->replayWatermarkEnabled())
+            img = GifRecorder::stampReplayWatermark(m_app->settings(), img, m_app->replayPreviewGame());
+    } else if (m_app) {
         img = m_app->stampWatermark(img);
+    }
     if (size)
         *size = img.size();
     return img;

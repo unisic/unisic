@@ -12,6 +12,7 @@
 // its sound pulled forward against the video. So every packet is laid at the
 // position its QPC timestamp names and the holes are filled with silence.
 #include "AudioCapture.h"
+#include "media/FfmpegUtil.h"
 
 #include <QCoreApplication>
 #include <QDebug>
@@ -795,7 +796,7 @@ std::unique_ptr<AudioCapture> AudioCapture::open(Source source, const QString &d
 QStringList AudioCapture::ffmpegInput() const
 {
     const Format &f = d->s->format;
-    return {QStringLiteral("-thread_queue_size"), QStringLiteral("1024"),
+    return FfmpegUtil::inputThreadQueueSize(1024) + QStringList{
             QStringLiteral("-f"), f.ffmpeg,
             QStringLiteral("-ar"), QString::number(f.rate()),
             QStringLiteral("-ac"), QString::number(f.channels()),

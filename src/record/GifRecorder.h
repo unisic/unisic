@@ -123,6 +123,9 @@ public:
     // The game being played, for the names of the files the ring writes.
     // Empty when none; the session keeps the last game seen while it ran.
     void setReplayGame(const QString &name);
+    // The replay watermark over `img`, as the ring burns it in (and Settings previews it).
+    static QImage stampReplayWatermark(const Settings *settings, const QImage &img,
+                                       const QString &game);
     // The next Window-source start streams this KWin window (a uuid from
     // KWinWindowGeometry::queryWindow) without asking anyone to pick one.
     // Used once, then forgotten.

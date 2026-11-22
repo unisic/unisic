@@ -337,6 +337,147 @@ private:
 // region. Lives only while the countdown ticks — destroyed on the transition to
 // recording so the region interior becomes a genuine gap (no surface to catch
 // mutter's DnD, and nothing over the content being recorded).
+// The scrolling capture's controls: status | divider | Finish | close, the
+// GNOME/X11 stand-in for ScrollCaptureOverlay.qml's badge (no layer-shell, and
+// an in-process fullscreen window covers the monitor there, #148). The parent
+// sends the status line and visibility; clicks go back as "finish"/"cancel".
+class ScrollBadgeWindow : public QRasterWindow
+{
+public:
+    // Colors: Theme primary, textPrimary, accent, textOnAccent, danger, divider.
+    ScrollBadgeWindow(const QPoint &anchor, int maxRight, const QList<QColor> &c,
+                      const QString &finishLabel)
+        : m_bg(c[0]), m_text(c[1]), m_accent(c[2]), m_onAccent(c[3]), m_warn(c[4]),
+          m_border(c[5]), m_finish(finishLabel),
+          m_anchor(anchor), m_maxRight(maxRight)
+    {
+        setFlags(kFrameFlags & ~Qt::WindowTransparentForInput);
+        setFormat(argbFormat(format()));
+        relayout();
+    }
+
+    void setStatus(const QString &status, bool warn)
+    {
+        if (status == m_status && warn == m_warning)
+            return;
+        m_status = status;
+        m_warning = warn;
+        relayout();
+        update();
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter p(this);
+        p.setCompositionMode(QPainter::CompositionMode_Source);
+        p.fillRect(QRect(QPoint(0, 0), size()), Qt::transparent);
+        p.setCompositionMode(QPainter::CompositionMode_SourceOver);
+        p.setRenderHint(QPainter::Antialiasing);
+        const int bh = height();
+        p.setPen(QPen(m_border, 1));
+        p.setBrush(m_bg);
+        p.drawRoundedRect(QRectF(0.5, 0.5, width() - 1, bh - 1), bh / 2.0, bh / 2.0);
+
+        p.setFont(font(true));
+        p.setPen(m_warning ? m_warn : m_text);
+        p.drawText(m_statusRect, Qt::AlignVCenter | Qt::AlignLeft, m_status);
+
+        p.setPen(QPen(m_border, 1));
+        p.drawLine(m_divX, (bh - 18) / 2, m_divX, (bh + 18) / 2);
+
+        // Finish: an accent pill with a check mark, like the overlay's UButton.
+        p.setPen(Qt::NoPen);
+        QColor fill = m_accent;
+        if (m_pressed == 1)
+            fill = fill.darker(115);
+        p.setBrush(fill);
+        p.drawRoundedRect(m_finishRect, m_finishRect.height() / 2.0, m_finishRect.height() / 2.0);
+        p.setPen(QPen(m_onAccent, 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        const QPointF c(m_finishRect.left() + 15, m_finishRect.center().y() + 0.5);
+        p.drawPolyline(QPolygonF({c + QPointF(-4, 0), c + QPointF(-1, 3), c + QPointF(4, -3)}));
+        p.setFont(font(true));
+        p.drawText(m_finishRect.adjusted(25, 0, -12, 0), Qt::AlignVCenter | Qt::AlignLeft, m_finish);
+
+        // Cancel: a plain cross, a pressed disc under it while held.
+        if (m_pressed == 2) {
+            QColor disc = m_text;
+            disc.setAlpha(60);
+            p.setPen(Qt::NoPen);
+            p.setBrush(disc);
+            p.drawEllipse(m_cancelRect);
+        }
+        p.setPen(QPen(m_text, 2, Qt::SolidLine, Qt::RoundCap));
+        const QPointF x = QRectF(m_cancelRect).center();
+        p.drawLine(x + QPointF(-4, -4), x + QPointF(4, 4));
+        p.drawLine(x + QPointF(-4, 4), x + QPointF(4, -4));
+    }
+
+    void mousePressEvent(QMouseEvent *e) override
+    {
+        const QPoint pos = e->position().toPoint();
+        m_pressed = m_finishRect.contains(pos) ? 1 : m_cancelRect.contains(pos) ? 2 : 0;
+        if (m_pressed)
+            update();
+    }
+
+    void mouseReleaseEvent(QMouseEvent *e) override
+    {
+        const int was = m_pressed;
+        m_pressed = 0;
+        update();
+        const QPoint pos = e->position().toPoint();
+        if (was == 1 && m_finishRect.contains(pos)) {
+            const char m[] = "finish\n";
+            (void)::write(1, m, sizeof m - 1);
+        } else if (was == 2 && m_cancelRect.contains(pos)) {
+            const char m[] = "cancel\n";
+            (void)::write(1, m, sizeof m - 1);
+        }
+    }
+
+private:
+    static QFont font(bool bold)
+    {
+        QFont f;
+        f.setPixelSize(13);
+        f.setBold(bold);
+        return f;
+    }
+
+    // Sized to its content and kept inside the screen; the window is exactly
+    // the pill, so there is no transparent padding for a compositor to fill.
+    void relayout()
+    {
+        const int bh = 36;
+        const QFontMetrics fm(font(true));
+        int x = 16;
+        const int statusW = fm.horizontalAdvance(m_status);
+        m_statusRect = QRect(x, 0, statusW, bh);
+        x += statusW + 10;
+        m_divX = x;
+        x += 1 + 10;
+        const int finishW = 25 + fm.horizontalAdvance(m_finish) + 12;
+        m_finishRect = QRect(x, (bh - 26) / 2, finishW, 26);
+        x += finishW + 4;
+        m_cancelRect = QRect(x, (bh - 26) / 2, 26, 26);
+        x += 26 + 6;
+        const int left = std::max(0, std::min(m_anchor.x(), m_maxRight - x));
+        setGeometry(QRect(left, m_anchor.y(), x, bh));
+        setMask(QRegion(0, 0, x, bh));
+    }
+
+    QColor m_bg, m_text, m_accent, m_onAccent, m_warn, m_border;
+    QString m_finish;
+    QString m_status;
+    bool m_warning = false;
+    QPoint m_anchor;
+    int m_maxRight;
+    QRect m_statusRect, m_finishRect, m_cancelRect;
+    int m_divX = 0;
+    int m_pressed = 0; // 0 none, 1 finish, 2 cancel
+};
+
 class CountdownWindow : public QRasterWindow
 {
 public:
@@ -502,6 +643,51 @@ int runRecordBorderHelper(int argc, char *argv[])
         addBar(QRect(frame.left(), region.bottom() + 1, frame.width(), kFramePad));
         addBar(QRect(frame.left(), region.top(), kFramePad, region.height()));
         addBar(QRect(region.right() + 1, region.top(), kFramePad, region.height()));
+    }
+
+    // Scroll mode: [21] "scroll" [22] above|below|inside [23] Finish label
+    // [24..29] badge colors. The frame bars above, plus the scroll controls;
+    // no countdown and no REC badge. stdin is line based here: "v1"/"v0" shows
+    // or hides the controls, "s<0|1><text>" sets the status (1 = warning).
+    if (i + 21 < args.size() && args[i + 21] == QLatin1String("scroll")) {
+        const QString placement = args.value(i + 22);
+        QList<QColor> colors;
+        const QColor fallback[] = {QColor(0x17, 0x15, 0x3B), QColor(Qt::white), accent,
+                                   QColor(0x17, 0x15, 0x3B), QColor(0xff, 0x4d, 0x4d),
+                                   QColor(255, 255, 255, 40)};
+        for (int k = 0; k < 6; ++k)
+            colors << colorArg(24 + k, fallback[k]);
+        const int bh = 36;
+        const int y = placement == QLatin1String("above") ? region.top() - kFramePad - bh - 6
+                    : placement == QLatin1String("inside") ? region.bottom() - bh - 8
+                                                            : region.bottom() + kFramePad + 6;
+        ScrollBadgeWindow badge(QPoint(std::max(sg.left() + 10, region.left()), y),
+                                sg.right() - 10, colors, args.value(i + 23));
+        QByteArray pending;
+        QSocketNotifier input(0, QSocketNotifier::Read);
+        QObject::connect(&input, &QSocketNotifier::activated, &app, [&app, &badge, &pending] {
+            char buf[512];
+            const ssize_t n = ::read(0, buf, sizeof buf);
+            if (n <= 0) {
+                app.quit();
+                return;
+            }
+            pending.append(buf, n);
+            if (pending.size() > 64 * 1024) // a parent that never sends a newline
+                pending.clear();
+            qsizetype nl;
+            while ((nl = pending.indexOf('\n')) >= 0) {
+                const QByteArray line = pending.left(nl);
+                pending.remove(0, nl + 1);
+                if (line == "v1")
+                    badge.show();
+                else if (line == "v0")
+                    badge.hide();
+                else if (line.size() >= 2 && line[0] == 's')
+                    badge.setStatus(QString::fromUtf8(line.mid(2)), line[1] == '1');
+            }
+        });
+        return app.exec();
     }
 
     // Countdown number. Framed: centered in the region interior. countdownOnly:

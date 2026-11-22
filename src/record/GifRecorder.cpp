@@ -219,6 +219,7 @@ void GifRecorder::start(Output output, SourceType source, const QRect &cropPhysi
         m_probeWatcher.setFuture(QtConcurrent::run([] {
             (void)FfmpegUtil::encoders();
             (void)FfmpegUtil::supportsShortestBufDuration();
+            (void)FfmpegUtil::inputThreadQueueSize(2);
         }));
     }
     m_state = Starting;
@@ -868,13 +869,11 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
                      // time it was sampled (see MatroskaRawStream.h). Size,
                      // pixel order and nominal rate are in the header that the
                      // started handler writes first.
-                     QStringLiteral("-f"), QStringLiteral("matroska"),
-                     // A raw packet is a whole frame. 512 here can make ffmpeg
-                     // retain tens of gigabytes independently of QProcess's
-                     // bounded writeCap; two frames absorb hand-off jitter
-                     // without recreating a second large frame reservoir.
-                     QStringLiteral("-thread_queue_size"), QStringLiteral("2"),
-                     QStringLiteral("-i"), QStringLiteral("-")};
+                     QStringLiteral("-f"), QStringLiteral("matroska")};
+    // A raw packet is a whole frame. 512 here can make ffmpeg retain tens of
+    // gigabytes independently of QProcess's bounded writeCap; two frames absorb
+    // hand-off jitter without recreating a second large frame reservoir.
+    args << FfmpegUtil::inputThreadQueueSize(2) << QStringLiteral("-i") << QStringLiteral("-");
     const QByteArray streamHeader = MatroskaRawStream::header(
         m_encodeSize.width(), m_encodeSize.height(), pixFmt, fps);
 
@@ -947,7 +946,7 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
                 continue;
             m_audioFifoPaths << fifo;
             appSerials << st.serial;
-            args << QStringLiteral("-thread_queue_size") << QStringLiteral("1024")
+            args << FfmpegUtil::inputThreadQueueSize(1024)
                  << QStringLiteral("-f") << QStringLiteral("s16le")
                  << QStringLiteral("-ar") << QStringLiteral("48000")
                  << QStringLiteral("-ac") << QStringLiteral("2")
@@ -1608,6 +1607,30 @@ bool GifRecorder::canStreamWindow()
     return m_kwinCast->isAvailable();
 }
 
+// The replay watermark over `img`, as the ring burns it in. Shared with the
+// Settings preview (WatermarkPreviewProvider), so the two cannot drift.
+QImage GifRecorder::stampReplayWatermark(const Settings *settings, const QImage &img,
+                                         const QString &game)
+{
+    // A logo is decoded here, not kept. %date% is the day the stamp is drawn.
+    const int opacity = qBound(10, settings->replayWatermarkOpacity(), 100);
+    const int scale = qBound(10, settings->replayWatermarkScale(), 400);
+    const QString position = settings->replayWatermarkPosition();
+    const QImage logo = settings->replayWatermarkType() == QLatin1String("image")
+                            ? UnisicImageEffects::loadWatermark(settings->replayWatermarkImagePath())
+                            : QImage();
+    // A logo that cannot be read falls back to the text, like the
+    // screenshot watermark: "on" must never quietly mean "off".
+    return !logo.isNull()
+               ? UnisicImageEffects::watermarkImage(img, logo, opacity, position,
+                                                    QStringLiteral("single"), scale)
+               : UnisicImageEffects::watermarkText(
+                     img,
+                     FilenameTemplate::expandStamp(settings->replayWatermarkText(), game,
+                                                   QDate::currentDate()),
+                     opacity, position, QStringLiteral("single"), scale);
+}
+
 // The replay watermark, drawn once into a frame-sized canvas and cropped to
 // what it covers, so each frame blends only that box. Built at ring start and
 // again when the game changes (setReplayGame): with a manual start the game
@@ -1620,23 +1643,7 @@ void GifRecorder::buildReplayStamp()
         return;
     QImage canvas(m_encodeSize, QImage::Format_ARGB32_Premultiplied);
     canvas.fill(Qt::transparent);
-    // A logo is decoded here, not kept. %date% is the day the stamp is drawn.
-    const int opacity = qBound(10, m_settings->replayWatermarkOpacity(), 100);
-    const int scale = qBound(10, m_settings->replayWatermarkScale(), 400);
-    const QString position = m_settings->replayWatermarkPosition();
-    const QImage logo = m_settings->replayWatermarkType() == QLatin1String("image")
-                            ? UnisicImageEffects::loadWatermark(m_settings->replayWatermarkImagePath())
-                            : QImage();
-    // A logo that cannot be read falls back to the text, like the
-    // screenshot watermark: "on" must never quietly mean "off".
-    canvas = !logo.isNull()
-                 ? UnisicImageEffects::watermarkImage(canvas, logo, opacity, position,
-                                                      QStringLiteral("single"), scale)
-                 : UnisicImageEffects::watermarkText(
-                       canvas,
-                       FilenameTemplate::expandStamp(m_settings->replayWatermarkText(),
-                                                     m_replayGame, QDate::currentDate()),
-                       opacity, position, QStringLiteral("single"), scale);
+    canvas = stampReplayWatermark(m_settings, canvas, m_replayGame);
     int left = canvas.width(), top = canvas.height(), right = -1, bottom = -1;
     for (int y = 0; y < canvas.height(); ++y) {
         const QRgb *row = reinterpret_cast<const QRgb *>(canvas.constScanLine(y));

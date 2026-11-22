@@ -188,6 +188,7 @@ class AppContext : public QObject
     // provider image by its URL and would otherwise show the first render for
     // the rest of the session.
     Q_PROPERTY(QString watermarkPreviewSource READ watermarkPreviewSource NOTIFY watermarkPreviewChanged)
+    Q_PROPERTY(QString replayWatermarkPreviewSource READ replayWatermarkPreviewSource NOTIFY replayWatermarkPreviewChanged)
     Q_PROPERTY(bool vaapiAvailable READ vaapiAvailable NOTIFY recordingCapabilitiesChanged)
     Q_PROPERTY(bool nvencAvailable READ nvencAvailable NOTIFY recordingCapabilitiesChanged)
     Q_PROPERTY(bool perAppAudioAvailable READ perAppAudioAvailable CONSTANT)
@@ -341,6 +342,9 @@ public:
     // True when the compositor exposes wlr-layer-shell - the selection overlay
     // uses it so it can appear ABOVE a fullscreen application.
     bool layerShellAvailable() const { return m_layerShellAvailable; }
+    bool recordBorderViaHelper() const;
+    QStringList recordBorderHelperArgs(QRect physRegion, QScreen *screen, int countdown,
+                                       bool countdownOnly) const;
     // Developer smoke-test: sequentially exercises the main app paths and logs
     // pass/fail/skip. Bound to F8 (dev build only) and the Settings > Developer
     // button. smokeTestLog is the running transcript shown in the debug panel.
@@ -511,6 +515,9 @@ public:
     Q_INVOKABLE void checkOcrEngines();
     bool ffmpegAvailable() const;
     QString watermarkPreviewSource() const;
+    QString replayWatermarkPreviewSource() const;
+    // The %game% a replay watermark preview shows: the game now, else the last one played.
+    QString replayPreviewGame() const;
     bool vaapiAvailable() const { return m_vaapiAvailable; }
     bool nvencAvailable() const { return m_nvencAvailable; }
     bool perAppAudioAvailable() const;
@@ -885,6 +892,7 @@ signals:
     void hotkeysAvailableChanged();
     void hotkeyConflictsChanged();
     void watermarkPreviewChanged();
+    void replayWatermarkPreviewChanged();
     void recordingAvailableChanged();
     void scrollCaptureActiveChanged();
     void trayAvailableChanged();
@@ -940,7 +948,8 @@ private:
     QIcon trayIconBadged() const;// trayIcon() + a red recording dot
     void applyTrayIcon();        // push trayIcon() to the live QSystemTrayIcon
     void startWatchFolder();     // follows Settings::watchFolder for good
-    QMenu *buildTrayMenu();      // the tray menu minus Settings::hiddenTrayItems
+    QMenu *buildTrayMenu();
+    void styleTrayMenu(QMenu *menu);      // the tray menu minus Settings::hiddenTrayItems
     struct HotkeyAction {
         QString id;
         QString name;
@@ -1412,6 +1421,7 @@ private:
     // Bumped by every watermark setting; the only thing it does is change the
     // preview's URL so QML re-requests it instead of reusing its cached pixmap.
     int m_watermarkPreviewRev = 0;
+    int m_replayWatermarkPreviewRev = 0;
     // Monotonic copy-request id: the deferred wl-copy mirror only fires when
     // its request is still the newest (GUI-thread only, no atomics).
     quint64 m_clipboardSeq = 0;

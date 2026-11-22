@@ -164,7 +164,7 @@ AppContext::AppContext(QObject *parent)
     m_recorder->setKeystrokeThemeProvider([this]() -> QPair<QColor, QColor> {
         if (m_engine) {
             if (QObject *theme = m_engine->singletonInstance<QObject *>(
-                    QStringLiteral("Unisic"), QStringLiteral("Theme")))
+                    QStringLiteral("Unisic.Kit"), QStringLiteral("Theme")))
                 return {theme->property("keystrokeBg").value<QColor>(),
                         theme->property("keystrokeText").value<QColor>()};
         }
@@ -184,6 +184,14 @@ AppContext::AppContext(QObject *parent)
         connect(m_settings, sig, this, [this] {
             ++m_watermarkPreviewRev;
             emit watermarkPreviewChanged();
+        });
+    for (auto sig : { &Settings::replayWatermarkEnabledChanged, &Settings::replayWatermarkTextChanged,
+                      &Settings::replayWatermarkOpacityChanged, &Settings::replayWatermarkPositionChanged,
+                      &Settings::replayWatermarkTypeChanged, &Settings::replayWatermarkImagePathChanged,
+                      &Settings::replayWatermarkScaleChanged })
+        connect(m_settings, sig, this, [this] {
+            ++m_replayWatermarkPreviewRev;
+            emit replayWatermarkPreviewChanged();
         });
 
     m_updater = new UpdateChecker(m_settings, this);
@@ -1945,6 +1953,10 @@ void AppContext::onGameChanged(const QString &name)
 {
     m_recorder->setReplayGame(name);
     emit currentGameChanged();
+    if (m_settings->replayWatermarkText().contains(QLatin1String("%game%"))) {
+        ++m_replayWatermarkPreviewRev;
+        emit replayWatermarkPreviewChanged();
+    }
     if (name.isEmpty())
         return;
     // "<epoch>\t<name>[\t<cover path>]"; an older cover is kept when this
@@ -3274,15 +3286,10 @@ bool AppContext::capVideoPlayback() const
     return ok;
 }
 
-void AppContext::showRecordBorder(QRect physRegion, QScreen *screen, int countdown,
-                                  bool countdownOnly, const QSize &countdownRef)
+// Whether the record frame, and the scroll capture's frame and controls, are
+// drawn by the XWayland helper (--record-border-helper) instead of in-process.
+bool AppContext::recordBorderViaHelper() const
 {
-    hideRecordBorder(); // retire any stale frame first (also clears the flag)
-    if (!m_engine || !screen || physRegion.isEmpty() || !capRecordBorder())
-        return; // capRecordBorder(): layer-shell, KWin trick, X11 or XWayland helper
-    m_recordBorderCountdownOnly = countdownOnly;
-    noteForceBlur();
-
     // GNOME (Wayland, no layer-shell, no KWin): an in-process toplevel would
     // sink below the next window the user raises - mutter has no keep-above
     // for xdg_toplevel. Spawn the XWayland helper instead: mutter stacks
@@ -3308,30 +3315,68 @@ void AppContext::showRecordBorder(QRect physRegion, QScreen *screen, int countdo
     const bool kwin = bi && bi->isServiceRegistered(QStringLiteral("org.kde.KWin"));
     const bool forceHelper =
         qEnvironmentVariable("UNISIC_RECORD_BORDER") == QLatin1String("helper");
-    if (forceHelper || x11
+    return forceHelper || x11
         || (wayland && !m_layerShellAvailable && !kwin
-            && qEnvironmentVariableIsSet("DISPLAY"))) {
-        const qreal hdpr = screen->devicePixelRatio() > 0 ? screen->devicePixelRatio() : 1.0;
-        const QRect lg = screen->geometry();
-        const QSizeF phys(lg.width() * hdpr, lg.height() * hdpr);
-        // Overlay colors follow the active theme (incl. custom themes); the
-        // fallbacks are the stock tokens. Alpha matters (pill/disc) → HexArgb.
-        QColor accent(QStringLiteral("#C8ACD6"));
-        QColor badgeBg(0, 0, 0, 200), badgeText(Qt::white), dot(QStringLiteral("#FF4D4D"));
-        QColor cdBg(0, 0, 0, 140), cdNumber, frameContrast(0, 0, 0, 140);
-        if (QObject *theme = m_engine->singletonInstance<QObject *>(
-                QStringLiteral("Unisic"), QStringLiteral("Theme"))) {
-            accent = theme->property("accent").value<QColor>();
-            badgeBg = theme->property("recBadgeBg").value<QColor>();
-            badgeText = theme->property("recBadgeText").value<QColor>();
-            dot = theme->property("recDot").value<QColor>();
-            cdBg = theme->property("countdownBg").value<QColor>();
-            cdNumber = theme->property("countdownNumber").value<QColor>();
-            frameContrast = theme->property("recordFrameContrast").value<QColor>();
-        }
-        if (!cdNumber.isValid())
-            cdNumber = accent;
-        const auto frac = [](double v) { return QString::number(v, 'f', 8); };
+            && qEnvironmentVariableIsSet("DISPLAY"));
+}
+
+// The helper's command line for a frame around `physRegion` (screen-local
+// physical px). Callers append mode arguments after it.
+QStringList AppContext::recordBorderHelperArgs(QRect physRegion, QScreen *screen, int countdown,
+                                              bool countdownOnly) const
+{
+    const qreal hdpr = screen->devicePixelRatio() > 0 ? screen->devicePixelRatio() : 1.0;
+    const QRect lg = screen->geometry();
+    const QSizeF phys(lg.width() * hdpr, lg.height() * hdpr);
+    // Overlay colors follow the active theme (incl. custom themes); the
+    // fallbacks are the stock tokens. Alpha matters (pill/disc) → HexArgb.
+    QColor accent(QStringLiteral("#C8ACD6"));
+    QColor badgeBg(0, 0, 0, 200), badgeText(Qt::white), dot(QStringLiteral("#FF4D4D"));
+    QColor cdBg(0, 0, 0, 140), cdNumber, frameContrast(0, 0, 0, 140);
+    if (QObject *theme = m_engine->singletonInstance<QObject *>(
+            QStringLiteral("Unisic.Kit"), QStringLiteral("Theme"))) {
+        accent = theme->property("accent").value<QColor>();
+        badgeBg = theme->property("recBadgeBg").value<QColor>();
+        badgeText = theme->property("recBadgeText").value<QColor>();
+        dot = theme->property("recDot").value<QColor>();
+        cdBg = theme->property("countdownBg").value<QColor>();
+        cdNumber = theme->property("countdownNumber").value<QColor>();
+        frameContrast = theme->property("recordFrameContrast").value<QColor>();
+    }
+    if (!cdNumber.isValid())
+        cdNumber = accent;
+    const auto frac = [](double v) { return QString::number(v, 'f', 8); };
+    return {QStringLiteral("--record-border-helper"),
+            screen->name(),
+            QString::number(lg.x()), QString::number(lg.y()),
+            QString::number(lg.width()), QString::number(lg.height()),
+            QString::number(qRound(phys.width())),
+            QString::number(qRound(phys.height())),
+            frac(physRegion.x() / phys.width()),
+            frac(physRegion.y() / phys.height()),
+            frac(physRegion.width() / phys.width()),
+            frac(physRegion.height() / phys.height()),
+            accent.name(QColor::HexRgb),
+            QString::number(countdown),
+            countdownOnly ? QStringLiteral("1") : QStringLiteral("0"),
+            badgeBg.name(QColor::HexArgb),
+            badgeText.name(QColor::HexArgb),
+            dot.name(QColor::HexArgb),
+            cdBg.name(QColor::HexArgb),
+            cdNumber.name(QColor::HexArgb),
+            frameContrast.name(QColor::HexArgb)};
+}
+
+void AppContext::showRecordBorder(QRect physRegion, QScreen *screen, int countdown,
+                                  bool countdownOnly, const QSize &countdownRef)
+{
+    hideRecordBorder(); // retire any stale frame first (also clears the flag)
+    if (!m_engine || !screen || physRegion.isEmpty() || !capRecordBorder())
+        return; // capRecordBorder(): layer-shell, KWin trick, X11 or XWayland helper
+    m_recordBorderCountdownOnly = countdownOnly;
+    noteForceBlur();
+
+    if (recordBorderViaHelper()) {
         auto *proc = new QProcess(this);
         proc->setProgram(QCoreApplication::applicationFilePath());
         // Same rule as the notification helper: stdout is the protocol, so
@@ -3340,25 +3385,7 @@ void AppContext::showRecordBorder(QRect physRegion, QScreen *screen, int countdo
             DiagLog::appendChildOutput(QStringLiteral("border-helper"),
                                        proc->readAllStandardError());
         });
-        proc->setArguments({QStringLiteral("--record-border-helper"),
-                            screen->name(),
-                            QString::number(lg.x()), QString::number(lg.y()),
-                            QString::number(lg.width()), QString::number(lg.height()),
-                            QString::number(qRound(phys.width())),
-                            QString::number(qRound(phys.height())),
-                            frac(physRegion.x() / phys.width()),
-                            frac(physRegion.y() / phys.height()),
-                            frac(physRegion.width() / phys.width()),
-                            frac(physRegion.height() / phys.height()),
-                            accent.name(QColor::HexRgb),
-                            QString::number(countdown),
-                            countdownOnly ? QStringLiteral("1") : QStringLiteral("0"),
-                            badgeBg.name(QColor::HexArgb),
-                            badgeText.name(QColor::HexArgb),
-                            dot.name(QColor::HexArgb),
-                            cdBg.name(QColor::HexArgb),
-                            cdNumber.name(QColor::HexArgb),
-                            frameContrast.name(QColor::HexArgb)});
+        proc->setArguments(recordBorderHelperArgs(physRegion, screen, countdown, countdownOnly));
         // The helper's badge carries clickable stop/pause controls; a click there
         // arrives as a "stop"/"pause" line on the helper's stdout. Dispatch it
         // like the in-process border's buttons (the resulting paused state is
@@ -3955,6 +3982,22 @@ QImage AppContext::stampWatermark(const QImage &source) const
 QString AppContext::watermarkPreviewSource() const
 {
     return QStringLiteral("image://watermark/%1").arg(m_watermarkPreviewRev);
+}
+
+QString AppContext::replayWatermarkPreviewSource() const
+{
+    return QStringLiteral("image://watermark/replay/%1").arg(m_replayWatermarkPreviewRev);
+}
+
+QString AppContext::replayPreviewGame() const
+{
+    const QString now = currentGame();
+    if (!now.isEmpty())
+        return now;
+    const QStringList recent = m_settings->recentGames();
+    const QString last = recent.isEmpty() ? QString() : recent.first().section(QLatin1Char('\t'), 1, 1);
+    // A name the user would recognise as a game; never written anywhere.
+    return last.isEmpty() ? QStringLiteral("Counter-Strike 2") : last;
 }
 
 QString AppContext::pickWatermarkImage(bool replay)
@@ -6704,9 +6747,10 @@ static QPixmap recolorPixmap(const QString &path, const QColor &color, const QSi
 
 // A QIcon from a bundled sym/<name>.svg, tinted to the menu text colour so it
 // sits right in a native QMenu in both light and dark themes.
-static QIcon trayMenuIcon(const QString &name)
+static QIcon trayMenuIcon(const QString &name, QColor c = QColor())
 {
-    const QColor c = qApp->palette().color(QPalette::WindowText);
+    if (!c.isValid())
+        c = qApp->palette().color(QPalette::WindowText);
     QIcon icon;
     for (int s : {16, 22, 24}) {
         const QPixmap pm = recolorPixmap(
@@ -6786,6 +6830,46 @@ QVariantList AppContext::trayMenuEntries() const
     return out;
 }
 
+// Windows draws the tray menu itself, with the light system style whatever the
+// app's theme, so it is given the theme's colors here, on every open (the theme
+// can change in between). Elsewhere the panel draws it (StatusNotifierItem's
+// DBusMenu) in the desktop's own colors, and the icons keep the palette's tint.
+void AppContext::styleTrayMenu(QMenu *menu)
+{
+    if (QGuiApplication::platformName() != QLatin1String("windows") || !m_engine)
+        return;
+    QObject *theme = m_engine->singletonInstance<QObject *>(QStringLiteral("Unisic.Kit"),
+                                                           QStringLiteral("Theme"));
+    if (!theme)
+        return;
+    const auto c = [theme](const char *token) {
+        return theme->property(token).value<QColor>().name(QColor::HexArgb);
+    };
+    const QString sheet = QStringLiteral(
+        "QMenu { background: %1; color: %2; border: 1px solid %3; padding: 4px; }"
+        "QMenu::item { padding: 6px 24px 6px 8px; border-radius: 4px; }"
+        "QMenu::item:selected { background: %4; }"
+        "QMenu::item:disabled { color: %5; }"
+        "QMenu::icon { padding-left: 10px; }"
+        "QMenu::separator { height: 1px; background: %3; margin: 4px 8px; }"
+        "QMenu::right-arrow { width: 8px; height: 8px; margin-right: 8px; }")
+        .arg(c("surface"), c("textPrimary"), c("divider"), c("surfaceHi"), c("textTertiary"));
+    if (menu->styleSheet() == sheet)
+        return;
+    const QColor text = theme->property("textPrimary").value<QColor>();
+    const std::function<void(QMenu *)> apply = [&](QMenu *m) {
+        m->setStyleSheet(sheet);
+        for (QAction *a : m->actions()) {
+            const QString icon = a->property("symIcon").toString();
+            if (!icon.isEmpty())
+                a->setIcon(trayMenuIcon(icon, text));
+            if (a->menu())
+                apply(a->menu());
+        }
+    };
+    apply(menu);
+}
+
 QMenu *AppContext::buildTrayMenu()
 {
     const QVector<TrayEntry> entries = trayEntryTable(this);
@@ -6814,10 +6898,13 @@ QMenu *AppContext::buildTrayMenu()
             return;
         flushSeparator();
         if (!e.run) {
-            actions.insert(e.id, menu->addMenu(trayMenuIcon(e.icon), e.label)->menuAction());
+            QAction *sub = menu->addMenu(trayMenuIcon(e.icon), e.label)->menuAction();
+            sub->setProperty("symIcon", e.icon);
+            actions.insert(e.id, sub);
             return;
         }
         QAction *a = menu->addAction(trayMenuIcon(e.icon), e.label);
+        a->setProperty("symIcon", e.icon);
         connect(a, &QAction::triggered, this, e.run);
         actions.insert(e.id, a);
     };
@@ -6851,7 +6938,8 @@ QMenu *AppContext::buildTrayMenu()
     // The menu is built once, so anything state-dependent has to be refreshed
     // when it opens - otherwise it shows whatever was true at startup. An entry
     // the user hid has no action here, hence the null checks.
-    connect(menu, &QMenu::aboutToShow, this, [this, actions] {
+    connect(menu, &QMenu::aboutToShow, this, [this, menu, actions] {
+        styleTrayMenu(menu);
         const bool replay = instantReplayActive();
         if (QAction *a = actions.value(QStringLiteral("replay-start"))) {
             a->setVisible(!replay);

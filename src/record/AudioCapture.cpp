@@ -1,5 +1,6 @@
 #include "AudioCapture.h"
 #include "PwDump.h"
+#include "media/FfmpegUtil.h"
 
 #include <QStandardPaths>
 
@@ -30,9 +31,8 @@ std::unique_ptr<AudioCapture> AudioCapture::open(Source source, const QString &d
 
 QStringList AudioCapture::ffmpegInput() const
 {
-    return {QStringLiteral("-f"), QStringLiteral("pulse"),
-            QStringLiteral("-thread_queue_size"), QStringLiteral("1024"),
-            QStringLiteral("-i"), d->device};
+    return QStringList{QStringLiteral("-f"), QStringLiteral("pulse")}
+           << FfmpegUtil::inputThreadQueueSize(1024) << QStringLiteral("-i") << d->device;
 }
 
 bool AudioCapture::inputListAvailable()

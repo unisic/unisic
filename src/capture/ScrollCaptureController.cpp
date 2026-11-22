@@ -16,6 +16,9 @@
 #include <QRegion>
 #include <QMargins>
 #include <QtConcurrent/QtConcurrent>
+#include <QCoreApplication>
+#include <QProcess>
+#include "diag/DiagLog.h"
 #include <LayerShellQt/window.h>
 
 ScrollCaptureController::ScrollCaptureController(AppContext *app, QQmlEngine *engine, QObject *parent)
@@ -24,6 +27,10 @@ ScrollCaptureController::ScrollCaptureController(AppContext *app, QQmlEngine *en
     , m_engine(engine)
 {
     connect(&m_sampleTimer, &QTimer::timeout, this, &ScrollCaptureController::sampleTick);
+    for (auto sig : {&ScrollCaptureController::statusChanged, &ScrollCaptureController::frameCountChanged,
+                     &ScrollCaptureController::stitchedSizeChanged,
+                     &ScrollCaptureController::controlsShownChanged})
+        connect(this, sig, this, &ScrollCaptureController::pushHelperState);
 }
 
 ScrollCaptureController::~ScrollCaptureController()
@@ -131,10 +138,13 @@ void ScrollCaptureController::finish()
 
     // The rows under the badge show only once it is gone: hide it, and the
     // sample ticks finish on a frame without it (finishTick).
-    if (m_coveredRows > 0 && m_window && m_grabber && !m_stitcher.isEmpty()) {
+    if (m_coveredRows > 0 && (m_window || m_helper) && m_grabber && !m_stitcher.isEmpty()) {
         m_finishing = true;
         m_waitTicks = 0;
-        m_window->hide();
+        if (m_window)
+            m_window->hide();
+        if (m_helper)
+            m_helper->write("v0\n");
         return;
     }
     completeFinish(false);
@@ -448,6 +458,10 @@ void ScrollCaptureController::createOverlayWindow()
     closeOverlayWindow();
     if (!m_screen || !m_engine)
         return;
+    if (m_app && m_app->recordBorderViaHelper()) {
+        startHelper();
+        return;
+    }
 
     QQmlComponent component(m_engine, QUrl(QStringLiteral("qrc:/qt/qml/Unisic/qml/ScrollCaptureOverlay.qml")));
     if (component.isError()) {
@@ -499,4 +513,79 @@ void ScrollCaptureController::closeOverlayWindow()
         m_window->deleteLater();
         m_window = nullptr;
     }
+    if (QProcess *p = m_helper) {
+        m_helper = nullptr;
+        p->disconnect(this);
+        connect(p, &QProcess::finished, p, &QObject::deleteLater);
+        // stdin EOF is the helper's only lifeline; the kill only reaps a
+        // wedged one, as for the record frame (AppContext::hideRecordBorder).
+        p->closeWriteChannel();
+        if (p->state() == QProcess::NotRunning)
+            p->deleteLater();
+        else
+            QTimer::singleShot(1000, p, [p] {
+                if (p->state() != QProcess::NotRunning)
+                    p->kill();
+            });
+    }
+}
+
+// GNOME (no layer-shell) and X11: an in-process fullscreen window over the
+// monitor comes out opaque there, covering the screen and the stream we stitch
+// (#148). The record frame's XWayland helper draws the same frame instead, as
+// four bars outside the region, plus the scroll controls in its "scroll" mode.
+// No live preview card on this path: the helper has no stitched image.
+void ScrollCaptureController::startHelper()
+{
+    QStringList args = m_app->recordBorderHelperArgs(m_cropPhysical, m_screen, 0, false);
+    // Same rule as the in-process badge: above when there is room, over the
+    // covered rows when there is none either side, else below.
+    const QString placement = m_coveredRows > 0 ? QStringLiteral("inside")
+                            : m_regionY - 38 - 10 >= 0 ? QStringLiteral("above")
+                                                       : QStringLiteral("below");
+    args << QStringLiteral("scroll") << placement
+         << QCoreApplication::translate("ScrollCaptureOverlay", "Finish");
+    QObject *theme = m_engine->singletonInstance<QObject *>(QStringLiteral("Unisic.Kit"),
+                                                             QStringLiteral("Theme"));
+    for (const char *token : {"primary", "textPrimary", "accent", "textOnAccent", "danger", "divider"})
+        args << (theme ? theme->property(token).value<QColor>().name(QColor::HexArgb) : QString());
+
+    auto *proc = new QProcess(this);
+    proc->setProgram(QCoreApplication::applicationFilePath());
+    proc->setArguments(args);
+    connect(proc, &QProcess::readyReadStandardError, this, [proc] {
+        DiagLog::appendChildOutput(QStringLiteral("scroll-helper"), proc->readAllStandardError());
+    });
+    connect(proc, &QProcess::readyReadStandardOutput, this, [this, proc] {
+        const QList<QByteArray> lines = proc->readAllStandardOutput().split('\n');
+        for (const QByteArray &line : lines) {
+            if (line.trimmed() == "finish")
+                finish();
+            else if (line.trimmed() == "cancel")
+                cancel();
+        }
+    });
+    m_helperSent.clear();
+    m_helper = proc;
+    proc->start();
+    pushHelperState();
+}
+
+void ScrollCaptureController::pushHelperState()
+{
+    if (!m_helper)
+        return;
+    const char *ctx = "ScrollCaptureOverlay";
+    const QString status = m_lostTrack ? QCoreApplication::translate(ctx, "Scrolled too far at once - scroll back a little")
+                         : m_full ? QCoreApplication::translate(ctx, "Size limit reached - press Finish")
+                         : frameCount() <= 1 ? QCoreApplication::translate(ctx, "Scroll down to capture...")
+                         : QCoreApplication::translate(ctx, "%1 × %2 px (%3)")
+                               .arg(stitchedWidth()).arg(stitchedHeight()).arg(frameCount());
+    // Status first, so the controls never show a stale line when they appear.
+    const QByteArray state = QByteArray(m_lostTrack ? "s1" : "s0") + status.toUtf8() + '\n'
+                             + (m_controlsShown && !m_finishing ? "v1\n" : "v0\n");
+    if (state == m_helperSent)
+        return;
+    m_helperSent = state;
+    m_helper->write(state);
 }

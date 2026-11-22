@@ -90,6 +90,8 @@ public:
     static QStringList pauseExciseArgs(const QString &input, const QString &output,
                                        const QList<QPair<qint64, qint64>> &intervalsMs,
                                        bool hasAudio);
+    // Completed ring segments, oldest first (file names in `dir`).
+    static QStringList ringOrder(const QString &dir);
     static int replaySegmentCount(int seconds)
     { return qBound(3, qBound(10, seconds, 3600) / 2 + 2, 1802); }
 
@@ -130,7 +132,9 @@ public:
     // physical px local to `screen`; an empty rect clears it.
     void setOwnFrame(const QRect &physLocal, QScreen *screen, const QColor &accent,
                      const QColor &contrast);
-    // The replay watermark over `img`, as the ring burns it in (and Settings previews it).
+    // Rebuilds the burned-in watermark from the settings (see the .cpp).
+    void buildReplayStamp();
+    // The recording watermark over `img`, as recordings burn it in (and Settings previews it).
     static QImage stampReplayWatermark(const Settings *settings, const QImage &img,
                                        const QString &game);
     // The next Window-source start streams this KWin window (a uuid from
@@ -207,7 +211,6 @@ private:
     // `encoded` and returns it, or returns `encoded` untouched when there is
     // nothing to draw.
     QByteArray compositeCursorOverlay(const QByteArray &encoded, qint64 nowNs);
-    void buildReplayStamp();
     // If the user paused during the recording, excise those wall-clock spans
     // from the intermediate (video + audio together) before conversion, then run
     // `thenConvert`. With no pauses it calls `thenConvert` straight away.

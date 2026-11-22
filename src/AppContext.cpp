@@ -195,6 +195,9 @@ AppContext::AppContext(QObject *parent)
         connect(m_settings, sig, this, [this] {
             ++m_replayWatermarkPreviewRev;
             emit replayWatermarkPreviewChanged();
+            // A running recording picks the change up on its next frame.
+            m_recorder->buildReplayStamp();
+            m_replay->buildReplayStamp();
         });
 
     m_updater = new UpdateChecker(m_settings, this);
@@ -325,15 +328,23 @@ AppContext::AppContext(QObject *parent)
     });
     connect(m_recorder, &GifRecorder::finished, this, [this](const QString &path, const QString &origin) {
         m_converting = false;
+        qInfo() << "Recording finished:" << (path.isEmpty() ? QStringLiteral("no file") : path);
         onRecordingFinished(path, origin);
     });
     connect(m_replay, &GifRecorder::finished, this, [this](const QString &path, const QString &origin) {
         // A clip leaves the ring running; an empty origin is the ring stopping.
         if (origin.isEmpty())
             m_replayStopping = false;
+        if (path.isEmpty())
+            qInfo() << "Instant replay stopped";
+        else
+            qInfo() << "Saved" << origin << path;
         onRecordingFinished(path, origin);
     });
     for (GifRecorder *r : {m_recorder, m_replay}) {
+        connect(r, &GifRecorder::started, this, [r, this] {
+            qInfo() << (r == m_replay ? "Instant replay started" : "Recording started");
+        });
         connect(r, &GifRecorder::saveProgress, this, &AppContext::setSaveProgress);
         connect(r, &GifRecorder::replayExportFailed, this, [this] { setSaveProgress(-1); });
         connect(r, &GifRecorder::failed, this, [this] { setSaveProgress(-1); });
@@ -1041,6 +1052,10 @@ void AppContext::quitApp(const QString &reason)
 
 void AppContext::showToast(const QString &text, bool important)
 {
+    // An important toast is a problem the user was shown; the activity log
+    // keeps it, or a report pasted later has no trace of it.
+    if (important)
+        qWarning().noquote() << "Toast:" << text;
     if (!important && !m_settings->showNotifications())
         return;
     m_toast = text;
@@ -1990,6 +2005,7 @@ QString AppContext::currentGame() const
 // played" (Settings::recentGames, at most 12, one entry per name).
 void AppContext::onGameChanged(const QString &name)
 {
+    m_recorder->setReplayGame(name);
     m_replay->setReplayGame(name);
     emit currentGameChanged();
     if (m_settings->replayWatermarkText().contains(QLatin1String("%game%"))) {
@@ -3681,7 +3697,8 @@ void AppContext::finishRecordingEntry(const QString &path, const QImage &thumb, 
     auto *notif = showCaptureNotification(thumb, path, kind, nowInhibited());
     QPointer<CaptureNotification> np(notif);
 
-    if (m_settings->uploadAfterCapture()) {
+    if (m_settings->uploadAfterCapture()
+        || (origin == QLatin1String("replay") && m_settings->clipUpload())) {
         if (np) np->setUploading(true);
         m_uploads->uploadFile(path, [this, path, historyId, np](const QString &url, const QString &del,
                                                                const QString &err) {

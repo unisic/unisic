@@ -2392,17 +2392,42 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Watermark")
-                        help: qsTr("Marks every instant replay with its own text, separate from the screenshot watermark.")
+                        help: qsTr("Marks every instant replay with its own text or logo, separate from the screenshot watermark.")
                         helpDetail: qsTr("Burned into the replay while it records, so saving stays a quick copy. A change applies the next time instant replay starts.")
                         USwitch { checked: App.settings.replayWatermarkEnabled; onToggled: (c) => App.settings.replayWatermarkEnabled = c }
                     }
                     SettingRow {
                         visible: App.settings.replayWatermarkEnabled
+                        label: qsTr("Watermark type")
+                        UComboBox {
+                            width: 180
+                            model: [qsTr("Text"), qsTr("Logo image")]
+                            currentIndex: App.settings.replayWatermarkType === "image" ? 1 : 0
+                            onActivated: (i) => App.settings.replayWatermarkType = i === 1 ? "image" : "text"
+                        }
+                    }
+                    SettingRow {
+                        visible: App.settings.replayWatermarkEnabled && App.settings.replayWatermarkType !== "image"
                         label: qsTr("Watermark text")
+                        help: qsTr("%game% is the game's name and %date% today's date, both as they are when instant replay starts.")
                         UTextField {
-                            width: 220
+                            width: 260
                             text: App.settings.replayWatermarkText
                             onEdited: (t) => App.settings.replayWatermarkText = t
+                        }
+                    }
+                    SettingRow {
+                        visible: App.settings.replayWatermarkEnabled && App.settings.replayWatermarkType === "image"
+                        label: qsTr("Logo image")
+                        help: App.settings.replayWatermarkImagePath.length > 0
+                              ? App.settings.replayWatermarkImagePath
+                              : qsTr("Choose a PNG, SVG, JPEG or WebP image.")
+                        UButton {
+                            compact: true
+                            variant: "tonal"
+                            text: App.settings.replayWatermarkImagePath.length > 0
+                                  ? qsTr("Change image…") : qsTr("Choose image…")
+                            onClicked: App.pickWatermarkImage(true)
                         }
                     }
                     SettingRow {
@@ -2413,6 +2438,29 @@ Item {
                             model: page.watermarkPosNames
                             currentIndex: Math.max(0, page.watermarkPosIds.indexOf(App.settings.replayWatermarkPosition))
                             onActivated: (i) => App.settings.replayWatermarkPosition = page.watermarkPosIds[i]
+                        }
+                    }
+                    SettingRow {
+                        visible: App.settings.replayWatermarkEnabled
+                        label: qsTr("Size")
+                        help: qsTr("How big the text or logo is, against its default size.")
+                        UValueCombo {
+                            width: 120
+                            values: [50, 75, 100, 125, 150, 200, 300]
+                            from: 10; to: 400
+                            suffix: "%"
+                            value: App.settings.replayWatermarkScale
+                            onChanged: (v) => App.settings.replayWatermarkScale = v
+                        }
+                    }
+                    SettingRow {
+                        visible: App.settings.replayWatermarkEnabled
+                        label: qsTr("Opacity: %1%").arg(App.settings.replayWatermarkOpacity)
+                        USlider {
+                            width: 200
+                            from: 10; to: 100
+                            value: App.settings.replayWatermarkOpacity
+                            onMoved: (v) => App.settings.replayWatermarkOpacity = Math.round(v)
                         }
                     }
                 }

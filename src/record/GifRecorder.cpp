@@ -14,6 +14,7 @@
 #include "record/PipeWireGrabber.h"
 #include "media/FfmpegUtil.h"
 #include "editor/ImageEffects.h"
+#include "FilenameTemplate.h"
 #include "record/X11ShmGrabber.h"
 #include "record/PwDump.h"
 #include "capture/KWinScreencasting.h"
@@ -788,31 +789,7 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
     }
     m_encodeCrop = c;
     m_encodeSize = c.size();
-    m_replayStamp = {};
-    if (m_output == Replay && m_settings->replayWatermarkEnabled()) {
-        QImage canvas(m_encodeSize, QImage::Format_ARGB32_Premultiplied);
-        canvas.fill(Qt::transparent);
-        canvas = UnisicImageEffects::watermarkText(canvas, m_settings->replayWatermarkText(), 80,
-                                                   m_settings->replayWatermarkPosition(),
-                                                   QStringLiteral("single"));
-        int left = canvas.width(), top = canvas.height(), right = -1, bottom = -1;
-        for (int y = 0; y < canvas.height(); ++y) {
-            const QRgb *row = reinterpret_cast<const QRgb *>(canvas.constScanLine(y));
-            for (int x = 0; x < canvas.width(); ++x) {
-                if (qAlpha(row[x])) {
-                    left = qMin(left, x);
-                    right = qMax(right, x);
-                    top = qMin(top, y);
-                    bottom = y;
-                }
-            }
-        }
-        const QRect box = right < 0 ? QRect() : QRect(QPoint(left, top), QPoint(right, bottom));
-        if (!box.isEmpty()) {
-            m_replayStamp = canvas.copy(box);
-            m_replayStampAt = box.topLeft();
-        }
-    }
+    buildReplayStamp();
 
     const int fps = qBound(1, m_output == Gif ? m_settings->gifFps() : m_settings->videoFps(), 60);
     m_fps = fps;
@@ -1631,11 +1608,63 @@ bool GifRecorder::canStreamWindow()
     return m_kwinCast->isAvailable();
 }
 
+// The replay watermark, drawn once into a frame-sized canvas and cropped to
+// what it covers, so each frame blends only that box. Built at ring start and
+// again when the game changes (setReplayGame): with a manual start the game
+// detector only finds the game after the first frames, and %game% would
+// otherwise stay empty for the whole ring.
+void GifRecorder::buildReplayStamp()
+{
+    m_replayStamp = {};
+    if (m_output != Replay || !m_settings->replayWatermarkEnabled() || m_encodeSize.isEmpty())
+        return;
+    QImage canvas(m_encodeSize, QImage::Format_ARGB32_Premultiplied);
+    canvas.fill(Qt::transparent);
+    // A logo is decoded here, not kept. %date% is the day the stamp is drawn.
+    const int opacity = qBound(10, m_settings->replayWatermarkOpacity(), 100);
+    const int scale = qBound(10, m_settings->replayWatermarkScale(), 400);
+    const QString position = m_settings->replayWatermarkPosition();
+    const QImage logo = m_settings->replayWatermarkType() == QLatin1String("image")
+                            ? UnisicImageEffects::loadWatermark(m_settings->replayWatermarkImagePath())
+                            : QImage();
+    // A logo that cannot be read falls back to the text, like the
+    // screenshot watermark: "on" must never quietly mean "off".
+    canvas = !logo.isNull()
+                 ? UnisicImageEffects::watermarkImage(canvas, logo, opacity, position,
+                                                      QStringLiteral("single"), scale)
+                 : UnisicImageEffects::watermarkText(
+                       canvas,
+                       FilenameTemplate::expandStamp(m_settings->replayWatermarkText(),
+                                                     m_replayGame, QDate::currentDate()),
+                       opacity, position, QStringLiteral("single"), scale);
+    int left = canvas.width(), top = canvas.height(), right = -1, bottom = -1;
+    for (int y = 0; y < canvas.height(); ++y) {
+        const QRgb *row = reinterpret_cast<const QRgb *>(canvas.constScanLine(y));
+        for (int x = 0; x < canvas.width(); ++x) {
+            if (qAlpha(row[x])) {
+                left = qMin(left, x);
+                right = qMax(right, x);
+                top = qMin(top, y);
+                bottom = y;
+            }
+        }
+    }
+    const QRect box = right < 0 ? QRect() : QRect(QPoint(left, top), QPoint(right, bottom));
+    if (!box.isEmpty()) {
+        m_replayStamp = canvas.copy(box);
+        m_replayStampAt = box.topLeft();
+    }
+}
+
 void GifRecorder::setReplayGame(const QString &name)
 {
+    const bool changed = name != m_replayGame;
     m_replayGame = name;
     if (!name.isEmpty() && m_state != Idle)
         m_sessionGame = name;
+    if (changed && m_state != Idle && m_output == Replay
+        && m_settings->replayWatermarkText().contains(QLatin1String("%game%")))
+        buildReplayStamp();
 }
 
 // The hidden .unisic-ring a session left in the user's folder, once empty.

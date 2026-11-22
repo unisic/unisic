@@ -158,6 +158,10 @@ class Settings : public QObject
     Q_PROPERTY(bool replayWatermarkEnabled READ replayWatermarkEnabled WRITE setReplayWatermarkEnabled NOTIFY replayWatermarkEnabledChanged)
     Q_PROPERTY(QString replayWatermarkText READ replayWatermarkText WRITE setReplayWatermarkText NOTIFY replayWatermarkTextChanged)
     Q_PROPERTY(QString replayWatermarkPosition READ replayWatermarkPosition WRITE setReplayWatermarkPosition NOTIFY replayWatermarkPositionChanged)
+    Q_PROPERTY(QString replayWatermarkType READ replayWatermarkType WRITE setReplayWatermarkType NOTIFY replayWatermarkTypeChanged)
+    Q_PROPERTY(QString replayWatermarkImagePath READ replayWatermarkImagePath WRITE setReplayWatermarkImagePath NOTIFY replayWatermarkImagePathChanged)
+    Q_PROPERTY(int replayWatermarkOpacity READ replayWatermarkOpacity WRITE setReplayWatermarkOpacity NOTIFY replayWatermarkOpacityChanged)
+    Q_PROPERTY(int replayWatermarkScale READ replayWatermarkScale WRITE setReplayWatermarkScale NOTIFY replayWatermarkScaleChanged)
     Q_PROPERTY(bool clipOpenReplay READ clipOpenReplay WRITE setClipOpenReplay NOTIFY clipOpenReplayChanged)
     Q_PROPERTY(QString clipAspect READ clipAspect WRITE setClipAspect NOTIFY clipAspectChanged)
     Q_PROPERTY(int clipShortSide READ clipShortSide WRITE setClipShortSide NOTIFY clipShortSideChanged)
@@ -668,12 +672,17 @@ public:
     // "game" (while GameDetector sees a game).
     U_SETTING(QString, instantReplayAuto, setInstantReplayAuto,
               "video/instantReplayAuto", QStringLiteral("off"))
-    // The instant replay's own text mark, separate from the screenshot
+    // The instant replay's own mark, separate from the screenshot
     // watermark (image/watermark*): burned into the ring's frames.
     U_SETTING(bool, replayWatermarkEnabled, setReplayWatermarkEnabled, "video/replayWatermarkEnabled", false)
     U_SETTING(QString, replayWatermarkText, setReplayWatermarkText, "video/replayWatermarkText", QStringLiteral("Unisic"))
     U_SETTING(QString, replayWatermarkPosition, setReplayWatermarkPosition,
               "video/replayWatermarkPosition", QStringLiteral("bottom-right"))
+    // "text" or "image"; text expands %game% and %date% once, when the ring starts.
+    U_SETTING(QString, replayWatermarkType, setReplayWatermarkType, "video/replayWatermarkType", QStringLiteral("text"))
+    U_SETTING(QString, replayWatermarkImagePath, setReplayWatermarkImagePath, "video/replayWatermarkImagePath", QString())
+    U_SETTING(int, replayWatermarkOpacity, setReplayWatermarkOpacity, "video/replayWatermarkOpacity", 80)
+    U_SETTING(int, replayWatermarkScale, setReplayWatermarkScale, "video/replayWatermarkScale", 100)
     // Clips (Settings > Clips). A saved instant replay opens in the clip
     // editor; the editor starts with this frame ("original", "16:9", "9:16",
     // "1:1") and output size (shorter side in px, 0 = as recorded).
@@ -891,6 +900,7 @@ public:
         emit separateAudioTracksChanged();
         emit instantReplaySecondsChanged(); emit hotkeyInstantReplayChanged(); emit instantReplayAutoChanged();
         emit replayWatermarkEnabledChanged(); emit replayWatermarkTextChanged(); emit replayWatermarkPositionChanged();
+        emit replayWatermarkTypeChanged(); emit replayWatermarkImagePathChanged(); emit replayWatermarkOpacityChanged(); emit replayWatermarkScaleChanged();
         emit clipOpenReplayChanged(); emit clipAspectChanged(); emit clipShortSideChanged();
         emit clipSaveDirectoryChanged(); emit clipIndicatorChanged(); emit hotkeyReplayToggleChanged();
         emit clipIndicatorStyleChanged(); emit clipKeepSessionChanged(); emit clipSessionDirectoryChanged(); emit clipSystemAudioChanged(); emit clipMicrophoneChanged(); emit clipKeystrokesChanged(); emit clipStatusDotChanged(); emit clipStatusCornerChanged(); emit clipSourceChanged(); emit recentGamesChanged();
@@ -1026,6 +1036,10 @@ signals:
     void replayWatermarkEnabledChanged();
     void replayWatermarkTextChanged();
     void replayWatermarkPositionChanged();
+    void replayWatermarkTypeChanged();
+    void replayWatermarkImagePathChanged();
+    void replayWatermarkOpacityChanged();
+    void replayWatermarkScaleChanged();
     void hotkeyInstantReplayChanged();
     void clipOpenReplayChanged();
     void clipAspectChanged();

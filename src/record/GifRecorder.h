@@ -197,6 +197,7 @@ private:
     // `encoded` and returns it, or returns `encoded` untouched when there is
     // nothing to draw.
     QByteArray compositeCursorOverlay(const QByteArray &encoded, qint64 nowNs);
+    void buildReplayStamp();
     // If the user paused during the recording, excise those wall-clock spans
     // from the intermediate (video + audio together) before conversion, then run
     // `thenConvert`. With no pauses it calls `thenConvert` straight away.

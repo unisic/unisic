@@ -3957,11 +3957,13 @@ QString AppContext::watermarkPreviewSource() const
     return QStringLiteral("image://watermark/%1").arg(m_watermarkPreviewRev);
 }
 
-QString AppContext::pickWatermarkImage()
+QString AppContext::pickWatermarkImage(bool replay)
 {
-    const QString start = m_settings->watermarkImagePath().isEmpty()
+    const QString current = replay ? m_settings->replayWatermarkImagePath()
+                                   : m_settings->watermarkImagePath();
+    const QString start = current.isEmpty()
                               ? QStandardPaths::writableLocation(QStandardPaths::PicturesLocation)
-                              : QFileInfo(m_settings->watermarkImagePath()).absolutePath();
+                              : QFileInfo(current).absolutePath();
     const QString path = QFileDialog::getOpenFileName(
         nullptr, tr("Choose watermark image"), start.isEmpty() ? QDir::homePath() : start,
         tr("Images (*.png *.svg *.svgz *.jpg *.jpeg *.webp)"));
@@ -3980,28 +3982,16 @@ QString AppContext::pickWatermarkImage()
         showToast(tr("Could not load the watermark image"), true);
         return {};
     }
-    m_settings->setWatermarkImagePath(path);
+    if (replay)
+        m_settings->setReplayWatermarkImagePath(path);
+    else
+        m_settings->setWatermarkImagePath(path);
     return path;
 }
 
 void AppContext::refreshWatermarkImage()
 {
-    m_watermarkImage = {};
-    const QString path = m_settings->watermarkImagePath();
-    if (path.isEmpty())
-        return;
-    QImageReader reader(path);
-    reader.setAutoTransform(true);
-    const QSize sourceSize = reader.size();
-    if (!sourceSize.isValid() || sourceSize.width() > 16384 || sourceSize.height() > 16384)
-        return;
-    // Cap the decoded size at 1024 to avoid pinning a huge source, but NEVER
-    // upscale a small logo (KeepAspectRatio would blow a 120px icon up to 1024
-    // and then watermarkImage scales it back down - a double resample that
-    // fringes the alpha edges).
-    if (sourceSize.width() > 1024 || sourceSize.height() > 1024)
-        reader.setScaledSize(sourceSize.scaled(QSize(1024, 1024), Qt::KeepAspectRatio));
-    m_watermarkImage = reader.read().convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    m_watermarkImage = UnisicImageEffects::loadWatermark(m_settings->watermarkImagePath());
 }
 
 QString AppContext::editableKindFor(const QString &path)

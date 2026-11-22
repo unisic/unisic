@@ -580,7 +580,7 @@ public:
     // Region selection -> OCR/QR -> clipboard. No save/history/notification.
     Q_INVOKABLE void captureRegionOcr();
     Q_INVOKABLE void captureWindow();
-    Q_INVOKABLE QString pickWatermarkImage();
+    Q_INVOKABLE QString pickWatermarkImage(bool replay = false);
     // THE watermark step: the after-capture pipeline and the Settings preview
     // both go through here, so a preview cannot show something the capture
     // will not do. Returns the source unchanged (still implicitly shared, no

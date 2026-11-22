@@ -823,6 +823,35 @@ void UploadManager::setBusy(bool b)
     emit busyChanged();
 }
 
+void UploadManager::trackTransfer(QObject *transfer)
+{
+    m_transfers.insert(transfer, {0, 0});
+    connect(transfer, &QObject::destroyed, this, [this, transfer] {
+        m_transfers.remove(transfer); // the key only, never dereferenced
+        emit progressChanged();
+    });
+    emit progressChanged();
+}
+
+void UploadManager::setTransferProgress(const QObject *transfer, qint64 sent, qint64 total)
+{
+    auto it = m_transfers.find(transfer);
+    if (it == m_transfers.end() || total <= 0)
+        return;
+    *it = {sent, total};
+    emit progressChanged();
+}
+
+qreal UploadManager::progress() const
+{
+    qint64 sent = 0, total = 0;
+    for (const auto &t : m_transfers) {
+        sent += t.first;
+        total += t.second;
+    }
+    return total > 0 ? qBound(0.0, qreal(sent) / total, 1.0) : -1;
+}
+
 void UploadManager::uploadFile(const QString &filePath, Callback cb, const QString &primary)
 {
     uploadFileTo(uploadChainFor(primary), filePath, std::move(cb));
@@ -1305,6 +1334,12 @@ void UploadManager::httpUpload(const QJsonObject &dest, const QByteArray &data,
         multi->setParent(reply);
     }
 
+    if (purpose == Purpose::Capture) {
+        trackTransfer(reply);
+        connect(reply, &QNetworkReply::uploadProgress, this, [this, reply](qint64 sent, qint64 total) {
+            setTransferProgress(reply, sent, total);
+        });
+    }
     connect(reply, &QNetworkReply::finished, this, [dest, reply, cb]() {
         reply->deleteLater();
         const QByteArray body = reply->readAll();
@@ -1415,6 +1450,17 @@ static QString s3ErrorOf(const QByteArray &body)
     return c.isEmpty() ? m : (m.isEmpty() ? c : c + QStringLiteral(": ") + m);
 }
 
+// curl's stderr with its -# progress bar taken out: what is left is the error.
+static QString curlErrorText(const QByteArray &stderrText)
+{
+    static const QRegularExpression bar(QStringLiteral("^[#O=\\-\\s]*(\\d+(\\.\\d+)?%)?\\s*$"));
+    QStringList lines;
+    for (const QString &line : QString::fromUtf8(stderrText).split(QRegularExpression(QStringLiteral("[\\r\\n]"))))
+        if (!bar.match(line).hasMatch())
+            lines << line.trimmed();
+    return lines.join(QLatin1Char('\n')).trimmed();
+}
+
 void UploadManager::curlUpload(const QJsonObject &dest, const QByteArray &data,
                                const QString &srcPath, const QString &fileName,
                                const QString &mime, Purpose purpose, Callback cb)
@@ -1460,7 +1506,10 @@ void UploadManager::curlUpload(const QJsonObject &dest, const QByteArray &data,
     const QString s3Region = dest.value(QStringLiteral("s3Region")).toString().trimmed();
     const bool s3 = !s3Region.isEmpty();
     // --fail-with-body keeps S3's error document, which names the actual fault.
-    QStringList args{QStringLiteral("-sS"), s3 ? QStringLiteral("--fail-with-body") : QStringLiteral("--fail"),
+    // -# instead of -s: the progress bar on stderr feeds the upload progress,
+    // and is filtered back out of the error text (curlErrorText).
+    QStringList args{QStringLiteral("-S"), QStringLiteral("-#"),
+                     s3 ? QStringLiteral("--fail-with-body") : QStringLiteral("--fail"),
                      QStringLiteral("--proto"), QStringLiteral("=ftp,ftps,sftp,http,https"),
                      QStringLiteral("-g"),
                      QStringLiteral("--connect-timeout"), QStringLiteral("30"),
@@ -1503,9 +1552,28 @@ void UploadManager::curlUpload(const QJsonObject &dest, const QByteArray &data,
         args << QStringLiteral("--insecure");
 
     auto *proc = new QProcess(this);
+    // stderr is read as it comes (the bar's percentages), so it is collected
+    // here; the bar is a few hundred bytes per second at most.
+    const auto stderrText = std::make_shared<QByteArray>();
+    connect(proc, &QProcess::readyReadStandardError, this, [this, proc, stderrText, purpose] {
+        const QByteArray chunk = proc->readAllStandardError();
+        stderrText->append(chunk);
+        if (purpose != Purpose::Capture)
+            return;
+        static const QRegularExpression percent(QStringLiteral("(\\d+(?:\\.\\d+)?)%"));
+        QRegularExpressionMatchIterator it = percent.globalMatch(QString::fromLatin1(chunk));
+        QString last;
+        while (it.hasNext())
+            last = it.next().captured(1);
+        if (!last.isEmpty())
+            setTransferProgress(proc, qint64(last.toDouble() * 10), 1000);
+    });
+    if (purpose == Purpose::Capture)
+        trackTransfer(proc);
     connect(proc, &QProcess::finished, this,
-            [proc, tmp, dest, safeName, s3, target, cb](int code, QProcess::ExitStatus) {
-        const QString errOut = QString::fromUtf8(proc->readAllStandardError()).trimmed();
+            [proc, tmp, dest, safeName, s3, target, cb, stderrText](int code, QProcess::ExitStatus) {
+        stderrText->append(proc->readAllStandardError());
+        const QString errOut = curlErrorText(*stderrText);
         // curl's stdout is the server's answer. It used to be dropped on the
         // floor, which pinned every curl destination to publicUrlBase + name:
         // a host that replies with the link, or with an id to build one from,

@@ -46,6 +46,7 @@ Rectangle {
         { title: qsTr("Paste from clipboard"), sub: qsTr("Editor"), icon: "line-clipboard", run: function () { App.pasteFromClipboard() } },
         { title: qsTr("Capture"), sub: qsTr("Page"), icon: "line-camera", run: function () { root.navigate(0) } },
         { title: qsTr("Record"), sub: qsTr("Page"), icon: "line-record", run: function () { root.navigate(1) } },
+        { title: qsTr("Clips"), sub: qsTr("Page"), icon: "line-film", run: function () { root.navigate(6) } },
         { title: qsTr("Edit"), sub: qsTr("Page"), icon: "line-pencil", run: function () { root.navigate(2) } },
         { title: qsTr("History"), sub: qsTr("Page"), icon: "line-history", run: function () { root.navigate(3) } },
         { title: qsTr("Servers"), sub: qsTr("Page"), icon: "line-upload", run: function () { root.navigate(4) } },
@@ -56,7 +57,8 @@ Rectangle {
     // the action group above, which translate differently.
     readonly property var settingsTabs: {
         var t = [qsTr("General", "Settings category"), qsTr("Capture", "Settings category"),
-                 qsTr("Recording", "Settings category"), qsTr("Editor", "Settings category"),
+                 qsTr("Recording", "Settings category"), qsTr("Clips", "Settings category"),
+                 qsTr("Editor", "Settings category"),
                  qsTr("Saving", "Settings category"), qsTr("Notifications", "Settings category"),
                  qsTr("Appearance", "Settings category"), qsTr("Hotkeys", "Settings category")]
         if (App.devBuild)
@@ -64,7 +66,7 @@ Rectangle {
         return t
     }
     // Same order and glyphs as SettingsPage.tabIcons; change both together.
-    readonly property var settingsTabIcons: ["line-sliders", "line-camera", "line-record", "line-pencil",
+    readonly property var settingsTabIcons: ["line-sliders", "line-camera", "line-record", "line-film", "line-pencil",
                                              "line-save", "line-bell", "line-palette", "line-keyboard",
                                              "line-terminal"]
 

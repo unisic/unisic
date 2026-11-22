@@ -181,15 +181,20 @@ public:
         return m_pillW;
     }
 
-    // Clip the input shape to the visible pill. On xcb setMask sets the BOUNDING
-    // shape (visual+input): an empty QRegion would RESET to the full rectangle
-    // (catching clicks in the padding), so an explicit pill rect is required —
-    // recomputed only when the pill width actually changes.
+    // Fit the window to the visible pill. The window used to keep its generous
+    // creation width and rely on setMask (on xcb the BOUNDING shape) to hide the
+    // padding, but XWayland under cosmic-comp ignores the bounding shape when
+    // compositing and showed that padding as an opaque black bar beside the
+    // pill. Resizing to the pill leaves no padding to hide; the mask stays so
+    // the input shape is still explicit (an empty QRegion would RESET it to the
+    // full rectangle). Recomputed only when the pill width actually changes.
     void updateInputShape()
     {
         const int bwid = layout();
         if (bwid != m_maskW) {
             m_maskW = bwid;
+            if (bwid > 0 && bwid != width())
+                resize(bwid, height());
             setMask(QRegion(0, 0, bwid, height()));
         }
     }
@@ -509,8 +514,9 @@ int runRecordBorderHelper(int argc, char *argv[])
     }
 
     // REC badge just above the region (or below if there is no room above),
-    // shown only once recording has begun. A fixed generous width means the
-    // ticking clock never needs the window resized. Never in countdownOnly mode
+    // shown only once recording has begun. Placed at the widest badge so it
+    // never runs off the screen's right edge; updateInputShape() then shrinks
+    // the window to the pill whenever its width changes. Never in countdownOnly mode
     // (the overlay is gone the moment recording begins).
     std::unique_ptr<BadgeWindow> badgeWin;
     if (!countdownOnly) {

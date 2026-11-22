@@ -92,6 +92,12 @@ public:
     // Entry fields for one id: filePath, url, deleteUrl, kind, favorite,
     // thumbnail, timestamp. Empty map when the id is gone (evicted/deleted).
     Q_INVOKABLE QVariantMap entryById(quint64 id) const;
+    // CategoryRole of the newest entry for this file, empty when none.
+    QString categoryOfFile(const QString &filePath) const;
+    // Thumbnail of the newest replay, session or clip named after the game
+    // (GifRecorder::replayStem's "_<tag>"), "" when none: "Recently played"
+    // shows it for a game with no art of its own.
+    Q_INVOKABLE QString gameThumbnail(const QString &tag) const;
     // Batch delete (trashing the files), skipping starred entries like remove().
     // One persist, one watch rebuild and one trash cue for the whole batch.
     Q_INVOKABLE void removeByIds(const QVariantList &ids);
@@ -129,7 +135,8 @@ private:
         QString kind;
         QDateTime timestamp;
         bool favorite = false;
-        // "" for an ordinary capture, "replay" for an instant-replay export.
+        // "" for an ordinary capture, "replay" for an instant-replay export,
+        // "session" for a whole replay session, "clip" for one cut from either.
         QString origin;
     };
     // CategoryRole's value for one entry. Entries written before 0.7.1 carry no

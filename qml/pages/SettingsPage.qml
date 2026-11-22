@@ -296,16 +296,16 @@ Item {
     // Categories in the left rail. One category = one thing the user is trying
     // to configure; everything about that thing lives in that one pane
     // (notifications used to be split across three tabs, editor across two).
-    // The Developer category (index 8) only exists in a dev build.
+    // The Developer category (index 9) only exists in a dev build.
     readonly property var tabNames: {
-        var t = [qsTr("General"), qsTr("Capture"), qsTr("Recording"), qsTr("Editor"),
+        var t = [qsTr("General"), qsTr("Capture"), qsTr("Recording"), qsTr("Clips"), qsTr("Editor"),
                  qsTr("Saving"), qsTr("Notifications"), qsTr("Appearance"), qsTr("Hotkeys")]
         if (App.devBuild)
             t.push(qsTr("Developer"))
         return t
     }
     readonly property var tabIcons: {
-        var t = ["line-sliders", "line-camera", "line-record", "line-pencil",
+        var t = ["line-sliders", "line-camera", "line-record", "line-film", "line-pencil",
                  "line-save", "line-bell", "line-palette", "line-keyboard"]
         if (App.devBuild)
             t.push("line-terminal")
@@ -883,7 +883,7 @@ Item {
             onClicked: nav._activate()
         }
 
-        // UKeys keeps the window shortcuts (Ctrl+1..6, Ctrl+,) bubbling past a
+        // UKeys keeps the window shortcuts (Ctrl+1..7, Ctrl+,) bubbling past a
         // focused rail row.
         activeFocusOnTab: true
         Keys.onSpacePressed: (e) => UKeys.activate(e, nav._activate)
@@ -1278,13 +1278,46 @@ Item {
                         }
                     }
                     SettingRow {
+                        id: ocrEngineRow
+                        // Only where there is a choice: Windows OCR on Windows,
+                        // PaddleOCR on Linux. App.ocrEngines is CONSTANT, so
+                        // this is settled per platform at load and never
+                        // toggles under the pointer.
+                        visible: App.ocrEngines.length > 1
+                        readonly property bool win: App.ocrEngines.indexOf("windows") >= 0
+                        readonly property var ids: App.ocrEngines
+                        label: qsTr("OCR engine")
+                        // Only the text changes when the answer lands, so the
+                        // row keeps its place; the combo shows the engine that
+                        // actually runs (OcrEngines::effective()).
+                        help: win && !App.windowsOcrUsable
+                              ? qsTr("No OCR language is installed in Windows. Tesseract reads the text instead.")
+                              : !win && App.settings.ocrEngine === "paddle" && App.ocrEffectiveEngine !== "paddle"
+                                ? qsTr("PaddleOCR cannot run: ONNX Runtime or its model is missing. Tesseract reads the text instead.")
+                                : qsTr("Which recognizer reads the text in your captures.")
+                        Component.onCompleted: if (App.ocrEngines.length > 1) App.checkOcrEngines()
+                        helpDetail: win
+                                    ? qsTr("Windows OCR is built into Windows and reads the languages installed for your Windows account. Tesseract uses its own language packs and the language settings below. When no Windows OCR language is installed, Unisic recognizes with Tesseract instead.")
+                                    : qsTr("PaddleOCR makes far fewer mistakes on screenshots and needs no language packs, but it reads only Latin-script languages and Chinese. Tesseract uses its own language packs and the language settings below, and reads the scripts PaddleOCR cannot, such as Cyrillic, Korean or Arabic.")
+                        UComboBox {
+                            width: 180
+                            // Product names, the same in every language.
+                            readonly property var names: ({ windows: "Windows OCR", tesseract: "Tesseract", paddle: "PaddleOCR" })
+                            model: ocrEngineRow.ids.map((id) => names[id] || id)
+                            currentIndex: Math.max(0, ocrEngineRow.ids.indexOf(App.ocrEffectiveEngine))
+                            onActivated: (i) => App.settings.ocrEngine = ocrEngineRow.ids[i]
+                        }
+                    }
+                    // The language rows below only steer Tesseract.
+                    SettingRow {
+                        available: App.ocrEffectiveEngine === "tesseract"
                         label: qsTr("Detect languages automatically")
                         help: qsTr("Detects the script and recognizes with the matching language pack.")
                         helpDetail: qsTr("No need to know Tesseract language codes. With the OSD data installed (the “osd” Tesseract pack), Unisic detects the script of each capture - Latin, Arabic, Hebrew, Chinese/Japanese/Korean, Devanagari, and so on - and recognizes with just that script's installed packs, which is faster and more accurate than loading them all. Without the OSD pack it falls back to loading every installed pack. Install the packs for the scripts you use.")
                         USwitch { checked: App.settings.ocrAutoLanguage; onToggled: (c) => App.settings.ocrAutoLanguage = c }
                     }
                     SettingRow {
-                        available: !App.settings.ocrAutoLanguage
+                        available: App.ocrEffectiveEngine === "tesseract" && !App.settings.ocrAutoLanguage
                         label: qsTr("OCR languages")
                         help: qsTr("Tesseract language spec used when recognizing text.")
                         helpDetail: qsTr("Combine languages with “+”, e.g. “pol+eng”; each needs its Tesseract langpack installed. OCR also scans QR and bar codes: a code found in the region copies its content instead of the surrounding text.")
@@ -1299,7 +1332,7 @@ Item {
                     // the real "OCR does nothing" trap. The language data is a
                     // separate install that no build flag can supply.
                     Text {
-                        visible: !App.ocrHasLanguages
+                        visible: !App.ocrHasLanguages && App.ocrEffectiveEngine === "tesseract"
                         width: parent.width
                         wrapMode: Text.WordWrap
                         text: qsTr("No Tesseract language pack is installed, so OCR can't recognize anything yet. Install one, e.g. “tesseract-langpack-eng”.")
@@ -1365,7 +1398,7 @@ Item {
                                 onClicked: settingsVersion._activate()
                             }
 
-                            // UKeys keeps the window's Ctrl+1..6, Ctrl+, and
+                            // UKeys keeps the window's Ctrl+1..7, Ctrl+, and
                             // Ctrl+/ bubbling past a focused version label.
                             activeFocusOnTab: true
                             Keys.onSpacePressed: (e) => UKeys.activate(e, settingsVersion._activate)
@@ -1749,7 +1782,7 @@ Item {
                     SettingRow {
                         label: qsTr("Upload to the active server")
                         help: qsTr("Uploads every capture immediately after taking it.")
-                        helpDetail: qsTr("Uses the server selected on the Servers page. The result link can be auto-copied or opened via the options below.")
+                        helpDetail: qsTr("Uses the server selected on the Servers page. What happens with the link afterwards is set under After upload.")
                         USwitch { checked: App.settings.uploadAfterCapture; onToggled: (c) => App.settings.uploadAfterCapture = c }
                     }
                     SettingRow {
@@ -1767,12 +1800,6 @@ Item {
                     width: parent.width
                     spacing: Theme.spacingS
                     SectionTitle { text: qsTr("After upload") }
-                    SettingRow {
-                        label: qsTr("Copy link to clipboard")
-                        help: qsTr("Copies the upload URL once the upload finishes.")
-                        helpDetail: qsTr("Ready to paste anywhere. Combine with auto-upload for a seamless capture-to-link flow.")
-                        USwitch { checked: App.settings.afterUploadCopyLink; onToggled: (c) => App.settings.afterUploadCopyLink = c }
-                    }
                     SettingRow {
                         label: qsTr("Open link in browser")
                         help: qsTr("Opens the uploaded file's URL in your browser.")
@@ -1808,6 +1835,22 @@ Item {
                         help: qsTr("After a capture or recording uploads on its own, its local file goes to the trash.")
                         helpDetail: qsTr("History keeps the entry and its link. Uploads you start by hand keep their file, and so does every capture while an after-capture program is set, because that program may still be reading it.")
                         USwitch { checked: App.settings.afterUploadTrashFile; onToggled: (c) => App.settings.afterUploadTrashFile = c }
+                    }
+                    // Uploading and copying the link are two decisions: the link
+                    // stays in the toast, the notification and History either way.
+                    DisclosureRow {
+                        id: advancedUpload
+                        label: expanded ? qsTr("Hide advanced options")
+                                        : qsTr("Show advanced options")
+                        summary: qsTr("Copy link to clipboard")
+                    }
+                    SettingRow {
+                        visible: advancedUpload.expanded || page.searchActive
+                        discloser: advancedUpload
+                        label: qsTr("Copy link to clipboard")
+                        help: qsTr("Copies the upload URL once the upload finishes.")
+                        helpDetail: qsTr("Separate from uploading: when off, the link is still shown after the upload and kept in History, and your clipboard keeps what it had.")
+                        USwitch { checked: App.settings.afterUploadCopyLink; onToggled: (c) => App.settings.afterUploadCopyLink = c }
                     }
                 }
             }
@@ -1998,12 +2041,6 @@ Item {
                             value: App.settings.recordCountdownSec
                             onChanged: (v) => App.settings.recordCountdownSec = v
                         }
-                    }
-                    SettingRow {
-                        label: qsTr("Instant replay length")
-                        help: qsTr("Keeps only the most recent encoded seconds while replay is active.")
-                        helpDetail: qsTr("The ring uses fixed-count two-second segments in the disk cache, not raw frames in RAM. Saving snapshots completed segments without stopping the ring.")
-                        UValueCombo { width: 130; values: [10,15,30,60,120,300,600]; from: 10; to: 600; suffix: " s"; value: App.settings.instantReplaySeconds; onChanged: (v) => App.settings.instantReplaySeconds = v }
                     }
                 }
             }
@@ -2215,12 +2252,391 @@ Item {
 
         // ===== Editor (3): everything about annotating — defaults, session
         // persistence, background removal, the tool set and its icons. =====
+        // Clips: the instant replay that catches a moment, and the clip editor
+        // (trim window) defaults that shape how it is cut and shared.
         Loader {
             anchors.fill: parent
             readonly property int tabIndex: 3
             visible: page.tab === 3 || page.searchPanesWanted
             opacity: (page.tab === 3 && !page.searchActive) ? 1 : 0
             enabled: page.tab === 3 && !page.searchActive
+            property bool touched: false
+            active: touched || visible
+            asynchronous: page.searchActive && !touched
+            onLoaded: {
+                if (!page.searchActive)
+                    latchTimer.restart()
+                else
+                    Qt.callLater(page.rebuildSearch)
+            }
+            sourceComponent: ScrollPane {
+            // Four groups in the order a user decides them: when replay runs,
+            // what a clip holds, where it lands, what shows on screen. A row
+            // that only applies under a switch is hidden with it, like the
+            // rest of Settings.
+            SettingsGroup {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Instant replay") }
+                    SettingRow {
+                        label: qsTr("Instant replay status")
+                        help: App.instantReplayActive ? qsTr("Running: the last moments are kept, ready to save as a clip.")
+                                                      : qsTr("Off: nothing is being kept.")
+                        available: App.recordingAvailable
+                        Row {
+                            spacing: Theme.spacingS
+                            UButton {
+                                width: 110
+                                compact: true
+                                variant: "tonal"
+                                text: App.instantReplayActive ? qsTr("Stop") : qsTr("Start")
+                                enabled: App.instantReplayActive || !App.recording
+                                onClicked: App.instantReplayActive ? App.stopRecording() : App.startInstantReplay()
+                            }
+                            UButton {
+                                width: 110
+                                compact: true
+                                text: qsTr("Save clip")
+                                enabled: App.instantReplayActive
+                                onClicked: App.saveInstantReplay()
+                            }
+                        }
+                    }
+                    SettingRow {
+                        label: qsTr("Start automatically")
+                        help: qsTr("Keeps recording the screen in the background, ready to save the last moments.")
+                        helpDetail: qsTr("When Unisic starts: from launch until you stop it. While a game is running: games started by Steam, and on Linux also Proton games from Heroic, Lutris or Bottles, games using GameMode, and cloud gaming in the GeForce NOW, Steam Link, Moonlight, Boosteroid or Greenlight app, or in a browser app window; it stops when the game closes. Starting a recording pauses it, and it comes back afterwards.")
+                        UComboBox {
+                            width: 220
+                            readonly property var ids: ["off", "launch", "game"]
+                            model: [qsTr("Off"), qsTr("When Unisic starts"), qsTr("While a game is running")]
+                            currentIndex: Math.max(0, ids.indexOf(App.settings.instantReplayAuto))
+                            onActivated: (i) => App.settings.instantReplayAuto = ids[i]
+                        }
+                    }
+                    SettingRow {
+                        label: qsTr("Replay length")
+                        help: qsTr("How far back Save clip reaches.")
+                        helpDetail: qsTr("The ring uses fixed-count two-second segments in the disk cache, not raw frames in RAM, and drops the oldest as it goes. Saving snapshots completed segments without stopping the ring. Long replays take gigabytes of disk space, and saving one copies it first.")
+                        UValueCombo { width: 130; values: [10,15,30,60,120,300,600,1800,3600]; from: 10; to: 3600; suffix: " s"; value: App.settings.instantReplaySeconds; onChanged: (v) => App.settings.instantReplaySeconds = v }
+                    }
+                    SettingRow {
+                        label: qsTr("What to record")
+                        help: qsTr("Whole screen: the monitor under the pointer. Game window: only the game, even when something covers it.")
+                        helpDetail: qsTr("Game window finds the running game's window, or takes the window in front when no game is detected. On KDE Plasma the recording follows that window; on Windows its area is recorded; elsewhere the whole screen is. A change applies the next time instant replay starts.")
+                        UComboBox {
+                            width: 220
+                            readonly property var ids: ["screen", "window"]
+                            model: [qsTr("Whole screen"), qsTr("Game window")]
+                            currentIndex: Math.max(0, ids.indexOf(App.settings.clipSource))
+                            onActivated: (i) => App.settings.clipSource = ids[i]
+                        }
+                    }
+                    HotkeyRow {
+                        visible: App.hotkeysAvailable || App.desktopShortcutsAuto
+                        label: qsTr("Save clip")
+                        help: qsTr("Hotkey: save the last moments as a clip. Starts instant replay when it is off.")
+                        actionId: "instant-replay"
+                        shortcuts: App.settings.hotkeyInstantReplay
+                        onChanged: (t) => { App.settings.hotkeyInstantReplay = t; App.applyHotkey("instant-replay") }
+                    }
+                    HotkeyRow {
+                        visible: App.hotkeysAvailable || App.desktopShortcutsAuto
+                        label: qsTr("Instant replay on/off")
+                        help: qsTr("Hotkey: start instant replay, or stop it.")
+                        actionId: "replay-toggle"
+                        shortcuts: App.settings.hotkeyReplayToggle
+                        onChanged: (t) => { App.settings.hotkeyReplayToggle = t; App.applyHotkey("replay-toggle") }
+                    }
+                }
+            }
+            SettingsGroup {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("What clips include") }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Separate from the same switches for recordings. The microphone itself is chosen under Recording > Audio.")
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
+                    }
+                    SettingRow {
+                        label: qsTr("Record system audio")
+                        help: qsTr("The game's sound, and everything else you hear.")
+                        USwitch { checked: App.settings.clipSystemAudio; onToggled: (c) => App.settings.clipSystemAudio = c }
+                    }
+                    SettingRow {
+                        label: qsTr("Record microphone")
+                        help: qsTr("Your voice.")
+                        USwitch { checked: App.settings.clipMicrophone; onToggled: (c) => App.settings.clipMicrophone = c }
+                    }
+                    SettingRow {
+                        id: clipKeysRow
+                        label: qsTr("Show pressed keys")
+                        help: qsTr("The key badge, as in recordings. Off by default: a game clip rarely needs it.")
+                        readonly property string blocked: App.keystrokeCaptureBlockedReason()
+                        available: blocked === "" || App.devBuild
+                        hint: blocked
+                        footer: InputFixFooter { command: App.inputAccessFixCommand() }
+                        USwitch {
+                            accessibleName: clipKeysRow.label
+                            accessibleDescription: clipKeysRow.detail
+                            checked: App.settings.clipKeystrokes
+                            onToggled: (c) => App.settings.clipKeystrokes = c
+                        }
+                    }
+                    SettingRow {
+                        label: qsTr("Watermark")
+                        help: qsTr("Marks every instant replay with its own text or logo, separate from the screenshot watermark.")
+                        helpDetail: qsTr("Burned into the replay while it records, so saving stays a quick copy. A change applies the next time instant replay starts.")
+                        USwitch { checked: App.settings.replayWatermarkEnabled; onToggled: (c) => App.settings.replayWatermarkEnabled = c }
+                    }
+                    SettingRow {
+                        visible: App.settings.replayWatermarkEnabled
+                        label: qsTr("Watermark type")
+                        UComboBox {
+                            width: 180
+                            model: [qsTr("Text"), qsTr("Logo image")]
+                            currentIndex: App.settings.replayWatermarkType === "image" ? 1 : 0
+                            onActivated: (i) => App.settings.replayWatermarkType = i === 1 ? "image" : "text"
+                        }
+                    }
+                    SettingRow {
+                        visible: App.settings.replayWatermarkEnabled && App.settings.replayWatermarkType !== "image"
+                        label: qsTr("Watermark text")
+                        help: qsTr("%game% is the game's name and %date% today's date, both as they are when instant replay starts.")
+                        UTextField {
+                            width: 260
+                            text: App.settings.replayWatermarkText
+                            onEdited: (t) => App.settings.replayWatermarkText = t
+                        }
+                    }
+                    SettingRow {
+                        visible: App.settings.replayWatermarkEnabled && App.settings.replayWatermarkType === "image"
+                        label: qsTr("Logo image")
+                        help: App.settings.replayWatermarkImagePath.length > 0
+                              ? App.settings.replayWatermarkImagePath
+                              : qsTr("Choose a PNG, SVG, JPEG or WebP image.")
+                        UButton {
+                            compact: true
+                            variant: "tonal"
+                            text: App.settings.replayWatermarkImagePath.length > 0
+                                  ? qsTr("Change image…") : qsTr("Choose image…")
+                            onClicked: App.pickWatermarkImage(true)
+                        }
+                    }
+                    SettingRow {
+                        visible: App.settings.replayWatermarkEnabled
+                        label: qsTr("Watermark position")
+                        UComboBox {
+                            width: 180
+                            model: page.watermarkPosNames
+                            currentIndex: Math.max(0, page.watermarkPosIds.indexOf(App.settings.replayWatermarkPosition))
+                            onActivated: (i) => App.settings.replayWatermarkPosition = page.watermarkPosIds[i]
+                        }
+                    }
+                    SettingRow {
+                        visible: App.settings.replayWatermarkEnabled
+                        label: qsTr("Size")
+                        help: qsTr("How big the text or logo is, against its default size.")
+                        UValueCombo {
+                            width: 120
+                            values: [50, 75, 100, 125, 150, 200, 300]
+                            from: 10; to: 400
+                            suffix: "%"
+                            value: App.settings.replayWatermarkScale
+                            onChanged: (v) => App.settings.replayWatermarkScale = v
+                        }
+                    }
+                    SettingRow {
+                        visible: App.settings.replayWatermarkEnabled
+                        label: qsTr("Opacity: %1%").arg(App.settings.replayWatermarkOpacity)
+                        USlider {
+                            width: 200
+                            from: 10; to: 100
+                            value: App.settings.replayWatermarkOpacity
+                            onMoved: (v) => App.settings.replayWatermarkOpacity = Math.round(v)
+                        }
+                    }
+                }
+            }
+            SettingsGroup {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Saving") }
+                    Text {
+                        id: clipDirLabel
+                        text: qsTr("Clips folder")
+                        color: Theme.textSecondary
+                        font.pixelSize: Theme.fontS
+                    }
+                    Row {
+                        width: parent.width
+                        spacing: Theme.spacingM
+                        UTextField {
+                            width: parent.width - 110 - Theme.spacingM
+                            accessibleName: clipDirLabel.text
+                            placeholder: qsTr("Same as recordings: %1").arg(App.settings.videoSaveDirectory)
+                            text: App.settings.clipSaveDirectory
+                            onEdited: (t) => App.settings.clipSaveDirectory = t
+                        }
+                        UButton {
+                            width: 110; text: qsTr("Open"); variant: "tonal"
+                            accessibleDescription: clipDirLabel.text
+                            onClicked: App.openDirectory(App.settings.clipSaveDirectory.trim() !== ""
+                                                         ? App.settings.clipSaveDirectory
+                                                         : App.settings.videoSaveDirectory)
+                        }
+                    }
+                    SettingRow {
+                        label: qsTr("Keep the whole session")
+                        help: qsTr("Stopping instant replay saves everything it recorded as one session recording, to cut clips from later on the Clips page.")
+                        helpDetail: qsTr("Up to the last 4 hours of a session, written into the session recordings folder while it runs: about 2 to 15 GB per hour, depending on the screen and the quality. Save clip still saves only the replay length. A change applies the next time instant replay starts.")
+                        USwitch { checked: App.settings.clipKeepSession; onToggled: (c) => App.settings.clipKeepSession = c }
+                    }
+                    Column {
+                        width: parent.width
+                        spacing: Theme.spacingS
+                        visible: App.settings.clipKeepSession
+                        Text {
+                            id: sessionDirLabel
+                            text: qsTr("Session recordings folder")
+                            color: Theme.textSecondary
+                            font.pixelSize: Theme.fontS
+                        }
+                        Text {
+                            width: parent.width
+                            wrapMode: Text.WordWrap
+                            text: qsTr("Pick a big second drive here: the session is also recorded into this folder while it runs, not onto the system disk.")
+                            color: Theme.textTertiary
+                            font.pixelSize: Theme.fontS
+                        }
+                        Row {
+                            width: parent.width
+                            spacing: Theme.spacingM
+                            readonly property string dir: App.settings.clipSessionDirectory.trim() !== ""
+                                                          ? App.settings.clipSessionDirectory
+                                                          : App.settings.clipSaveDirectory.trim() !== ""
+                                                            ? App.settings.clipSaveDirectory
+                                                            : App.settings.videoSaveDirectory
+                            UTextField {
+                                width: parent.width - 110 - Theme.spacingM
+                                accessibleName: sessionDirLabel.text
+                                placeholder: qsTr("Same as clips: %1").arg(App.settings.clipSaveDirectory.trim() !== ""
+                                                                           ? App.settings.clipSaveDirectory
+                                                                           : App.settings.videoSaveDirectory)
+                                text: App.settings.clipSessionDirectory
+                                onEdited: (t) => App.settings.clipSessionDirectory = t
+                            }
+                            UButton {
+                                width: 110; text: qsTr("Open"); variant: "tonal"
+                                accessibleDescription: sessionDirLabel.text
+                                onClicked: App.openDirectory(parent.dir)
+                            }
+                        }
+                    }
+                }
+            }
+            SettingsGroup {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("On screen") }
+                    SettingRow {
+                        label: qsTr("On-screen indicator")
+                        help: qsTr("A small sign at the top of the screen when instant replay starts or stops, and when a clip is saving or saved.")
+                        helpDetail: qsTr("Shown over fullscreen games too, and never takes a click. Instant replay records the screen, so a clip that covers the moment the sign was up shows it.")
+                        USwitch { checked: App.settings.clipIndicator; onToggled: (c) => App.settings.clipIndicator = c }
+                    }
+                    SettingRow {
+                        visible: App.settings.clipIndicator
+                        label: qsTr("Indicator style")
+                        help: qsTr("Pill: icon, title and the file name. Compact: icon and title. Dot: the icon alone. Tinted: the pill with its edge and title in the colour of what happened.")
+                        UComboBox {
+                            width: 220
+                            readonly property var ids: ["pill", "compact", "dot", "tinted"]
+                            model: [qsTr("Pill"), qsTr("Compact"), qsTr("Dot"), qsTr("Tinted")]
+                            currentIndex: Math.max(0, ids.indexOf(App.settings.clipIndicatorStyle))
+                            onActivated: (i) => App.settings.clipIndicatorStyle = ids[i]
+                        }
+                    }
+                    SettingRow {
+                        label: qsTr("Recording dot")
+                        help: qsTr("A small red dot stays in a corner of the screen for as long as instant replay records.")
+                        helpDetail: qsTr("It never takes a click. Instant replay records what is on the screen, so with Whole screen the dot is in your clips too; Game window on KDE Plasma leaves it out.")
+                        USwitch { checked: App.settings.clipStatusDot; onToggled: (c) => App.settings.clipStatusDot = c }
+                    }
+                    SettingRow {
+                        visible: App.settings.clipStatusDot
+                        label: qsTr("Dot corner")
+                        UComboBox {
+                            width: 220
+                            readonly property var ids: ["top-left", "top-right", "bottom-left", "bottom-right"]
+                            model: [qsTr("Top left"), qsTr("Top right"), qsTr("Bottom left"), qsTr("Bottom right")]
+                            currentIndex: Math.max(0, ids.indexOf(App.settings.clipStatusCorner))
+                            onActivated: (i) => App.settings.clipStatusCorner = ids[i]
+                        }
+                    }
+                    ClipOsdPreview {
+                        visible: App.settings.clipIndicator || App.settings.clipStatusDot
+                        width: parent.width
+                        look: App.settings.clipIndicator ? App.settings.clipIndicatorStyle : ""
+                        dotCorner: App.settings.clipStatusDot ? App.settings.clipStatusCorner : ""
+                    }
+                }
+            }
+            SettingsGroup {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Clip editor") }
+                    SettingRow {
+                        label: qsTr("Open saved replays in the clip editor")
+                        help: qsTr("A saved instant replay opens in the trim window, ready to cut and share.")
+                        USwitch { checked: App.settings.clipOpenReplay; onToggled: (c) => App.settings.clipOpenReplay = c }
+                    }
+                    SettingRow {
+                        label: qsTr("Default frame")
+                        help: qsTr("The frame the trim window starts with. Vertical fits TikTok, Shorts and Reels.")
+                        UComboBox {
+                            width: 200
+                            readonly property var ids: ["original", "16:9", "9:16", "1:1"]
+                            model: [qsTr("As recorded"), qsTr("Landscape 16:9"), qsTr("Vertical 9:16"), qsTr("Square 1:1")]
+                            currentIndex: Math.max(0, ids.indexOf(App.settings.clipAspect))
+                            onActivated: (i) => App.settings.clipAspect = ids[i]
+                        }
+                    }
+                    SettingRow {
+                        label: qsTr("Default clip size")
+                        help: qsTr("Scales a saved clip so its shorter side has this many pixels. Never enlarges.")
+                        UComboBox {
+                            width: 200
+                            readonly property var ids: [0, 1080, 720, 480]
+                            model: [qsTr("As recorded"), "1080p", "720p", "480p"]
+                            currentIndex: Math.max(0, ids.indexOf(App.settings.clipShortSide))
+                            onActivated: (i) => App.settings.clipShortSide = ids[i]
+                        }
+                    }
+                }
+            }
+            }
+        }
+
+        Loader {
+            anchors.fill: parent
+            readonly property int tabIndex: 4
+            visible: page.tab === 4 || page.searchPanesWanted
+            opacity: (page.tab === 4 && !page.searchActive) ? 1 : 0
+            enabled: page.tab === 4 && !page.searchActive
             property bool touched: false
             active: touched || visible
             // Search-driven builds incubate asynchronously so even the
@@ -2378,7 +2794,9 @@ Item {
                         text: (App.backgroundRemover.runtimeFound
                                ? App.backgroundRemover.runtimeInfo
                                : App.backgroundRemover.canDownloadRuntime
-                                 ? qsTr("ONNX Runtime: not installed, it is downloaded with the model")
+                                 ? (App.backgroundRemover.runtimeInfo !== ""
+                                    ? qsTr("%1; a newer one is downloaded with the model").arg(App.backgroundRemover.runtimeInfo)
+                                    : qsTr("ONNX Runtime: not installed, it is downloaded with the model"))
                                  : App.backgroundRemover.runtimeInfo !== ""
                                    ? App.backgroundRemover.runtimeInfo
                                    : qsTr("ONNX Runtime: not installed - install the onnxruntime package from your distribution"))
@@ -2510,10 +2928,10 @@ Item {
         // ===== Saving (4): where files land and what they're called =====
         Loader {
             anchors.fill: parent
-            readonly property int tabIndex: 4
-            visible: page.tab === 4 || page.searchPanesWanted
-            opacity: (page.tab === 4 && !page.searchActive) ? 1 : 0
-            enabled: page.tab === 4 && !page.searchActive
+            readonly property int tabIndex: 5
+            visible: page.tab === 5 || page.searchPanesWanted
+            opacity: (page.tab === 5 && !page.searchActive) ? 1 : 0
+            enabled: page.tab === 5 && !page.searchActive
             property bool touched: false
             active: touched || visible
             // Search-driven builds incubate asynchronously so even the
@@ -2943,10 +3361,10 @@ Item {
         // split is exactly what made these settings hard to find. =====
         Loader {
             anchors.fill: parent
-            readonly property int tabIndex: 5
-            visible: page.tab === 5 || page.searchPanesWanted
-            opacity: (page.tab === 5 && !page.searchActive) ? 1 : 0
-            enabled: page.tab === 5 && !page.searchActive
+            readonly property int tabIndex: 6
+            visible: page.tab === 6 || page.searchPanesWanted
+            opacity: (page.tab === 6 && !page.searchActive) ? 1 : 0
+            enabled: page.tab === 6 && !page.searchActive
             property bool touched: false
             active: touched || visible
             // Search-driven builds incubate asynchronously so even the
@@ -3252,10 +3670,10 @@ Item {
         // ===== Appearance (6): theme, window chrome, tray icon =====
         Loader {
             anchors.fill: parent
-            readonly property int tabIndex: 6
-            visible: page.tab === 6 || page.searchPanesWanted
-            opacity: (page.tab === 6 && !page.searchActive) ? 1 : 0
-            enabled: page.tab === 6 && !page.searchActive
+            readonly property int tabIndex: 7
+            visible: page.tab === 7 || page.searchPanesWanted
+            opacity: (page.tab === 7 && !page.searchActive) ? 1 : 0
+            enabled: page.tab === 7 && !page.searchActive
             property bool touched: false
             active: touched || visible
             // Search-driven builds incubate asynchronously so even the
@@ -3752,10 +4170,10 @@ Item {
         // ===== Hotkeys (7) =====
         Loader {
             anchors.fill: parent
-            readonly property int tabIndex: 7
-            visible: page.tab === 7 || page.searchPanesWanted
-            opacity: (page.tab === 7 && !page.searchActive) ? 1 : 0
-            enabled: page.tab === 7 && !page.searchActive
+            readonly property int tabIndex: 8
+            visible: page.tab === 8 || page.searchPanesWanted
+            opacity: (page.tab === 8 && !page.searchActive) ? 1 : 0
+            enabled: page.tab === 8 && !page.searchActive
             property bool touched: false
             active: touched || visible
             // Search-driven builds incubate asynchronously so even the
@@ -3824,6 +4242,42 @@ Item {
                               ? qsTr("The emergency stop %1 is taken by %2 and cannot be changed here. Free it on the Shortcuts page of System Settings.").arg(stop.keys).arg(stop.owner)
                               : qsTr("The emergency stop %1 is taken by another application and cannot be changed here. Free it in that application.").arg(stop.keys)
                     }
+                    UButton {
+                        anchors.right: parent.right
+                        text: App.hotkeysAvailable ? qsTr("Apply hotkeys")
+                                                   : qsTr("Add shortcuts to %1").arg(App.desktopShortcutName)
+                        compact: true
+                        onClicked: {
+                            if (App.hotkeysAvailable) { App.applyHotkeys(); App.showToast(qsTr("Hotkeys re-registered")) }
+                            else App.installDesktopShortcuts()
+                        }
+                    }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: !App.hotkeysAvailable
+                              ? qsTr("Changing a key here updates the stored shortcut; press “Add shortcuts to %1” to write it into the desktop.").arg(App.desktopShortcutName)
+                              : App.hotkeyBackend === "portal"
+                              ? qsTr("Keys recorded here are suggestions passed to the portal; the system dialog confirms or adjusts them.")
+                              : App.hotkeyBackend === "x11"
+                              ? qsTr("Shortcuts apply immediately on this X11 session (grabbed straight from the X server).")
+                              : App.hotkeyBackend === "win32"
+                              ? qsTr("Shortcuts apply immediately. A key another app already registered is reported as taken.")
+                              : qsTr("Shortcuts apply immediately and stay in sync with KDE System Settings; an edit made there shows up here too.")
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
+                    }
+                }
+            }
+            SettingsGroup {
+                visible: App.hotkeysAvailable || App.desktopShortcutsAuto
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    // One card per kind of work, every action in view: the old
+                    // "advanced" fold hid half of them, Instant replay included.
+                    SectionTitle { text: qsTr("Screenshots") }
                     HotkeyRow {
                         label: qsTr("Full screen")
                         help: qsTr("Hotkey: capture all monitors at once.")
@@ -3857,6 +4311,38 @@ Item {
                         onChanged: (t) => { App.settings.hotkeyWindow = t; App.applyHotkey("capture-window") }
                     }
                     HotkeyRow {
+                        label: qsTr("OCR region (copy text)")
+                        help: qsTr("Hotkey: select a region, its text lands in the clipboard.")
+                        helpDetail: qsTr("Opens the region selector and runs OCR on the crop. Nothing is saved and no notification is shown; the recognized text is simply copied. QR and bar codes are read too: a code in the region copies its content instead.")
+                        actionId: "ocr-region"
+                        shortcuts: App.settings.hotkeyOcr
+                        onChanged: (t) => { App.settings.hotkeyOcr = t; App.applyHotkey("ocr-region") }
+                    }
+                    HotkeyRow {
+                        label: qsTr("Copy last capture")
+                        help: qsTr("Hotkey: puts the most recent screenshot back on the clipboard.")
+                        helpDetail: qsTr("Copies the last screenshot taken in this session, whenever you press it. A dedicated shortcut never collides with the normal Ctrl+C - this replaces the old 2-second Ctrl+C grab, which could steal an ordinary copy right after a capture.")
+                        actionId: "copy-last"
+                        shortcuts: App.settings.hotkeyCopyLast
+                        onChanged: (t) => { App.settings.hotkeyCopyLast = t; App.applyHotkey("copy-last") }
+                    }
+                    HotkeyRow {
+                        label: qsTr("Measure")
+                        help: qsTr("Hotkey: select a region and measure distances and angles in it.")
+                        actionId: "measure"
+                        shortcuts: App.settings.hotkeyMeasure
+                        onChanged: (t) => { App.settings.hotkeyMeasure = t; App.applyHotkey("measure") }
+                    }
+                }
+            }
+            SettingsGroup {
+                visible: App.hotkeysAvailable || App.desktopShortcutsAuto
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Recording") }
+                    HotkeyRow {
                         label: qsTr("Video start/stop")
                         help: qsTr("Hotkey: toggle video recording.")
                         helpDetail: App.hotkeyBackend === "win32"
@@ -3874,52 +4360,7 @@ Item {
                         shortcuts: App.settings.hotkeyGif
                         onChanged: (t) => { App.settings.hotkeyGif = t; App.applyHotkey("record-gif") }
                     }
-                    // Everything above is a capture everyone takes. What
-                    // follows is a habit not everyone has, and those rows in a
-                    // row buried the ones that matter.
-                    DisclosureRow {
-                        id: advancedHotkeys
-                        label: expanded ? qsTr("Hide advanced shortcuts")
-                                        : qsTr("Show advanced shortcuts")
-                        summary: qsTr("OCR region, Copy last capture, Instant replay, more recording, Measure, Edit and Upload")
-                    }
                     HotkeyRow {
-                        // A conflicting row shows even while collapsed: it is
-                        // the only place the conflict is reported.
-                        visible: advancedHotkeys.expanded || page.searchActive || problem
-                        discloser: advancedHotkeys
-                        label: qsTr("OCR region (copy text)")
-                        help: qsTr("Hotkey: select a region, its text lands in the clipboard.")
-                        helpDetail: qsTr("Opens the region selector and runs OCR on the crop. Nothing is saved and no notification is shown; the recognized text is simply copied. QR and bar codes are read too: a code in the region copies its content instead.")
-                        actionId: "ocr-region"
-                        shortcuts: App.settings.hotkeyOcr
-                        onChanged: (t) => { App.settings.hotkeyOcr = t; App.applyHotkey("ocr-region") }
-                    }
-                    HotkeyRow {
-                        visible: advancedHotkeys.expanded || page.searchActive || problem
-                        discloser: advancedHotkeys
-                        label: qsTr("Copy last capture")
-                        help: qsTr("Hotkey: puts the most recent screenshot back on the clipboard.")
-                        helpDetail: qsTr("Copies the last screenshot taken in this session, whenever you press it. A dedicated shortcut never collides with the normal Ctrl+C - this replaces the old 2-second Ctrl+C grab, which could steal an ordinary copy right after a capture.")
-                        actionId: "copy-last"
-                        shortcuts: App.settings.hotkeyCopyLast
-                        onChanged: (t) => { App.settings.hotkeyCopyLast = t; App.applyHotkey("copy-last") }
-                    }
-                    HotkeyRow {
-                        visible: advancedHotkeys.expanded || page.searchActive || problem
-                        discloser: advancedHotkeys
-                        label: qsTr("Instant replay")
-                        help: qsTr("Starts the rolling replay ring; later presses save the recent segment window.")
-                        helpDetail: qsTr("The first press opens the screen-sharing portal and starts the bounded encoded ring. While it is active, each press saves the latest configured duration without stopping capture.")
-                        actionId: "instant-replay"
-                        shortcuts: App.settings.hotkeyInstantReplay
-                        onChanged: (t) => { App.settings.hotkeyInstantReplay = t; App.applyHotkey("instant-replay") }
-                    }
-                    // The page tiles that had no hotkey. Unbound until the user
-                    // records one.
-                    HotkeyRow {
-                        visible: advancedHotkeys.expanded || page.searchActive || problem
-                        discloser: advancedHotkeys
                         label: qsTr("Video of the full screen")
                         help: qsTr("Hotkey: start or stop a video of the whole screen.")
                         actionId: "record-screen"
@@ -3927,8 +4368,6 @@ Item {
                         onChanged: (t) => { App.settings.hotkeyRecordScreen = t; App.applyHotkey("record-screen") }
                     }
                     HotkeyRow {
-                        visible: advancedHotkeys.expanded || page.searchActive || problem
-                        discloser: advancedHotkeys
                         label: qsTr("GIF of the full screen")
                         help: qsTr("Hotkey: start or stop a GIF of the whole screen.")
                         actionId: "gif-screen"
@@ -3936,8 +4375,6 @@ Item {
                         onChanged: (t) => { App.settings.hotkeyGifScreen = t; App.applyHotkey("gif-screen") }
                     }
                     HotkeyRow {
-                        visible: advancedHotkeys.expanded || page.searchActive || problem
-                        discloser: advancedHotkeys
                         label: qsTr("Video of a window")
                         help: qsTr("Hotkey: start or stop a video of one window you pick.")
                         available: App.capRecordWindowSource
@@ -3947,26 +4384,53 @@ Item {
                         onChanged: (t) => { App.settings.hotkeyRecordWindow = t; App.applyHotkey("record-window") }
                     }
                     HotkeyRow {
-                        visible: advancedHotkeys.expanded || page.searchActive || problem
-                        discloser: advancedHotkeys
                         label: qsTr("Pause or resume recording")
                         help: qsTr("Hotkey: pause the running recording, or resume it.")
                         actionId: "pause-recording"
                         shortcuts: App.settings.hotkeyPauseRecording
                         onChanged: (t) => { App.settings.hotkeyPauseRecording = t; App.applyHotkey("pause-recording") }
                     }
+                }
+            }
+            SettingsGroup {
+                visible: App.hotkeysAvailable || App.desktopShortcutsAuto
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Clips") }
                     HotkeyRow {
-                        visible: advancedHotkeys.expanded || page.searchActive || problem
-                        discloser: advancedHotkeys
-                        label: qsTr("Measure")
-                        help: qsTr("Hotkey: select a region and measure distances and angles in it.")
-                        actionId: "measure"
-                        shortcuts: App.settings.hotkeyMeasure
-                        onChanged: (t) => { App.settings.hotkeyMeasure = t; App.applyHotkey("measure") }
+                        label: qsTr("Save clip")
+                        help: qsTr("Hotkey: save the last moments as a clip. Starts instant replay when it is off.")
+                        helpDetail: qsTr("The first press opens the screen-sharing portal and starts the bounded encoded ring. While it is active, each press saves the latest configured duration without stopping capture.")
+                        actionId: "instant-replay"
+                        shortcuts: App.settings.hotkeyInstantReplay
+                        onChanged: (t) => { App.settings.hotkeyInstantReplay = t; App.applyHotkey("instant-replay") }
                     }
                     HotkeyRow {
-                        visible: advancedHotkeys.expanded || page.searchActive || problem
-                        discloser: advancedHotkeys
+                        label: qsTr("Instant replay on/off")
+                        help: qsTr("Hotkey: start instant replay, or stop it.")
+                        actionId: "replay-toggle"
+                        shortcuts: App.settings.hotkeyReplayToggle
+                        onChanged: (t) => { App.settings.hotkeyReplayToggle = t; App.applyHotkey("replay-toggle") }
+                    }
+                    HotkeyRow {
+                        label: qsTr("Open in the clip editor")
+                        help: qsTr("Hotkey: pick a recording and cut it in the clip editor.")
+                        actionId: "trim-video"
+                        shortcuts: App.settings.hotkeyTrimVideo
+                        onChanged: (t) => { App.settings.hotkeyTrimVideo = t; App.applyHotkey("trim-video") }
+                    }
+                }
+            }
+            SettingsGroup {
+                visible: App.hotkeysAvailable || App.desktopShortcutsAuto
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Files and sharing") }
+                    HotkeyRow {
                         label: qsTr("Edit an image")
                         help: qsTr("Hotkey: pick an image file and open it in the editor.")
                         actionId: "edit-image"
@@ -3974,17 +4438,6 @@ Item {
                         onChanged: (t) => { App.settings.hotkeyEditImage = t; App.applyHotkey("edit-image") }
                     }
                     HotkeyRow {
-                        visible: advancedHotkeys.expanded || page.searchActive || problem
-                        discloser: advancedHotkeys
-                        label: qsTr("Trim a video")
-                        help: qsTr("Hotkey: pick a recording and open it in the trim window.")
-                        actionId: "trim-video"
-                        shortcuts: App.settings.hotkeyTrimVideo
-                        onChanged: (t) => { App.settings.hotkeyTrimVideo = t; App.applyHotkey("trim-video") }
-                    }
-                    HotkeyRow {
-                        visible: advancedHotkeys.expanded || page.searchActive || problem
-                        discloser: advancedHotkeys
                         label: qsTr("Upload a file")
                         help: qsTr("Hotkey: pick any file and upload it.")
                         actionId: "upload-file"
@@ -3992,8 +4445,6 @@ Item {
                         onChanged: (t) => { App.settings.hotkeyUploadFile = t; App.applyHotkey("upload-file") }
                     }
                     HotkeyRow {
-                        visible: advancedHotkeys.expanded || page.searchActive || problem
-                        discloser: advancedHotkeys
                         label: qsTr("Upload clipboard")
                         help: qsTr("Hotkey: upload the copied file, image or text.")
                         actionId: "upload-clipboard"
@@ -4001,38 +4452,11 @@ Item {
                         onChanged: (t) => { App.settings.hotkeyUploadClipboard = t; App.applyHotkey("upload-clipboard") }
                     }
                     HotkeyRow {
-                        visible: advancedHotkeys.expanded || page.searchActive || problem
-                        discloser: advancedHotkeys
                         label: qsTr("QR code of copied text")
                         help: qsTr("Hotkey: show the copied text as a QR code.")
                         actionId: "qr-clipboard"
                         shortcuts: App.settings.hotkeyQrClipboard
                         onChanged: (t) => { App.settings.hotkeyQrClipboard = t; App.applyHotkey("qr-clipboard") }
-                    }
-                    UButton {
-                        anchors.right: parent.right
-                        text: App.hotkeysAvailable ? qsTr("Apply hotkeys")
-                                                   : qsTr("Add shortcuts to %1").arg(App.desktopShortcutName)
-                        compact: true
-                        onClicked: {
-                            if (App.hotkeysAvailable) { App.applyHotkeys(); App.showToast(qsTr("Hotkeys re-registered")) }
-                            else App.installDesktopShortcuts()
-                        }
-                    }
-                    Text {
-                        width: parent.width
-                        wrapMode: Text.WordWrap
-                        text: !App.hotkeysAvailable
-                              ? qsTr("Changing a key here updates the stored shortcut; press “Add shortcuts to %1” to write it into the desktop.").arg(App.desktopShortcutName)
-                              : App.hotkeyBackend === "portal"
-                              ? qsTr("Keys recorded here are suggestions passed to the portal; the system dialog confirms or adjusts them.")
-                              : App.hotkeyBackend === "x11"
-                              ? qsTr("Shortcuts apply immediately on this X11 session (grabbed straight from the X server).")
-                              : App.hotkeyBackend === "win32"
-                              ? qsTr("Shortcuts apply immediately. A key another app already registered is reported as taken.")
-                              : qsTr("Shortcuts apply immediately and stay in sync with KDE System Settings; an edit made there shows up here too.")
-                        color: Theme.textTertiary
-                        font.pixelSize: Theme.fontS
                     }
                 }
             }
@@ -4209,15 +4633,15 @@ Item {
         // ===== Developer (dev build only, tab 8) =====
         Loader {
             anchors.fill: parent
-            readonly property int tabIndex: 8
+            readonly property int tabIndex: 9
             // Gated on App.devBuild: in a release build the pane must never
             // instantiate, or the search would list its rows and jumping to
             // one would expose the smoke-test buttons on a hidden tab.
             // Visible-but-inert while searching: per-row `visible:` gates keep
             // their real values so collectRows can skip hidden rows.
-            visible: App.devBuild && (page.tab === 8 || page.searchPanesWanted)
-            opacity: (page.tab === 8 && !page.searchActive) ? 1 : 0
-            enabled: page.tab === 8 && !page.searchActive
+            visible: App.devBuild && (page.tab === 9 || page.searchPanesWanted)
+            opacity: (page.tab === 9 && !page.searchActive) ? 1 : 0
+            enabled: page.tab === 9 && !page.searchActive
             property bool touched: false
             // Search needs every pane instantiated so it can walk the rows.
             active: App.devBuild && (touched || visible)
@@ -4503,6 +4927,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Style presets"); onClicked: App.devTestStylePresets() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Cursor overlay"); onClicked: App.devTestCursorOverlay() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("OCR auto language"); onClicked: App.devTestOcrAutoLang() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("OCR engine"); onClicked: App.devTestOcrEngine() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Language"); onClicked: App.devTestLanguage() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Update check"); onClicked: App.devTestUpdateCheck() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Simulate update"); onClicked: App.devTestUpdateAvailable() }

@@ -73,6 +73,8 @@
 #include "FilenameTemplate.h"
 #include "ImageEncode.h"
 #include "ocr/OcrEngine.h"
+#include "ocr/OcrEngines.h"
+#include "ocr/WindowsOcr.h"
 // Clipboard offers (the KDE force-image-copy hint), clipboard reads and drop
 // payloads all speak QMimeData; KSystemClipboard consumes the same objects.
 #include <QMimeData>
@@ -1460,7 +1462,7 @@ void AppContext::trimCutCheck(std::function<void(const QString &)> done)
     QFile::copy(source, copySource);
 
     // Same window the trim editor builds, on the same file.
-    auto *probe = new TrimController(source, 3.0, 1.0 / 30, this);
+    auto *probe = new TrimController(source, 3.0, 1.0 / 30, QSize(), this);
     probe->buildFilmstrip(8, 48);
     probe->loadKeyframes();
 
@@ -3010,6 +3012,35 @@ void AppContext::devTestOcrAutoLang()
                        detected.isEmpty() ? QStringLiteral("none") : detected, osd,
                        mapErr.isEmpty() ? QStringLiteral("ok") : mapErr),
               !ok);
+}
+
+QString AppContext::ocrEngineCheck() const
+{
+    const QStringList engines = OcrEngines::available();
+    const QString def = QStringLiteral(UNISIC_OCR_DEFAULT_ENGINE);
+    if (engines.value(0) != def)
+        return QStringLiteral("FAIL (default '%1' is not the first of %2)").arg(def, engines.join(u','));
+    if (OcrEngines::resolve(QStringLiteral("no-such-engine")) != QLatin1String("tesseract"))
+        return QStringLiteral("FAIL (an unknown id does not fall back to tesseract)");
+    QVector<OcrWord> g;
+    WindowsOcr::appendWordGlyphs(g, QRect(10, 5, 30, 12), QStringLiteral("abc"), 2, true);
+    const bool split = g.size() == 3 && g[0].rect.left() == 10 && g[2].rect.right() == 39
+                       && g[0].rect.right() + 1 == g[1].rect.left()
+                       && g[1].rect.right() + 1 == g[2].rect.left()
+                       && g[1].text == QLatin1String("b") && g[2].line == 2
+                       && g[0].spaceBefore && !g[1].spaceBefore && !g[2].spaceBefore;
+    if (!split)
+        return QStringLiteral("FAIL (word box split into %1 glyphs, not 3 tiling slices)").arg(g.size());
+    return QStringLiteral("PASS (engines: %1; using: %2)")
+        .arg(engines.join(u','), ocrEffectiveEngine());
+}
+
+void AppContext::devTestOcrEngine()
+{
+    if (!devBuild())
+        return;
+    const QString r = ocrEngineCheck();
+    showToast(tr("Dev: OCR engine: %1").arg(r), !r.startsWith(QLatin1String("PASS")));
 }
 
 void AppContext::devTestZipExport()
@@ -4753,7 +4784,7 @@ static QString headerSearchCheck(QQuickWindow *win)
     // Words from the field's own lists, so the check holds in every language.
     const QVariantList everything = search->property("everything").toList();
     const QVariantList tabs = search->property("settingsTabs").toList();
-    if (everything.size() < 2 || tabs.size() < 8)
+    if (everything.size() < 2 || tabs.size() < 9)
         return QStringLiteral("FAIL (%1 actions, %2 categories)").arg(everything.size()).arg(tabs.size());
     QMetaObject::invokeMethod(search, "focusField");
     const bool focused = input->hasActiveFocus();
@@ -4782,14 +4813,14 @@ static QString headerSearchCheck(QQuickWindow *win)
         out << QStringLiteral("dismiss left the field filled or the list open");
 
     const QVariant page0 = win->property("currentPage");
-    QMetaObject::invokeMethod(win, "openSettingsAt", Q_ARG(QVariant, 7), Q_ARG(QVariant, QString()));
+    QMetaObject::invokeMethod(win, "openSettingsAt", Q_ARG(QVariant, 8), Q_ARG(QVariant, QString()));
     QCoreApplication::processEvents();
     QQuickItem *settings = nullptr;
     for (QQuickItem *i : win->findChildren<QQuickItem *>(QStringLiteral("settingsPage")))
         if (i->isVisible())
             settings = i;
-    if (win->property("currentPage").toInt() != 5 || !settings || settings->property("tab").toInt() != 7) {
-        out << QStringLiteral("category route did not open Settings at tab 7");
+    if (win->property("currentPage").toInt() != 5 || !settings || settings->property("tab").toInt() != 8) {
+        out << QStringLiteral("category route did not open Settings at tab 8");
     } else {
         QMetaObject::invokeMethod(win, "openSettingsAt", Q_ARG(QVariant, -1), Q_ARG(QVariant, tab));
         QCoreApplication::processEvents();
@@ -6902,7 +6933,7 @@ void AppContext::runSmokeTest()
                          .arg(audioInputDevices().size()));
         const int segments = GifRecorder::replaySegmentCount(m_settings->instantReplaySeconds());
         smokeLog(QStringLiteral("instant replay ring: ")
-                 + (segments >= 3 && segments <= 302
+                 + (segments >= 3 && segments <= 1802
                         ? QStringLiteral("PASS (%1 bounded segments)").arg(segments)
                         : QStringLiteral("FAIL")));
         const bool trimTools = !QStandardPaths::findExecutable(QStringLiteral("ffmpeg")).isEmpty()
@@ -7572,6 +7603,13 @@ void AppContext::runSmokeTest()
                 smokeLog(QStringLiteral("ocr recognize: FAIL (got '%1')").arg(text.simplified()));
             smokeNext();
         });
+    });
+
+    // 3f0) OCR engine choice: default, fallback, glyph split (no recognizer run;
+    // the step above already recognized through the engine in use).
+    m_smokeSteps.append([this] {
+        smokeLog(QStringLiteral("ocr engine: ") + ocrEngineCheck());
+        smokeNext();
     });
 
     // 3f1a) UI translations: the bundled .qm loads and a known string translates.

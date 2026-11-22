@@ -220,7 +220,8 @@ Item {
             Text {
                 width: parent.width
                 wrapMode: Text.WordWrap
-                text: qsTr("Modular uploaders: custom HTTP APIs plus FTP/SFTP via curl. After every upload the link is copied to your clipboard.")
+                text: App.settings.afterUploadCopyLink ? qsTr("Modular uploaders: custom HTTP APIs plus FTP/SFTP via curl. After every upload the link is copied to your clipboard.")
+                                                      : qsTr("Modular uploaders: custom HTTP APIs plus FTP/SFTP via curl.")
                 color: Theme.textSecondary
                 font.pixelSize: 13
             }

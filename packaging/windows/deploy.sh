@@ -90,6 +90,7 @@ cp "$repo_dir/third_party/twemoji/LICENSE.unicode" "$out_dir/LICENSE.unicode"
 
 # Runtime-loaded pieces the linker cannot vouch for.
 for f in bin/platforms/qwindows.dll bin/qml/QtQuick/Controls bin/tls bin/ffmpeg.exe bin/ffprobe.exe \
+         bin/qml/QtMultimedia bin/multimedia \
          share/tessdata/eng.traineddata; do
     [ -e "$out_dir/$f" ] || { echo "error: $f went missing from the bundle" >&2; exit 1; }
 done

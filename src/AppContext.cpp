@@ -5,6 +5,7 @@
 #include "capture/KWinScreenShot2.h"
 #include "capture/ScrollCaptureController.h"
 #include "capture/KWinForceBlur.h"
+#include "capture/KWinWindowGeometry.h"
 #include "overlay/OverlayController.h"
 #include "upload/UploadManager.h"
 #include "actions/ExternalActionRunner.h"
@@ -26,6 +27,7 @@
 #include "hotkeys/PortalGlobalShortcuts.h"
 #include "hotkeys/X11Hotkeys.h"
 #include "record/X11ShmGrabber.h"
+#include "record/GameDetector.h"
 #include <QThread>
 #include "record/AudioCapture.h"
 #include "record/GifRecorder.h"
@@ -40,6 +42,7 @@
 #include <QCursor>
 #include "record/RecordBorderController.h"
 #include "record/TrimController.h"
+#include "record/ClipGraph.h"
 #include "editor/EditorSession.h"
 #include "editor/ImageEffects.h"
 #include "PreviewController.h"
@@ -48,6 +51,7 @@
 #include "notify/DesktopNotifier.h"
 #include "notify/NotificationInhibitor.h"
 #include "notify/LayerShellNotifier.h"
+#include "notify/ClipOsd.h"
 #include <LayerShellQt/window.h>
 #include <QMargins>
 #include "theme/ThemeController.h"
@@ -58,6 +62,7 @@
 #include "ImageEncode.h"
 #include <QSaveFile>
 #include "ocr/OcrEngine.h"
+#include "ocr/OcrEngines.h"
 // zxing-cpp 3 removed MultiFormatWriter/BitMatrix in favour of CreateBarcode.
 #if __has_include(<ZXing/MultiFormatWriter.h>)
 #include <ZXing/BitMatrix.h>
@@ -257,6 +262,7 @@ AppContext::AppContext(QObject *parent)
     });
     // Badge/unbadge the tray icon as recording starts and stops.
     connect(this, &AppContext::recordingChanged, this, &AppContext::applyTrayIcon);
+    connect(this, &AppContext::recordingChanged, this, &AppContext::updateGameDetector);
     connect(m_recorder, &GifRecorder::started, this, [this] {
         // Region recordings carry a pending rect. Gate on the LIVE recording
         // actually being a Region one: a stale pending rect (set by a region
@@ -273,8 +279,21 @@ AppContext::AppContext(QObject *parent)
         // end. Never for the instant-replay ring: that rolls for as long as the
         // user leaves it armed, and taking the window away for an open-ended
         // period is not "for the duration of a capture", it is losing the window.
-        if (!m_recorder->instantReplayActive())
+        if (!m_recorder->instantReplayActive()) {
             hideOwnWindowForCapture();
+        } else {
+            const int secs = m_settings->instantReplaySeconds();
+            const QString length = secs < 60 ? tr("%1 s").arg(secs) : tr("%1 min").arg(secs / 60);
+            const QString keys = m_settings->hotkeyInstantReplay().section(QLatin1Char(','), 0, 0).trimmed();
+            showClipIndicator(tr("Instant replay on"),
+                              keys.isEmpty()
+                                  ? tr("Keeping the last %1").arg(length)
+                                  : tr("%1 saves the last %2")
+                                        .arg(QKeySequence::fromString(keys, QKeySequence::PortableText)
+                                                 .toString(QKeySequence::NativeText),
+                                             length),
+                              QStringLiteral("rec"));
+        }
     });
     connect(m_recorder, &GifRecorder::elapsedChanged, this, &AppContext::recordSecondsChanged);
     connect(m_recorder, &GifRecorder::converting, this, [this] {
@@ -282,11 +301,30 @@ AppContext::AppContext(QObject *parent)
         endCaptureIsolation();
         hideRecordBorder(); // capture is over; the frame must not linger over encoding
         emit recordingChanged();
-        showToast(tr("Encoding…"));
+        if (!m_recorder->instantReplayActive()) // stopping the ring encodes nothing
+            showToast(tr("Encoding…"));
+        else
+            showClipIndicator(tr("Instant replay off"), QString(), QStringLiteral("rec"), 1800);
     });
     connect(m_recorder, &GifRecorder::finished, this, &AppContext::onRecordingFinished);
+    connect(m_recorder, &GifRecorder::saveProgress, this, &AppContext::setSaveProgress);
+    connect(m_recorder, &GifRecorder::replayExportFailed, this, [this] { setSaveProgress(-1); });
+    connect(m_recorder, &GifRecorder::failed, this, [this] {
+        setSaveProgress(-1);
+        continueAfterRecording();
+    });
+    connect(m_settings, &Settings::instantReplayAutoChanged, this, &AppContext::applyInstantReplayAuto);
+    // Queued: the recorder signals before it is fully idle, and the ring must
+    // read as stopped by then or the dot comes back after a stop.
+    connect(this, &AppContext::recordingChanged, this, &AppContext::updateReplayDot, Qt::QueuedConnection);
+    connect(m_recorder, &GifRecorder::failed, this, &AppContext::updateReplayDot, Qt::QueuedConnection);
+    connect(m_settings, &Settings::clipStatusDotChanged, this, &AppContext::updateReplayDot);
+    connect(m_settings, &Settings::clipStatusCornerChanged, this, &AppContext::updateReplayDot);
+    // After startup settles (portal probe, tray), not on the startup path.
+    QTimer::singleShot(3000, this, &AppContext::applyInstantReplayAuto);
     connect(m_recorder, &GifRecorder::replayExportFailed, this, [this](const QString &error) {
         showToast(tr("Instant replay failed: %1").arg(error), true);
+        showClipIndicator(tr("Clip not saved"), error, QStringLiteral("error"), 4000);
     });
     connect(m_recorder, &GifRecorder::failed, this, [this](const QString &e) {
         m_converting = false;
@@ -329,6 +367,18 @@ AppContext::AppContext(QObject *parent)
     }
 
     m_ocr = new OcrEngine(this);
+    m_ocr->setEngine(ocrEffectiveEngine());
+    m_ocr->setPaddleSetup([this] { return m_bgRemover->ocrSetup(); });
+    connect(m_settings, &Settings::ocrEngineChanged, m_ocr, [this] {
+        m_ocr->setEngine(ocrEffectiveEngine());
+        emit ocrEngineStateChanged();
+    });
+    // The first OCR run, or Settings, looks for ONNX Runtime; without one
+    // Settings shows Tesseract as the engine that runs.
+    connect(m_bgRemover, &BackgroundRemover::stateChanged, this, [this] {
+        m_ocr->setEngine(ocrEffectiveEngine());
+        emit ocrEngineStateChanged();
+    });
 }
 
 AppContext::~AppContext()
@@ -484,22 +534,25 @@ void AppContext::dispatchHotkey(const QString &action)
     }
     else if (action == QLatin1String("ocr-region")) captureRegionOcr();
     else if (action == QLatin1String("record-gif")) {
-        if (recording()) stopRecording();
+        if (manualRecording()) stopRecording();
         else startGifRegion();
     } else if (action == QLatin1String("record-video")) {
-        if (recording()) stopRecording();
+        if (manualRecording()) stopRecording();
         else startVideoRegion();
     } else if (action == QLatin1String("instant-replay")) {
         if (instantReplayActive()) saveInstantReplay();
         else if (!recording()) startInstantReplay();
+    } else if (action == QLatin1String("replay-toggle")) {
+        if (instantReplayActive()) stopRecording();
+        else if (!recording()) startInstantReplay();
     } else if (action == QLatin1String("record-screen")) {
-        if (recording()) stopRecording();
+        if (manualRecording()) stopRecording();
         else startVideoScreen();
     } else if (action == QLatin1String("gif-screen")) {
-        if (recording()) stopRecording();
+        if (manualRecording()) stopRecording();
         else startGifFullScreen();
     } else if (action == QLatin1String("record-window")) {
-        if (recording()) stopRecording();
+        if (manualRecording()) stopRecording();
         else startVideoWindow();
     } else if (action == QLatin1String("pause-recording")) {
         if (recordingCanPause()) togglePauseRecording();
@@ -569,7 +622,8 @@ bool AppContext::capRecordWindowSource() const
     // Window recording is resolved by the portal's window picker (or KWin's).
     // The X11 backend records a monitor rect and has no window source, so an
     // X11-only desktop can record screen and region but not a single window.
-    return m_screenCastPortalPresent;
+    // Windows records the target window's area instead (startVideoWindow).
+    return m_screenCastPortalPresent || QGuiApplication::platformName() == QLatin1String("windows");
 }
 
 bool AppContext::capScreenCastPortal() const
@@ -577,6 +631,42 @@ bool AppContext::capScreenCastPortal() const
     // Probed on the session bus at startup: a dev-tab "-" here means the
     // desktop ships no ScreenCast portal backend at all.
     return m_screenCastPortalPresent;
+}
+
+QStringList AppContext::ocrEngines() const
+{
+    return OcrEngines::available();
+}
+
+QString AppContext::ocrEffectiveEngine() const
+{
+    return OcrEngines::effective(m_settings->ocrEngine(), m_windowsOcrUsable, m_bgRemover->ocrUsable());
+}
+
+void AppContext::checkOcrEngines()
+{
+    if (m_ocrEnginesChecked)
+        return;
+    m_ocrEnginesChecked = true;
+    if (!WindowsOcr::built()) {
+        m_windowsOcrUsable = false;
+        // Looks for ONNX Runtime now (one dlopen, when the OCR settings open),
+        // so Settings names the engine that will really run.
+        m_bgRemover->ocrSetup();
+        m_ocr->setEngine(ocrEffectiveEngine());
+        emit ocrEngineStateChanged();
+        return;
+    }
+    // WinRT activation can take a moment and joins an apartment, so it runs on
+    // a pool thread; the watcher is ours and dies with us if the answer is late.
+    auto *probe = new QFutureWatcher<bool>(this);
+    connect(probe, &QFutureWatcher<bool>::finished, this, [this, probe] {
+        m_windowsOcrUsable = probe->result();
+        probe->deleteLater();
+        m_ocr->setEngine(ocrEffectiveEngine());
+        emit ocrEngineStateChanged();
+    });
+    probe->setFuture(QtConcurrent::run(WindowsOcr::usable));
 }
 
 bool AppContext::ocrHasLanguages() const
@@ -1621,7 +1711,7 @@ void AppContext::captureWindow()
 
 void AppContext::startGifRegion()
 {
-    if (recording()) return;
+    if (manualRecording()) return;
     m_overlay->pickRegion([this](const QRect &phys, QScreen *screen, qreal scale) {
         if (phys.isEmpty()) return;
         m_pendingRecordRegion = phys;
@@ -1634,7 +1724,7 @@ void AppContext::startGifRegion()
 
 void AppContext::startGifFullScreen()
 {
-    if (recording()) return;
+    if (manualRecording()) return;
     m_pendingRecordRegion = QRect();
     m_pendingRecordScreen = nullptr; // stale region target would misplace the countdown
     startRecorderCountdown([this](bool hold) {
@@ -1650,7 +1740,7 @@ GifRecorder::Output AppContext::videoOutput() const
 
 void AppContext::startVideoScreen()
 {
-    if (recording()) return;
+    if (manualRecording()) return;
     m_pendingRecordRegion = QRect();
     m_pendingRecordScreen = nullptr;
     startRecorderCountdown([this](bool hold) {
@@ -1660,7 +1750,7 @@ void AppContext::startVideoScreen()
 
 void AppContext::startVideoRegion()
 {
-    if (recording()) return;
+    if (manualRecording()) return;
     m_overlay->pickRegion([this](const QRect &phys, QScreen *screen, qreal scale) {
         if (phys.isEmpty()) return;
         m_pendingRecordRegion = phys;
@@ -1673,7 +1763,7 @@ void AppContext::startVideoRegion()
 
 void AppContext::startVideoWindow()
 {
-    if (recording()) return;
+    if (manualRecording()) return;
     // Reachable from the tray menu and the dev pane too, not just the (disabled)
     // Window button: on an X11-only desktop there is no window picker, so say so
     // instead of opening a portal session that fails with a raw D-Bus error.
@@ -1682,10 +1772,63 @@ void AppContext::startVideoWindow()
                      "does not provide - record the screen or a region instead."), true);
         return;
     }
+    if (QGuiApplication::platformName() == QLatin1String("windows")) {
+        startVideoWindowArea();
+        return;
+    }
     m_pendingRecordRegion = QRect();
     m_pendingRecordScreen = nullptr; // stale target would misplace the countdown
     startRecorderCountdown([this](bool hold) {
         m_recorder->start(videoOutput(), GifRecorder::Window, {}, nullptr, hold);
+    });
+}
+
+// Windows has no window picker and the direct grab records a monitor rect, so
+// "a window" is the area of the window the active-window screenshot and the
+// overlay's W key aim at, recorded as a region (what ShareX does). Asked here,
+// at the trigger, before the countdown can take the foreground.
+// shortcut: the area is fixed at the start, so moving the window or covering
+// it shows in the recording; Windows.Graphics.Capture would follow the window.
+// A window's logical rect as the region recorder wants it: physical pixels
+// relative to the screen holding its centre, clipped to that screen. Empty
+// when it is on no screen or too small to record.
+static QRect windowCrop(const QRect &logical, QScreen **screenOut, qreal *dprOut)
+{
+    QScreen *screen = logical.isEmpty() ? nullptr : QGuiApplication::screenAt(logical.center());
+    *screenOut = screen;
+    if (!screen)
+        return {};
+    const QRect g = screen->geometry();
+    const qreal dpr = screen->devicePixelRatio();
+    *dprOut = dpr;
+    const QRect phys = QRect(qRound((logical.x() - g.x()) * dpr), qRound((logical.y() - g.y()) * dpr),
+                             qRound(logical.width() * dpr), qRound(logical.height() * dpr))
+                           .intersected(QRect(0, 0, qRound(g.width() * dpr), qRound(g.height() * dpr)));
+    return phys.width() < 2 || phys.height() < 2 ? QRect() : phys;
+}
+
+void AppContext::startVideoWindowArea()
+{
+    KWinWindowGeometry geom;
+    QRect logical;
+    QString error;
+    // The Windows implementation answers inside the call.
+    geom.queryActiveWindow([&](const QRect &r, const QString &e) {
+        logical = r;
+        error = e;
+    });
+    QScreen *screen = nullptr;
+    qreal dpr = 1;
+    const QRect phys = windowCrop(logical, &screen, &dpr);
+    if (phys.isEmpty()) {
+        qWarning() << "Window recording: no target window:" << error;
+        showToast(tr("No window to record. Click the window first, then start the recording."), true);
+        return;
+    }
+    m_pendingRecordRegion = phys;
+    m_pendingRecordScreen = screen;
+    startRecorderCountdown([this, phys, screen, dpr](bool hold) {
+        m_recorder->start(videoOutput(), GifRecorder::Region, phys, screen, hold, dpr);
     });
 }
 
@@ -1708,11 +1851,10 @@ void AppContext::togglePauseRecording()
 void AppContext::startInstantReplay()
 {
     if (recording()) return;
+    m_replayAuto = false;
     m_pendingRecordRegion = {};
     m_pendingRecordScreen = nullptr;
-    startRecorderCountdown([this](bool hold) {
-        m_recorder->start(GifRecorder::Replay, GifRecorder::Screen, {}, nullptr, hold);
-    });
+    startRecorderCountdown([this](bool hold) { startReplayRing(hold); });
 }
 
 void AppContext::saveInstantReplay()
@@ -1721,12 +1863,191 @@ void AppContext::saveInstantReplay()
         showToast(tr("Start instant replay first"), true);
         return;
     }
+    // Before the save: a refusal inside it (no segment yet) replaces the pill.
+    // Held until "Clip saved" or "Clip not saved"; the 2-minute cap only
+    // matters if neither arrives.
+    showClipIndicator(tr("Saving clip…"), QString(), QStringLiteral("busy"), 120000);
     m_recorder->saveInstantReplay();
     showToast(tr("Saving instant replay…"));
 }
 
+void AppContext::updateReplayDot()
+{
+    const bool on = m_settings->clipStatusDot() && m_recorder->instantReplayActive() && !m_converting
+                    && !QCoreApplication::closingDown();
+    if (!on && !m_clipOsd)
+        return;
+    if (!m_clipOsd)
+        m_clipOsd = new ClipOsd(this, m_layerShellAvailable, this);
+    m_clipOsd->setStatusDot(on, m_settings->clipStatusCorner());
+}
+
+void AppContext::showClipIndicator(const QString &title, const QString &detail,
+                                   const QString &tone, int ms)
+{
+    if (!m_settings->clipIndicator() || QCoreApplication::closingDown())
+        return;
+    if (!m_clipOsd)
+        m_clipOsd = new ClipOsd(this, m_layerShellAvailable, this);
+    m_clipOsd->show(title, detail, tone, ms);
+}
+
+void AppContext::setSaveProgress(qreal p)
+{
+    if (qFuzzyCompare(m_saveProgress + 2, p + 2))
+        return;
+    m_saveProgress = p;
+    emit saveProgressChanged();
+}
+
+// A recording or the replay ring has ended: start what was waiting for it.
+void AppContext::continueAfterRecording()
+{
+    // Queued: the recorder emits finished/failed before it is fully idle.
+    if (m_afterReplayStops) {
+        QTimer::singleShot(0, this, std::exchange(m_afterReplayStops, nullptr));
+    } else if (m_resumeAutoReplay) {
+        m_resumeAutoReplay = false;
+        QTimer::singleShot(0, this, &AppContext::applyInstantReplayAuto);
+    }
+}
+
+// Settings::instantReplayAuto: "launch" keeps the ring running from startup,
+// "game" while GameDetector sees a game. Started without the countdown, the
+// start cue or hiding the window: nobody pressed anything. A ring the user
+// stopped stays stopped until the mode changes or the next game starts.
+// Cost while on: the replay encode itself (one ffmpeg, the ring on disk in
+// the cache dir, up to an hour of video), plus GameDetector's 5 s poll.
+void AppContext::updateGameDetector()
+{
+    const bool need = m_settings->instantReplayAuto() == QLatin1String("game") || instantReplayActive();
+    if (need == bool(m_gameDetector))
+        return;
+    if (need) {
+        m_gameDetector = new GameDetector(this);
+        connect(m_gameDetector, &GameDetector::runningChanged, this, &AppContext::applyInstantReplayAuto);
+        connect(m_gameDetector, &GameDetector::gameChanged, this, &AppContext::onGameChanged);
+    } else {
+        m_gameDetector->deleteLater();
+        m_gameDetector = nullptr;
+    }
+    onGameChanged(currentGame());
+}
+
+QString AppContext::currentGame() const
+{
+    return m_gameDetector ? m_gameDetector->game() : QString();
+}
+
+// Names the files the ring writes, and puts the game on top of "Recently
+// played" (Settings::recentGames, at most 12, one entry per name).
+void AppContext::onGameChanged(const QString &name)
+{
+    m_recorder->setReplayGame(name);
+    emit currentGameChanged();
+    if (name.isEmpty())
+        return;
+    // "<epoch>\t<name>[\t<cover path>]"; an older cover is kept when this
+    // detector found none (a game seen through Steam once, by GameMode now).
+    QStringList games = m_settings->recentGames();
+    QString cover = m_gameDetector ? m_gameDetector->cover() : QString();
+    games.removeIf([&name, &cover](const QString &entry) {
+        if (entry.section(QLatin1Char('\t'), 1, 1) != name)
+            return false;
+        if (cover.isEmpty())
+            cover = entry.section(QLatin1Char('\t'), 2, 2);
+        return true;
+    });
+    QString entry = QString::number(QDateTime::currentSecsSinceEpoch()) + QLatin1Char('\t') + name;
+    if (!cover.isEmpty())
+        entry += QLatin1Char('\t') + cover;
+    games.prepend(entry);
+    m_settings->setRecentGames(games.mid(0, 12));
+}
+
+void AppContext::applyInstantReplayAuto()
+{
+    const QString mode = m_settings->instantReplayAuto();
+    updateGameDetector();
+    const bool want = mode == QLatin1String("launch") || (m_gameDetector && m_gameDetector->running());
+    if (!want) {
+        if (autoReplayActive())
+            stopRecording();
+        return;
+    }
+    if (recording() || m_converting || m_recordHoldActive || m_afterReplayStops || m_replayStarting
+        || !recordingAvailable())
+        return;
+    m_pendingRecordRegion = {};
+    m_pendingRecordScreen = nullptr;
+    m_replayAuto = true;
+    startReplayRing(false);
+}
+
+// Settings::clipSource "window": the game's window when GameDetector knows
+// the game's processes, else the window in front. On KDE a KWin window
+// stream follows that window wherever it moves and whatever covers it; on
+// Windows its area is recorded as a region; with no way to find a window
+// (no KWin, a sandbox) the screen is. An automatic start waits up to 30 s
+// for a game still loading to open its window, then records the screen.
+// Cost: one throwaway KWin script per start (KWinWindowGeometry).
+void AppContext::startReplayRing(bool hold)
+{
+    if (m_settings->clipSource() != QLatin1String("window") || !KWinWindowGeometry::isAvailable()) {
+        m_recorder->start(GifRecorder::Replay, GifRecorder::Screen, {}, nullptr, hold);
+        return;
+    }
+    const QList<qint64> pids = m_gameDetector && m_gameDetector->running() ? m_gameDetector->gamePids()
+                                                                            : QList<qint64>();
+    // No game and Unisic itself in front (Start pressed in this window): the
+    // "window in front" would be Unisic, so the screen is recorded instead.
+    if (pids.isEmpty() && QGuiApplication::focusWindow()) {
+        showToast(tr("No game window found: recording the whole screen"));
+        m_recorder->start(GifRecorder::Replay, GifRecorder::Screen, {}, nullptr, hold);
+        return;
+    }
+    m_replayStarting = true;
+    auto *geom = new KWinWindowGeometry(this);
+    geom->queryWindow(pids, [this, geom, hold, pids](const QRect &logical, const QString &uuid,
+                                                     const QString &error) {
+        geom->deleteLater();
+        m_replayStarting = false;
+        if (recording())
+            return; // something else started while KWin answered
+        if (!uuid.isEmpty() && m_recorder->canStreamWindow()) {
+            m_replayWindowTries = 0;
+            m_recorder->setWindowUuid(uuid);
+            m_recorder->start(GifRecorder::Replay, GifRecorder::Window, {}, nullptr, hold);
+            return;
+        }
+        QScreen *screen = nullptr;
+        qreal dpr = 1;
+        const QRect phys = windowCrop(logical, &screen, &dpr);
+        if (!phys.isEmpty()) {
+            m_replayWindowTries = 0;
+            m_recorder->start(GifRecorder::Replay, GifRecorder::Region, phys, screen, hold, dpr);
+            return;
+        }
+        if (m_replayAuto && !pids.isEmpty() && m_replayWindowTries < 10) {
+            ++m_replayWindowTries;
+            QTimer::singleShot(3000, this, &AppContext::applyInstantReplayAuto);
+            return;
+        }
+        m_replayWindowTries = 0;
+        qWarning() << "Instant replay: no window to record, recording the screen:" << error;
+        m_recorder->start(GifRecorder::Replay, GifRecorder::Screen, {}, nullptr, hold);
+    });
+}
+
 void AppContext::startRecorderCountdown(std::function<void(bool)> begin)
 {
+    // An automatic replay ring gives way to a recording and comes back after.
+    if (autoReplayActive()) {
+        m_afterReplayStops = [this, begin] { startRecorderCountdown(begin); };
+        m_resumeAutoReplay = true;
+        stopRecording();
+        return;
+    }
     const int secs = qBound(0, m_settings->recordCountdownSec(), 10);
     const bool hasStartCue = m_settings->recordStartSound() != QLatin1String("off")
                              && m_settings->soundVolume() > 0;
@@ -2207,7 +2528,7 @@ QImage autoRedactTestImage()
 QString AppContext::autoRestartBlockers() const
 {
     QStringList b;
-    if (recording() || m_converting)
+    if (manualRecording() || m_converting)
         b << tr("recording");
     if (m_captureInFlight)
         b << tr("capture in progress");
@@ -3187,10 +3508,15 @@ void AppContext::hideRecordBorder()
     }
 }
 
-void AppContext::onRecordingFinished(const QString &path, bool fromInstantReplay)
+void AppContext::onRecordingFinished(const QString &path, const QString &origin)
 {
     m_converting = false;
+    setSaveProgress(-1);
     emit recordingChanged();
+    // A clip leaves the ring running; a session or a trim lands after the
+    // recording that made it was already over.
+    if (origin.isEmpty())
+        continueAfterRecording();
     if (path.isEmpty())
         return; // stopping the rolling replay ring creates no output by itself
     const QString kind = path.endsWith(QLatin1String(".gif")) ? QStringLiteral("gif")
@@ -3202,23 +3528,23 @@ void AppContext::onRecordingFinished(const QString &path, bool fromInstantReplay
         auto *proc = new QProcess(this);
         const auto completed = std::make_shared<bool>(false);
         connect(proc, &QProcess::finished, this,
-                [this, proc, path, kind, posterPath, completed, fromInstantReplay](int, QProcess::ExitStatus) {
+                [this, proc, path, kind, posterPath, completed, origin](int, QProcess::ExitStatus) {
             if (*completed)
                 return;
             *completed = true;
             proc->deleteLater();
             QImage thumb(posterPath);
             QFile::remove(posterPath);
-            finishRecordingEntry(path, thumb, kind, fromInstantReplay);
+            finishRecordingEntry(path, thumb, kind, origin);
         });
         connect(proc, &QProcess::errorOccurred, this,
-                [this, proc, path, kind, posterPath, completed, fromInstantReplay](QProcess::ProcessError e) {
+                [this, proc, path, kind, posterPath, completed, origin](QProcess::ProcessError e) {
             if (e != QProcess::FailedToStart || *completed)
                 return;
             *completed = true;
             proc->deleteLater();
             QFile::remove(posterPath);
-            finishRecordingEntry(path, QImage(), kind, fromInstantReplay);
+            finishRecordingEntry(path, QImage(), kind, origin);
         });
         // Extract the poster already downscaled to thumbnail size: the only
         // consumer is a history/popup thumbnail (≤480 px), so a full-res 4K PNG
@@ -3252,22 +3578,28 @@ void AppContext::onRecordingFinished(const QString &path, bool fromInstantReplay
     QImage thumb = reader.read();
     if (thumb.isNull())
         thumb = QImage(path); // fall back to a full decode if the scaled read failed
-    finishRecordingEntry(path, thumb, kind);
+    finishRecordingEntry(path, thumb, kind, origin);
 }
 
 void AppContext::finishRecordingEntry(const QString &path, const QImage &thumb, const QString &kind,
-                                      bool fromInstantReplay)
+                                      const QString &origin)
 {
     // Audible cue that the (possibly long) encode is done and the file exists -
     // the screenshot pipeline plays its own cue in finishCapture.
     playRecordingSound();
 
-    const quint64 historyId = m_history->addEntry(path, thumb, kind, {}, {},
-                        fromInstantReplay ? QStringLiteral("replay") : QString());
+    const quint64 historyId = m_history->addEntry(path, thumb, kind, {}, {}, origin);
     showToast(tr("Saved %1").arg(path));
     if (m_settings->copyToClipboard())
         copyFileToClipboard(path);
     runExternalAction(thumb, path);
+    if (origin == QLatin1String("replay")) {
+        showClipIndicator(tr("Clip saved"), QFileInfo(path).fileName(), QStringLiteral("ok"), 3500);
+        if (m_settings->clipOpenReplay())
+            openTrimRecording(path);
+    } else if (origin == QLatin1String("session")) {
+        showClipIndicator(tr("Session saved"), QFileInfo(path).fileName(), QStringLiteral("ok"), 3500);
+    }
 
     // Inhibition is sampled NOW, not at recording start: a recording can run
     // for minutes, and muteOnFullscreen must reflect what is on screen when
@@ -3625,11 +3957,13 @@ QString AppContext::watermarkPreviewSource() const
     return QStringLiteral("image://watermark/%1").arg(m_watermarkPreviewRev);
 }
 
-QString AppContext::pickWatermarkImage()
+QString AppContext::pickWatermarkImage(bool replay)
 {
-    const QString start = m_settings->watermarkImagePath().isEmpty()
+    const QString current = replay ? m_settings->replayWatermarkImagePath()
+                                   : m_settings->watermarkImagePath();
+    const QString start = current.isEmpty()
                               ? QStandardPaths::writableLocation(QStandardPaths::PicturesLocation)
-                              : QFileInfo(m_settings->watermarkImagePath()).absolutePath();
+                              : QFileInfo(current).absolutePath();
     const QString path = QFileDialog::getOpenFileName(
         nullptr, tr("Choose watermark image"), start.isEmpty() ? QDir::homePath() : start,
         tr("Images (*.png *.svg *.svgz *.jpg *.jpeg *.webp)"));
@@ -3648,28 +3982,16 @@ QString AppContext::pickWatermarkImage()
         showToast(tr("Could not load the watermark image"), true);
         return {};
     }
-    m_settings->setWatermarkImagePath(path);
+    if (replay)
+        m_settings->setReplayWatermarkImagePath(path);
+    else
+        m_settings->setWatermarkImagePath(path);
     return path;
 }
 
 void AppContext::refreshWatermarkImage()
 {
-    m_watermarkImage = {};
-    const QString path = m_settings->watermarkImagePath();
-    if (path.isEmpty())
-        return;
-    QImageReader reader(path);
-    reader.setAutoTransform(true);
-    const QSize sourceSize = reader.size();
-    if (!sourceSize.isValid() || sourceSize.width() > 16384 || sourceSize.height() > 16384)
-        return;
-    // Cap the decoded size at 1024 to avoid pinning a huge source, but NEVER
-    // upscale a small logo (KeepAspectRatio would blow a 120px icon up to 1024
-    // and then watermarkImage scales it back down - a double resample that
-    // fringes the alpha edges).
-    if (sourceSize.width() > 1024 || sourceSize.height() > 1024)
-        reader.setScaledSize(sourceSize.scaled(QSize(1024, 1024), Qt::KeepAspectRatio));
-    m_watermarkImage = reader.read().convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    m_watermarkImage = UnisicImageEffects::loadWatermark(m_settings->watermarkImagePath());
 }
 
 QString AppContext::editableKindFor(const QString &path)
@@ -3915,6 +4237,7 @@ void AppContext::openTrimRecording(const QString &path)
         // is not a contract worth leaning on.
         qreal duration = -1;
         qreal frameDur = 0;
+        QSize size;
         const QList<QByteArray> lines = output.split('\n');
         for (const QByteArray &line : lines) {
             const int eq = line.indexOf('=');
@@ -3927,6 +4250,10 @@ void AppContext::openTrimRecording(const QString &path)
                 const qreal d = value.toDouble(&ok);
                 if (ok)
                     duration = d;
+            } else if (key == "width") {
+                size.setWidth(value.toInt());
+            } else if (key == "height") {
+                size.setHeight(value.toInt());
             } else if (key == "avg_frame_rate") {
                 // "30/1", "30000/1001"; "0/0" for unknown → stays 0.
                 const int slash = value.indexOf('/');
@@ -3941,7 +4268,7 @@ void AppContext::openTrimRecording(const QString &path)
             showToast(tr("Could not read the recording duration"), true);
             return;
         }
-        showTrimWindow(path, duration, frameDur);
+        showTrimWindow(path, duration, frameDur, size);
     });
     connect(probe, &QProcess::errorOccurred, this,
             [this, probe, completed](QProcess::ProcessError error) {
@@ -3954,11 +4281,12 @@ void AppContext::openTrimRecording(const QString &path)
     probe->start(ffprobe, {QStringLiteral("-v"), QStringLiteral("error"),
                            QStringLiteral("-select_streams"), QStringLiteral("v:0"),
                            QStringLiteral("-show_entries"),
-                           QStringLiteral("stream=avg_frame_rate:format=duration"),
+                           QStringLiteral("stream=avg_frame_rate,width,height:format=duration"),
                            QStringLiteral("-of"), QStringLiteral("default=nw=1"), path});
 }
 
-void AppContext::showTrimWindow(const QString &path, qreal duration, qreal frameDuration)
+void AppContext::showTrimWindow(const QString &path, qreal duration, qreal frameDuration,
+                                QSize videoSize)
 {
     if (!m_engine)
         return;
@@ -3968,7 +4296,7 @@ void AppContext::showTrimWindow(const QString &path, qreal duration, qreal frame
         return;
     }
     auto *ctx = new QQmlContext(m_engine->rootContext(), this);
-    auto *trim = new TrimController(path, duration, frameDuration);
+    auto *trim = new TrimController(path, duration, frameDuration, videoSize);
     ctx->setContextProperty(QStringLiteral("trimSourcePath"), path);
     ctx->setContextProperty(QStringLiteral("trimDuration"), duration);
     ctx->setContextProperty(QStringLiteral("trimController"), trim);
@@ -3991,7 +4319,8 @@ void AppContext::showTrimWindow(const QString &path, qreal duration, qreal frame
 }
 
 void AppContext::runTrimStep(const QStringList &args,
-                             std::function<void(bool, const QString &)> done)
+                             std::function<void(bool, const QString &)> done,
+                             qint64 progressMs, qreal from, qreal to)
 {
     const QString ffmpeg = QStandardPaths::findExecutable(QStringLiteral("ffmpeg"));
     if (ffmpeg.isEmpty()) {
@@ -4000,38 +4329,64 @@ void AppContext::runTrimStep(const QStringList &args,
     }
     auto *process = new QProcess(this);
     const auto completed = std::make_shared<bool>(false);
-    process->setProcessChannelMode(QProcess::MergedChannels);
+    QStringList fullArgs = args;
+    if (progressMs > 0) {
+        // Progress on stdout, the diagnostic stays on stderr.
+        fullArgs.prepend(QStringLiteral("pipe:1"));
+        fullArgs.prepend(QStringLiteral("-progress"));
+        setSaveProgress(from);
+        connect(process, &QProcess::readyReadStandardOutput, this,
+                [this, process, progressMs, from, to] {
+            while (process->canReadLine()) {
+                const QByteArray line = process->readLine().trimmed();
+                if (line.startsWith("out_time_us=")) {
+                    const qreal f = qBound(0.0, line.mid(12).toLongLong() / (progressMs * 1000.0), 1.0);
+                    setSaveProgress(from + (to - from) * f);
+                }
+            }
+        });
+    } else {
+        process->setProcessChannelMode(QProcess::MergedChannels);
+    }
+    const bool last = progressMs > 0 && to >= 1.0;
     connect(process, &QProcess::finished, this,
-            [process, completed, done](int code, QProcess::ExitStatus status) {
+            [this, process, completed, done, progressMs, last](int code, QProcess::ExitStatus status) {
         if (*completed)
             return;
         *completed = true;
-        const QString diagnostic = QString::fromUtf8(process->readAll()).trimmed();
+        const QString diagnostic = QString::fromUtf8(progressMs > 0 ? process->readAllStandardError()
+                                                                    : process->readAll()).trimmed();
         process->deleteLater();
-        done(code == 0 && status == QProcess::NormalExit, diagnostic);
+        const bool ok = code == 0 && status == QProcess::NormalExit;
+        if (progressMs > 0 && (last || !ok))
+            setSaveProgress(-1);
+        done(ok, diagnostic);
     });
     connect(process, &QProcess::errorOccurred, this,
-            [this, process, completed, done](QProcess::ProcessError error) {
+            [this, process, completed, done, progressMs](QProcess::ProcessError error) {
         if (error != QProcess::FailedToStart || *completed)
             return;
         *completed = true;
         process->deleteLater();
+        if (progressMs > 0)
+            setSaveProgress(-1);
         done(false, tr("Trimming requires ffmpeg"));
     });
-    process->start(ffmpeg, args);
+    process->start(ffmpeg, fullArgs);
 }
 
-void AppContext::trimGif(const QString &path, const QString &output, qreal start, qreal end)
+void AppContext::trimGif(const QString &path, const QString &output,
+                         const QList<QPointF> &segments, const QString &videoTail, qint64 lengthMs)
 {
     // A GIF cannot be seeked (input -ss silently yields the whole file) and
     // cannot be stream-copied mid-file, so the range is selected inside the
     // filter graph and the selection is re-rendered through the same two-pass
     // palettegen/paletteuse the recorder uses. setpts rebases the selection to
     // zero; without it the output keeps a `start` seconds of empty lead-in.
+    // Every kept span is trimmed and joined in the graph (ClipGraph), then
+    // cropped/scaled when the clip is reframed; it leaves as [v].
     const int quality = m_settings->gifQuality();
-    const QString range = QStringLiteral("trim=start=%1:end=%2,setpts=PTS-STARTPTS")
-                              .arg(QString::number(start, 'f', 3),
-                                   QString::number(end, 'f', 3));
+    const QString range = ClipGraph::build(segments, videoTail, {}, -1, {}, {}).filter;
     // The palette is scratch: it lives in the cache dir (NOT next to the
     // recording, where an exit mid-trim would leave a stray
     // "*-trimmed.gif.palette.png" forever), and stale ones from an earlier
@@ -4053,10 +4408,11 @@ void AppContext::trimGif(const QString &path, const QString &output, qreal start
     runTrimStep({QStringLiteral("-y"), QStringLiteral("-nostats"),
                  QStringLiteral("-loglevel"), QStringLiteral("error"),
                  QStringLiteral("-i"), path,
-                 QStringLiteral("-vf"),
-                 range + QLatin1Char(',') + FfmpegUtil::gifPaletteGenFilter(quality),
+                 QStringLiteral("-filter_complex"),
+                 range + QStringLiteral(";[v]%1[p]").arg(FfmpegUtil::gifPaletteGenFilter(quality)),
+                 QStringLiteral("-map"), QStringLiteral("[p]"),
                  palette},
-                [this, path, output, palette, range, quality](bool ok, const QString &diagnostic) {
+                [this, path, output, palette, range, quality, lengthMs](bool ok, const QString &diagnostic) {
         if (!ok) {
             QFile::remove(palette);
             showToast(tr("Trim failed: %1").arg(diagnostic), true);
@@ -4066,9 +4422,9 @@ void AppContext::trimGif(const QString &path, const QString &output, qreal start
                      QStringLiteral("-loglevel"), QStringLiteral("error"),
                      QStringLiteral("-i"), path,
                      QStringLiteral("-i"), palette,
-                     QStringLiteral("-lavfi"),
-                     QStringLiteral("[0:v]%1[x];[x][1:v]%2")
-                         .arg(range, FfmpegUtil::gifPaletteUseFilter(quality)),
+                     QStringLiteral("-filter_complex"),
+                     range + QStringLiteral(";[v][1:v]%1[g]").arg(FfmpegUtil::gifPaletteUseFilter(quality)),
+                     QStringLiteral("-map"), QStringLiteral("[g]"),
                      output},
                     [this, output, palette](bool ok2, const QString &diagnostic2) {
             QFile::remove(palette);
@@ -4078,14 +4434,36 @@ void AppContext::trimGif(const QString &path, const QString &output, qreal start
                 return;
             }
             onRecordingFinished(output);
-        });
-    });
+        }, lengthMs, 0.5, 1.0);
+    }, lengthMs, 0.0, 0.5);
 }
 
 void AppContext::trimRecording(const QString &path, qreal startSeconds, qreal endSeconds,
                                bool lossless, const QVariantList &audioGains, int mixTrack)
 {
-    if (!QFileInfo::exists(path) || startSeconds < 0 || endSeconds <= startSeconds) {
+    exportClip({{QStringLiteral("path"), path},
+                {QStringLiteral("segments"), QVariantList{QVariantList{startSeconds, endSeconds}}},
+                {QStringLiteral("lossless"), lossless},
+                {QStringLiteral("gains"), audioGains},
+                {QStringLiteral("mixTrack"), mixTrack}});
+}
+
+void AppContext::exportClip(const QVariantMap &options)
+{
+    const QString path = options.value(QStringLiteral("path")).toString();
+    QList<QPointF> segments;
+    qreal keptSeconds = 0;
+    for (const QVariant &v : options.value(QStringLiteral("segments")).toList()) {
+        const QVariantList pair = v.toList();
+        if (pair.size() != 2)
+            continue;
+        const QPointF seg(qMax(0.0, pair.at(0).toDouble()), pair.at(1).toDouble());
+        if (seg.y() - seg.x() < 0.01 || (!segments.isEmpty() && seg.x() < segments.last().y()))
+            continue;   // empty, or out of order: the graph needs ascending spans
+        segments << seg;
+        keptSeconds += seg.y() - seg.x();
+    }
+    if (!QFileInfo::exists(path) || segments.isEmpty() || keptSeconds < 0.05) {
         showToast(tr("Invalid trim range"), true);
         return;
     }
@@ -4094,44 +4472,71 @@ void AppContext::trimRecording(const QString &path, qreal startSeconds, qreal en
         return;
     }
     const QFileInfo source(path);
-    QString output = source.absolutePath() + QLatin1Char('/') + source.completeBaseName()
-                     + QStringLiteral("-trimmed.") + source.suffix();
+    // A clip title becomes the file name; whatever a file system or a shell
+    // would trip over turns into a dash, and the name stays next to the source.
+    QString base = options.value(QStringLiteral("name")).toString();
+    base.replace(QRegularExpression(QStringLiteral("[/\\\\:*?\"<>|\\x00-\\x1f]")), QStringLiteral("-"));
+    base = base.trimmed().left(120);
+    if (base.isEmpty() || base.startsWith(QLatin1Char('.')))
+        base = source.completeBaseName() + QStringLiteral("-trimmed");
+    const QString stem = source.absolutePath() + QLatin1Char('/') + base;
+    QString output = stem + QLatin1Char('.') + source.suffix();
     for (int i = 1; QFileInfo::exists(output); ++i)
-        output = source.absolutePath() + QLatin1Char('/') + source.completeBaseName()
-                 + QStringLiteral("-trimmed-%1.").arg(i) + source.suffix();
+        output = stem + QStringLiteral("-%1.").arg(i) + source.suffix();
+
+    const QVariantMap crop = options.value(QStringLiteral("crop")).toMap();
+    const QString tail = ClipGraph::videoTail(
+        options.value(QStringLiteral("width")).toInt(), options.value(QStringLiteral("height")).toInt(),
+        crop.value(QStringLiteral("x")).toInt(), crop.value(QStringLiteral("y")).toInt(),
+        crop.value(QStringLiteral("w")).toInt(), crop.value(QStringLiteral("h")).toInt(),
+        options.value(QStringLiteral("shortSide")).toInt());
+    const QString evenCrop = QStringLiteral("crop=trunc(iw/2)*2:trunc(ih/2)*2");
+    const bool reframed = tail != evenCrop;
+    const qint64 keptMs = qRound64(keptSeconds * 1000);
 
     showToast(tr("Trimming recording…"));
     const QString suffix = source.suffix().toLower();
     if (suffix == QLatin1String("gif")) {
-        trimGif(path, output, startSeconds, endSeconds);
+        trimGif(path, output, segments, reframed ? tail : QString(), keptMs);
         return;
     }
 
-    const QString ss = QString::number(startSeconds, 'f', 3);
-    const QString dur = QString::number(endSeconds - startSeconds, 'f', 3);
     // The trim window sends one gain per audio track; all-1.0 (or none) means
     // the audio is untouched and can stay a stream copy.
     QList<double> gains;
     bool audioEdited = false;
-    for (const QVariant &value : audioGains) {
+    for (const QVariant &value : options.value(QStringLiteral("gains")).toList()) {
         const double gain = value.toDouble();
         gains << gain;
         if (gain < 0 || !qFuzzyCompare(gain, 1.0))
             audioEdited = true;
     }
+    const int mixTrack = options.value(QStringLiteral("mixTrack"), -1).toInt();
     const bool webm = suffix == QLatin1String("webm");
     const auto editArgs = [&] {
         return mixTrack >= 0 && mixTrack < gains.size()
                    ? GifRecorder::audioRemixArgs(webm, gains, mixTrack, tr("Mix"))
                    : GifRecorder::audioEditArgs(webm, gains);
     };
-    QStringList args{QStringLiteral("-y"), QStringLiteral("-nostats"),
-                     QStringLiteral("-loglevel"), QStringLiteral("error"),
-                     QStringLiteral("-ss"), ss,
-                     QStringLiteral("-i"), path,
-                     QStringLiteral("-t"), dur};
-    if (lossless) {
-        // The caller has already snapped `startSeconds` onto a keyframe, so the
+    // Cut from a clip or a session, the result is a clip too: it stays on
+    // the Clips page instead of turning into a plain video.
+    const QString category = m_history->categoryOfFile(path);
+    const QString origin = category == QLatin1String("replay") || category == QLatin1String("session")
+                               ? QStringLiteral("clip") : QString();
+    const auto finish = [this, output, origin](bool ok, const QString &diagnostic) {
+        if (!ok) {
+            QFile::remove(output);
+            showToast(tr("Trim failed: %1").arg(diagnostic), true);
+            return;
+        }
+        onRecordingFinished(output, origin);
+    };
+
+    const QPointF first = segments.first();
+    // A stream copy cannot crop, scale or join cuts; the window only offers
+    // it for one plain segment, and anything else re-encodes here regardless.
+    if (options.value(QStringLiteral("lossless")).toBool() && segments.size() == 1 && !reframed) {
+        // The caller has already snapped the start onto a keyframe, so the
         // copy starts exactly there. make_zero rebases the timestamps instead of
         // leaning on a container edit list (which not every player honours).
         // Explicit maps, not `-c copy` alone: ffmpeg's default stream selection
@@ -4139,80 +4544,106 @@ void AppContext::trimRecording(const QString &path, qreal startSeconds, qreal en
         // separate-tracks recording. A volume/mute edit re-encodes the audio
         // (a filter cannot run on a copied stream); the video is copied either
         // way, so the cut stays instant.
-        args << QStringLiteral("-avoid_negative_ts") << QStringLiteral("make_zero")
-             << QStringLiteral("-map") << QStringLiteral("0:v:0")
-             << QStringLiteral("-c:v") << QStringLiteral("copy");
+        QStringList args{QStringLiteral("-y"), QStringLiteral("-nostats"),
+                         QStringLiteral("-loglevel"), QStringLiteral("error"),
+                         QStringLiteral("-ss"), QString::number(first.x(), 'f', 3),
+                         QStringLiteral("-i"), path,
+                         QStringLiteral("-t"), QString::number(first.y() - first.x(), 'f', 3),
+                         QStringLiteral("-avoid_negative_ts"), QStringLiteral("make_zero"),
+                         QStringLiteral("-map"), QStringLiteral("0:v:0"),
+                         QStringLiteral("-c:v"), QStringLiteral("copy")};
         if (audioEdited)
             args << editArgs();
         else
             args << QStringLiteral("-map") << QStringLiteral("0:a?")
                  << QStringLiteral("-c:a") << QStringLiteral("copy");
+        args << output;
+        runTrimStep(args, finish, keptMs);
+        return;
+    }
+
+    // Re-encode. With -ss/-t in front of -i ffmpeg seeks to the keyframe
+    // before the first cut and decodes forward, so the file starts on the
+    // exact frame and a cut late in an hour-long replay does not decode the
+    // whole hour; every later span is then relative to that first frame.
+    const int crf = UnisicVideo::crfFromPercent(m_settings->videoQualityPercent());
+    QStringList pre, codec;
+    QString hwTail;
+    if (webm) {
+        codec << QStringLiteral("-c:v") << QStringLiteral("libvpx-vp9")
+              << QStringLiteral("-crf") << QString::number(crf)
+              << QStringLiteral("-b:v") << QStringLiteral("0")
+              << QStringLiteral("-deadline") << QStringLiteral("good")
+              << QStringLiteral("-cpu-used") << QStringLiteral("4")
+              << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
+              << QStringLiteral("-row-mt") << QStringLiteral("1");
+    } else if (m_settings->videoEncoder() == QLatin1String("vaapi")
+               && FfmpegUtil::hardwareEncoderAvailable(QStringLiteral("vaapi"))) {
+        pre << QStringLiteral("-vaapi_device") << QStringLiteral("/dev/dri/renderD128");
+        hwTail = QStringLiteral(",format=nv12,hwupload");
+        codec << QStringLiteral("-c:v") << QStringLiteral("h264_vaapi")
+              << QStringLiteral("-qp") << QString::number(qBound(1, crf, 40))
+              << QStringLiteral("-movflags") << QStringLiteral("+faststart");
+    } else if (m_settings->videoEncoder() == QLatin1String("nvenc")
+               && FfmpegUtil::hardwareEncoderAvailable(QStringLiteral("nvenc"))) {
+        codec << QStringLiteral("-c:v") << QStringLiteral("h264_nvenc")
+              << QStringLiteral("-preset") << QStringLiteral("p4")
+              << QStringLiteral("-cq") << QString::number(crf)
+              << QStringLiteral("-b:v") << QStringLiteral("0")
+              << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
+              << QStringLiteral("-movflags") << QStringLiteral("+faststart");
+    } else if (FfmpegUtil::encoderUsable(QStringLiteral("libx264"))) {
+        codec << QStringLiteral("-c:v") << QStringLiteral("libx264")
+              << QStringLiteral("-preset") << QStringLiteral("veryfast")
+              << QStringLiteral("-crf") << QString::number(crf)
+              << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
+              << QStringLiteral("-movflags") << QStringLiteral("+faststart");
     } else {
-        // Re-encode: with -ss in front of -i ffmpeg seeks to the preceding
-        // keyframe and decodes forward, so the output starts on the exact frame.
-        const int crf = UnisicVideo::crfFromPercent(m_settings->videoQualityPercent());
-        // yuv420p needs even dimensions (same rule the recorder enforces on its
-        // crop): an imported MP4/MOV/MKV can be odd-sized, and libx264 & friends
-        // abort with "width not divisible by 2". Trim at most one edge pixel.
-        const QString evenCrop = QStringLiteral("crop=trunc(iw/2)*2:trunc(ih/2)*2");
-        if (suffix == QLatin1String("webm")) {
-            args << QStringLiteral("-vf") << evenCrop
-                 << QStringLiteral("-c:v") << QStringLiteral("libvpx-vp9")
-                 << QStringLiteral("-crf") << QString::number(crf)
-                 << QStringLiteral("-b:v") << QStringLiteral("0")
-                 << QStringLiteral("-deadline") << QStringLiteral("good")
-                 << QStringLiteral("-cpu-used") << QStringLiteral("4")
-                 << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
-                 << QStringLiteral("-row-mt") << QStringLiteral("1");
-        } else if (m_settings->videoEncoder() == QLatin1String("vaapi")
-                   && FfmpegUtil::hardwareEncoderAvailable(QStringLiteral("vaapi"))) {
-            args << QStringLiteral("-vaapi_device") << QStringLiteral("/dev/dri/renderD128")
-                 << QStringLiteral("-vf") << evenCrop + QStringLiteral(",format=nv12,hwupload")
-                 << QStringLiteral("-c:v") << QStringLiteral("h264_vaapi")
-                 << QStringLiteral("-qp") << QString::number(qBound(1, crf, 40))
-                 << QStringLiteral("-movflags") << QStringLiteral("+faststart");
-        } else if (m_settings->videoEncoder() == QLatin1String("nvenc")
-                   && FfmpegUtil::hardwareEncoderAvailable(QStringLiteral("nvenc"))) {
-            args << QStringLiteral("-vf") << evenCrop
-                 << QStringLiteral("-c:v") << QStringLiteral("h264_nvenc")
-                 << QStringLiteral("-preset") << QStringLiteral("p4")
-                 << QStringLiteral("-cq") << QString::number(crf)
-                 << QStringLiteral("-b:v") << QStringLiteral("0")
-                 << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
-                 << QStringLiteral("-movflags") << QStringLiteral("+faststart");
-        } else if (FfmpegUtil::encoderUsable(QStringLiteral("libx264"))) {
-            args << QStringLiteral("-vf") << evenCrop
-                 << QStringLiteral("-c:v") << QStringLiteral("libx264")
-                 << QStringLiteral("-preset") << QStringLiteral("veryfast")
-                 << QStringLiteral("-crf") << QString::number(crf)
-                 << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
-                 << QStringLiteral("-movflags") << QStringLiteral("+faststart");
-        } else {
-            args << QStringLiteral("-vf") << evenCrop
-                 << QStringLiteral("-c:v") << QStringLiteral("libopenh264")
-                 << QStringLiteral("-b:v") << QStringLiteral("%1M").arg(qBound(2, (51 - crf) / 3, 16))
-                 << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
-                 << QStringLiteral("-movflags") << QStringLiteral("+faststart");
-        }
+        codec << QStringLiteral("-c:v") << QStringLiteral("libopenh264")
+              << QStringLiteral("-b:v") << QStringLiteral("%1M").arg(qBound(2, (51 - crf) / 3, 16))
+              << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
+              << QStringLiteral("-movflags") << QStringLiteral("+faststart");
+    }
+    // tail always starts with a crop: yuv420p needs even dimensions (the
+    // recorder enforces the same on its region), and an imported MP4/MOV/MKV
+    // can be odd-sized - libx264 & friends abort "width not divisible by 2".
+    QStringList args = QStringList{QStringLiteral("-y"), QStringLiteral("-nostats"),
+                                   QStringLiteral("-loglevel"), QStringLiteral("error")}
+                       + pre
+                       + QStringList{QStringLiteral("-ss"), QString::number(first.x(), 'f', 3),
+                                     QStringLiteral("-t"),
+                                     QString::number(segments.last().y() - first.x(), 'f', 3),
+                                     QStringLiteral("-i"), path};
+    if (segments.size() == 1) {
+        args << QStringLiteral("-vf") << tail + hwTail << codec
+             << QStringLiteral("-map") << QStringLiteral("0:v:0");
         // Same audio args the recorder's own conversion uses, so a trim keeps
         // every track of a multi-track recording instead of the first one.
         // No names passed: this file is finished, and ffmpeg's metadata copy
         // carries the ones it already has.
-        args << QStringLiteral("-map") << QStringLiteral("0:v:0");
         if (audioEdited)
             args << editArgs();
         else
             args << GifRecorder::finalAudioArgs(webm);
+    } else {
+        // Several kept spans: the audio has to be cut in the graph too, track
+        // by track, so the titles go back on by hand (filters drop them).
+        QList<QPointF> relative;
+        for (const QPointF &seg : std::as_const(segments))
+            relative << seg - QPointF(first.x(), first.x());
+        QStringList titles;
+        for (const QVariant &t : options.value(QStringLiteral("titles")).toList())
+            titles << t.toString();
+        const ClipGraph::Graph graph = ClipGraph::build(relative, tail + hwTail, gains, mixTrack,
+                                                        titles, tr("Mix"));
+        args << QStringLiteral("-filter_complex") << graph.filter
+             << QStringLiteral("-map") << QStringLiteral("[v]") << codec << graph.audioArgs;
+        if (!graph.audioArgs.isEmpty())
+            args << QStringLiteral("-c:a") << (webm ? QStringLiteral("libopus") : QStringLiteral("aac"))
+                 << QStringLiteral("-b:a") << (webm ? QStringLiteral("128k") : QStringLiteral("192k"));
     }
     args << output;
-    runTrimStep(args, [this, output](bool ok, const QString &diagnostic) {
-        if (!ok) {
-            QFile::remove(output);
-            showToast(tr("Trim failed: %1").arg(diagnostic), true);
-            return;
-        }
-        onRecordingFinished(output);
-    });
+    runTrimStep(args, finish, keptMs);
 }
 
 void AppContext::runExternalAction(const QImage &image, const QString &savedPath)
@@ -5745,7 +6176,7 @@ QVector<AppContext::HotkeyAction> AppContext::hotkeyActions() const
         {QStringLiteral("record-video"), tr("Record video (start/stop)"), m_settings->hotkeyRecord()},
         {QStringLiteral("ocr-region"), tr("OCR region (copy text)"), m_settings->hotkeyOcr()},
         {QStringLiteral("copy-last"), tr("Copy last capture"), m_settings->hotkeyCopyLast()},
-        {QStringLiteral("instant-replay"), tr("Start/save instant replay"), m_settings->hotkeyInstantReplay()},
+        {QStringLiteral("instant-replay"), tr("Save clip (instant replay)"), m_settings->hotkeyInstantReplay()},
         {QStringLiteral("record-screen"), tr("Record video (full screen)"), m_settings->hotkeyRecordScreen()},
         {QStringLiteral("gif-screen"), tr("Record GIF (full screen)"), m_settings->hotkeyGifScreen()},
         {QStringLiteral("record-window"), tr("Record video (window)"), m_settings->hotkeyRecordWindow()},
@@ -5756,6 +6187,7 @@ QVector<AppContext::HotkeyAction> AppContext::hotkeyActions() const
         {QStringLiteral("upload-file"), tr("Upload a file…"), m_settings->hotkeyUploadFile()},
         {QStringLiteral("upload-clipboard"), tr("Upload clipboard"), m_settings->hotkeyUploadClipboard()},
         {QStringLiteral("qr-clipboard"), tr("QR code of copied text"), m_settings->hotkeyQrClipboard()},
+        {QStringLiteral("replay-toggle"), tr("Instant replay on/off"), m_settings->hotkeyReplayToggle()},
     };
 }
 
@@ -5948,6 +6380,7 @@ void AppContext::syncHotkeyFromDaemon(const QString &actionId, const QString &po
     else if (actionId == QLatin1String("upload-file")) m_settings->setHotkeyUploadFile(portable);
     else if (actionId == QLatin1String("upload-clipboard")) m_settings->setHotkeyUploadClipboard(portable);
     else if (actionId == QLatin1String("qr-clipboard")) m_settings->setHotkeyQrClipboard(portable);
+    else if (actionId == QLatin1String("replay-toggle")) m_settings->setHotkeyReplayToggle(portable);
     else return;
     // Rare + important: flush so a SIGTERM/logout doesn't resurrect the stale key.
     m_settings->raw()->sync();

@@ -92,6 +92,18 @@ inline QVariantMap help()
     };
 }
 
+// The instant replay watermark's text: %game% and %date% are filled once,
+// when the ring starts. With no game, the separator it leaves behind goes too
+// ("Unisic · ", "a ·  · b"), so the mark never shows dangling punctuation.
+inline QString expandStamp(QString t, const QString &game, const QDate &date)
+{
+    t.replace(QLatin1String("%game%"), game);
+    t.replace(QLatin1String("%date%"), date.toString(QStringLiteral("yyyy-MM-dd")));
+    static const QRegularExpression doubled(QStringLiteral("\\s*([\\-|·•,])(?:\\s*[\\-|·•,])+\\s*"));
+    static const QRegularExpression edges(QStringLiteral("^[\\s\\-|·•,]+|[\\s\\-|·•,]+$"));
+    return t.replace(doubled, QStringLiteral(" \\1 ")).remove(edges).simplified();
+}
+
 // Maps the imageFormat setting to the file extension; anything the encoder
 // does not support falls back to png. gif belongs here even though Qt cannot
 // write one: AppContext routes it through ffmpeg, and renames the file back to

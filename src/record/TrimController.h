@@ -1,6 +1,7 @@
 #pragma once
 #include <QObject>
 #include <QPointer>
+#include <QSize>
 #include <QVariantList>
 #include <qqmlregistration.h>
 
@@ -41,13 +42,19 @@ class TrimController : public QObject
     // so the window can offer per-track volume/mute on export. Empty for GIF
     // and for a soundless recording.
     Q_PROPERTY(QVariantList audioTracks READ audioTracks NOTIFY audioTracksChanged)
+    // The audio probe has answered (with or without tracks). A clip export
+    // that cuts segments names every track in its filter graph, so it waits.
+    Q_PROPERTY(bool audioReady READ audioReady NOTIFY audioTracksChanged)
+    // Source frame size from ffprobe (0 = unknown): the crop frame's aspect.
+    Q_PROPERTY(int videoWidth READ videoWidth CONSTANT)
+    Q_PROPERTY(int videoHeight READ videoHeight CONSTANT)
 
 public:
     enum ProbeState { Idle, Busy, Ready, Failed };
     Q_ENUM(ProbeState)
 
     TrimController(const QString &path, qreal duration, qreal frameDuration = 0,
-                   QObject *parent = nullptr);
+                   QSize videoSize = {}, QObject *parent = nullptr);
     ~TrimController() override;
 
     QString sourcePath() const { return m_path; }
@@ -60,6 +67,9 @@ public:
     QVariantList keyframes() const { return m_keyframes; }
     int keyframeState() const { return m_keyframeState; }
     QVariantList audioTracks() const { return m_audioTracks; }
+    bool audioReady() const { return m_gif || m_audioProbed; }
+    int videoWidth() const { return m_videoSize.width(); }
+    int videoHeight() const { return m_videoSize.height(); }
 
     // Render the tiled strip. No-op once one exists or while one is rendering.
     Q_INVOKABLE void buildFilmstrip(int tiles, int tileHeight);
@@ -86,6 +96,7 @@ private:
     qreal m_duration = 0;
     qreal m_frameDuration = 0;
     bool m_gif = false;
+    QSize m_videoSize;
 
     QString m_stripPath;      // temp PNG, removed with this object
     QString m_stripUrl;

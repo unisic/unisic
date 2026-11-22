@@ -2,6 +2,7 @@
 
 #include <onnxruntime/onnxruntime_c_api.h>
 
+#include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QDebug>
 #include <QDir>
@@ -38,19 +39,25 @@ struct Pin {
 };
 enum { RuntimePin, ModelPin };
 const Pin kPins[] = {
-    {"https://github.com/microsoft/onnxruntime/releases/download/v1.31.1/"
+    // Our mirror of the upstream tarball, the library byte-identical: the
+    // microsoft/onnxruntime release URL answers 404 since November 2026.
+    {"https://github.com/unisic/unisic-models/releases/download/onnxruntime-1.31.1/"
      "onnxruntime-linux-x64-1.31.1.tgz",
-     11413655, "c849e36a1ef3e22d4ff217b9d1ce4a3cf5b9467b975610913ae959ad5b16bdc9"},
+     11153537, "8b5b171ec86280789101de7ad7c762b65054aa24790a057d7950b41c1d01a490"},
     // scripts/birefnet-deformconv.py applied to the onnx-community export
     // (docs/dev/packaging.md "Background removal").
     {"https://github.com/unisic/unisic-models/releases/download/birefnet-lite-dcn-1/"
      "birefnet-lite-dcn.onnx",
      181120537, "ef0bfeb72e5d83fa032433b4017accd338b74bcfb98af53f3240a751ef0ae961"},
 };
+
 // The first release with a CPU kernel for DeformConv, which the model uses
 // (microsoft/onnxruntime 163f614, in v1.25.0 and not in v1.24.4). Older ones
-// would load and then fail on every run, so the probe passes them over.
+// would load and then fail on every run, so background removal passes them over.
 const QVersionNumber kMinRuntime(1, 25);
+// PP-OCRv6 tiny (opset 11) ran on 1.20.1, the oldest any supported distro
+// ships (Fedora 43; Debian 13 has 1.21). Older ones were not tried.
+const QVersionNumber kMinOcrRuntime(1, 20);
 constexpr const char *kRuntimeMember = "onnxruntime-linux-x64-1.31.1/lib/libonnxruntime.so.1.31.1";
 constexpr const char *kRuntimeFile = "libonnxruntime.so.1.31.1";
 
@@ -93,6 +100,16 @@ QString dataDir()
 QString runtimeDir()
 {
     return dataDir() + QStringLiteral("/onnxruntime");
+}
+
+QString pinPath(int pin)
+{
+    return pin == RuntimePin ? runtimeDir() + QStringLiteral("/runtime.tgz") : BackgroundRemover::modelPath();
+}
+
+bool pinInstalled(int pin)
+{
+    return QFileInfo(pinPath(pin)).size() == kPins[pin].bytes;
 }
 
 struct Cut {
@@ -203,7 +220,10 @@ Plane estimateForeground(const Plane &img, const std::vector<float> &alpha)
 // env is never released for the same reason. A worker holds a reference, so
 // a run in flight outlives the BackgroundRemover that started it.
 struct BackgroundRemover::Runtime {
+    // No destructor on purpose: a run on a pool thread may still use api/env
+    // after m_rt moves to a newer runtime, and ~QLibrary leaves it loaded.
     QLibrary lib;
+    QVersionNumber version;
     const OrtApi *api = nullptr;
     OrtEnv *env = nullptr;
 
@@ -444,7 +464,7 @@ bool BackgroundRemover::runtimeFound()
 {
     if (!m_probed)
         probe();
-    return m_rt != nullptr;
+    return m_rt && m_rt->version >= kMinRuntime;
 }
 
 QString BackgroundRemover::runtimeInfo()
@@ -455,18 +475,24 @@ QString BackgroundRemover::runtimeInfo()
 
 // The soname differs by source: libonnxruntime.so.1 from upstream, the
 // Flatpak, Fedora and Arch; libonnxruntime.so.1.<minor> on Debian and Ubuntu,
-// next to Qt's own libraries; and the copy download() unpacked.
+// next to Qt's own libraries; and the copy download() unpacked, tried first:
+// it exists only because the system's was missing or too old for background
+// removal. The AppImage and the portable tarball carry the same pinned file in
+// <bin>/../lib, named outright so a system runtime too old for background
+// removal cannot shadow it.
 void BackgroundRemover::probe()
 {
     m_probed = true;
     if (m_rt)
         return;
-    QList<std::pair<QString, int>> candidates{{QStringLiteral("onnxruntime"), 1}};
+    QList<std::pair<QString, int>> candidates{
+        {runtimeDir() + QLatin1Char('/') + QLatin1String(kRuntimeFile), -1},
+        {QCoreApplication::applicationDirPath() + QLatin1String("/../lib/") + QLatin1String(kRuntimeFile), -1},
+        {QStringLiteral("onnxruntime"), 1}};
     const QDir qtLibs(QLibraryInfo::path(QLibraryInfo::LibrariesPath));
     for (const QFileInfo &fi : qtLibs.entryInfoList({QStringLiteral("libonnxruntime.so.1.*")}, QDir::Files,
                                                     QDir::Name | QDir::Reversed))
         candidates.append({fi.absoluteFilePath(), -1});
-    candidates.append({runtimeDir() + QLatin1Char('/') + QLatin1String(kRuntimeFile), -1});
 
     m_runtimeInfo.clear();
     for (const auto &[name, version] : candidates) {
@@ -485,7 +511,8 @@ void BackgroundRemover::probe()
             continue;
         }
         const QString ver = QString::fromUtf8(base->GetVersionString());
-        rt->api = QVersionNumber::fromString(ver) >= kMinRuntime ? base->GetApi(ORT_API_VERSION) : nullptr;
+        rt->version = QVersionNumber::fromString(ver);
+        rt->api = rt->version >= kMinOcrRuntime ? base->GetApi(ORT_API_VERSION) : nullptr;
         if (!rt->api) {
             m_runtimeInfo = tr("ONNX Runtime %1 is too old, %2 or newer is needed").arg(ver, kMinRuntime.toString());
             rt->lib.unload();
@@ -497,8 +524,10 @@ void BackgroundRemover::probe()
             continue;
         }
         m_rt = rt;
-        m_runtimeInfo = tr("ONNX Runtime %1").arg(ver);
-        qInfo().noquote() << "background removal: ONNX Runtime" << ver << "from" << rt->lib.fileName();
+        m_runtimeInfo = rt->version >= kMinRuntime
+                            ? tr("ONNX Runtime %1").arg(ver)
+                            : tr("ONNX Runtime %1 is too old, %2 or newer is needed").arg(ver, kMinRuntime.toString());
+        qInfo().noquote() << "ONNX Runtime" << ver << "from" << rt->lib.fileName();
         return;
     }
 }
@@ -528,16 +557,18 @@ void BackgroundRemover::fail(const QString &message)
     emit stateChanged();
 }
 
+// Queues the runtime when it is missing or too old and can be fetched, then
+// the model unless it is already on disk.
 void BackgroundRemover::download()
 {
-    if (downloading())
+    if (downloading() || !available())
         return;
     m_error.clear();
     m_queue.clear();
     m_cancelled = false;
     if (!runtimeFound() && canDownloadRuntime())
         m_queue << RuntimePin;
-    if (!modelInstalled())
+    if (!pinInstalled(ModelPin))
         m_queue << ModelPin;
     m_totalBytes = 0;
     for (int pin : std::as_const(m_queue))
@@ -560,7 +591,7 @@ void BackgroundRemover::fetchNext()
 void BackgroundRemover::fetch(int pin)
 {
     const Pin &p = kPins[pin];
-    const QString dest = pin == ModelPin ? modelPath() : runtimeDir() + QStringLiteral("/runtime.tgz");
+    const QString dest = pinPath(pin);
     auto file = std::make_shared<QSaveFile>(dest);
     if (!QDir().mkpath(QFileInfo(dest).absolutePath()) || !file->open(QIODevice::WriteOnly)) {
         fail(tr("Cannot write %1: %2").arg(dest, file->errorString()));
@@ -652,6 +683,10 @@ void BackgroundRemover::installRuntime(const QString &archive)
             return;
         }
         m_probed = false;
+        // OCR may hold a runtime too old for this feature; the next probe
+        // finds the one just unpacked first.
+        if (m_rt && m_rt->version < kMinRuntime)
+            m_rt.reset();
         fetchNext();
     };
     connect(tar, &QProcess::errorOccurred, this, [tar, done](QProcess::ProcessError e) {
@@ -677,7 +712,8 @@ void BackgroundRemover::cancelDownload()
 
 void BackgroundRemover::deleteDownloads()
 {
-    cancelDownload();
+    if (downloading())
+        cancelDownload();
     m_idle.stop();
     if (m_rt)
         m_rt->dropIdle();
@@ -685,6 +721,30 @@ void BackgroundRemover::deleteDownloads()
     QDir(runtimeDir()).removeRecursively();
     m_error.clear();
     emit stateChanged();
+}
+
+bool BackgroundRemover::ocrUsable() const
+{
+    return available() && !PaddleOcr::detPath().isEmpty() && !PaddleOcr::recPath().isEmpty()
+           && (!m_probed || m_rt);
+}
+
+PaddleOcr::Setup BackgroundRemover::ocrSetup()
+{
+    PaddleOcr::Setup s;
+    if (!available())
+        return s;
+    if (!m_probed) {
+        probe();
+        emit stateChanged();
+    }
+    if (!m_rt)
+        return s;
+    s.api = m_rt->api;
+    s.env = m_rt->env;
+    s.det = PaddleOcr::detPath();
+    s.rec = PaddleOcr::recPath();
+    return s;
 }
 
 void BackgroundRemover::remove(const QImage &img, QObject *context, Done done)

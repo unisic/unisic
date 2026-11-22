@@ -2,7 +2,9 @@
 #include <QObject>
 #include <QImage>
 #include <QColor>
+#include <QPointF>
 #include <QRect>
+#include <QSize>
 #include <QPointer>
 #include <QStringList>
 #include <QVariantMap>
@@ -30,6 +32,7 @@ class QTranslator;
 class QDBusServiceWatcher;
 class QFileSystemWatcher;
 class FolderWatch;
+class GameDetector;
 class QQuickWindow;
 class QMimeData;
 class QScreen;
@@ -49,6 +52,7 @@ class NotificationInhibitor;
 class ExternalActionRunner;
 class PreviewController;
 class LayerShellNotifier;
+class ClipOsd;
 class ScrollCaptureController;
 
 // Application facade exposed to QML as the "App" context property.
@@ -68,6 +72,14 @@ class AppContext : public QObject
     Q_PROPERTY(bool recording READ recording NOTIFY recordingChanged)
     Q_PROPERTY(bool converting READ converting NOTIFY recordingChanged)
     Q_PROPERTY(bool instantReplayActive READ instantReplayActive NOTIFY recordingChanged)
+    // The game GameDetector sees right now, empty when none (or it has no
+    // name). The detector runs only while it is needed, see updateGameDetector.
+    Q_PROPERTY(QString currentGame READ currentGame NOTIFY currentGameChanged)
+    // The running ring was started by Settings::instantReplayAuto: the record
+    // controls stay usable, a recording stops it and it comes back afterwards.
+    Q_PROPERTY(bool autoReplayActive READ autoReplayActive NOTIFY recordingChanged)
+    // 0..1 while a recording or a replay is written out, -1 otherwise.
+    Q_PROPERTY(qreal saveProgress READ saveProgress NOTIFY saveProgressChanged)
     // Paused mid-recording; recordingCanPause gates the pause button (off for
     // instant replay and while not actively recording).
     Q_PROPERTY(bool recordingPaused READ recordingPaused NOTIFY recordingChanged)
@@ -156,6 +168,17 @@ class AppContext : public QObject
     // RUNTIME install: with no traineddata OCR can't recognize anything yet -
     // the OCR settings surface an install hint on this.
     Q_PROPERTY(bool ocrHasLanguages READ ocrHasLanguages CONSTANT)
+    // The OCR engine ids this build can run, platform default first
+    // (OcrEngines::available()). Settings shows its engine row only when there
+    // is a choice, which is decided per platform and never changes at runtime.
+    Q_PROPERTY(QStringList ocrEngines READ ocrEngines CONSTANT)
+    // Windows OCR can run: an OCR language is installed for one of the user's
+    // Windows languages. Asked once per session by checkOcrEngines() (the
+    // Settings engine row calls it), off the GUI thread; optimistic until the
+    // answer lands, false off Windows once asked.
+    Q_PROPERTY(bool windowsOcrUsable READ windowsOcrUsable NOTIFY ocrEngineStateChanged)
+    // The engine OCR actually runs (OcrEngines::effective()).
+    Q_PROPERTY(QString ocrEffectiveEngine READ ocrEffectiveEngine NOTIFY ocrEngineStateChanged)
     // ffmpeg is in PATH. Recording already reports its own absence when it
     // fails; this exists so the GIF actions can grey out with a reason BEFORE
     // the user picks one, rather than failing afterwards.
@@ -227,6 +250,9 @@ public:
     bool recording() const;
     bool converting() const;
     bool instantReplayActive() const { return m_recorder->instantReplayActive(); }
+    bool autoReplayActive() const { return m_replayAuto && instantReplayActive(); }
+    QString currentGame() const;
+    qreal saveProgress() const { return m_saveProgress; }
     bool recordingPaused() const { return m_recorder->paused(); }
     bool recordingCanPause() const { return m_recorder->canPause(); }
     int recordSeconds() const;
@@ -421,6 +447,7 @@ public:
     Q_INVOKABLE void devTestCursorOverlay();
     Q_INVOKABLE void devTestStylePresets();
     Q_INVOKABLE void devTestOcrAutoLang();
+    Q_INVOKABLE void devTestOcrEngine();
     Q_INVOKABLE void devTestClipboardPaste();
     Q_INVOKABLE void devTestCaptureDelay();
     Q_INVOKABLE void devTestCopyAs();
@@ -478,6 +505,10 @@ public:
     int editorWindowsOpen() const { return m_editorWindows; }
     bool watchFolderActive() const;
     bool ocrHasLanguages() const;
+    QStringList ocrEngines() const;
+    bool windowsOcrUsable() const { return m_windowsOcrUsable; }
+    QString ocrEffectiveEngine() const;
+    Q_INVOKABLE void checkOcrEngines();
     bool ffmpegAvailable() const;
     QString watermarkPreviewSource() const;
     bool vaapiAvailable() const { return m_vaapiAvailable; }
@@ -549,7 +580,7 @@ public:
     // Region selection -> OCR/QR -> clipboard. No save/history/notification.
     Q_INVOKABLE void captureRegionOcr();
     Q_INVOKABLE void captureWindow();
-    Q_INVOKABLE QString pickWatermarkImage();
+    Q_INVOKABLE QString pickWatermarkImage(bool replay = false);
     // THE watermark step: the after-capture pipeline and the Settings preview
     // both go through here, so a preview cannot show something the capture
     // will not do. Returns the source unchanged (still implicitly shared, no
@@ -607,6 +638,15 @@ public:
                                    bool lossless = false,
                                    const QVariantList &audioGains = {},
                                    int mixTrack = -1);
+    // The clip editor's export, trimRecording's superset. Keys: path,
+    // segments ([[start, end], ...] seconds, ascending: the kept spans,
+    // joined in order), lossless, gains, mixTrack (as above), titles (one
+    // per audio track, written back when spans are joined), crop {x, y, w,
+    // h} in source pixels with width/height the source size, shortSide (px
+    // of the shorter output side, 0 = as is, never upscales) and name (the
+    // output's base name, empty = "<source>-trimmed"). A stream copy is only
+    // possible for one span with no crop or scale; anything else re-encodes.
+    Q_INVOKABLE void exportClip(const QVariantMap &options);
     Q_INVOKABLE void startGifRegion();
     Q_INVOKABLE void startGifFullScreen();
     Q_INVOKABLE void startVideoScreen();
@@ -825,6 +865,8 @@ signals:
     void audioApplicationNodesReady(const QVariantList &nodes);
     void audioInputDevicesReady(const QVariantList &devices);
     void recordingChanged();
+    void currentGameChanged();
+    void saveProgressChanged();
     void recordSecondsChanged();
     void toastChanged();
     void showMainWindowRequested();
@@ -849,6 +891,7 @@ signals:
     void shortcutRecordingChanged();
     void editorWindowsOpenChanged();
     void watchFolderActiveChanged();
+    void ocrEngineStateChanged();
     void smokeTestChanged();
     void patchNotesUnseenChanged();
     void autostartEnabledChanged();
@@ -1008,6 +1051,11 @@ private:
     // frame count and size. Needs ffmpeg, so it reports SKIP without one -
     // which is also the state where saving a GIF falls back to PNG.
     QString staticGifCheck() const;
+    // The OCR engine choice without running a recognizer: the platform default
+    // is a runnable engine and listed first, an id this build cannot run reads
+    // as Tesseract, and a word box splits into in-order glyph slices that tile
+    // it (Windows OCR has no letter boxes). Ends with the engine in use.
+    QString ocrEngineCheck() const;
     // The conversion policy every re-encode goes through (ImageEncode::encode):
     // the three formats Qt writes come back with their own magic numbers, a
     // transparent JPEG comes back a PNG with the reason attached, and the
@@ -1085,12 +1133,37 @@ private:
     // countdown/cue runs, then commitRecordingAfterCue() releases encoding so no
     // countdown number and no start sound land in the recording.
     void startRecorderCountdown(std::function<void(bool)> begin);
+    void startVideoWindowArea(); // Windows: the target window's area as a region
     // Ticks the visible countdown (region frame number or toast), then commits.
     void runRecordCountdownVisuals(int secs);
     // Clears the number, plays the start cue, then commit()s encoding after a
     // short tail (repaint settled + cue played out, so neither is recorded).
     void commitRecordingAfterCue();
     bool m_recordHoldActive = false; // a hold-for-commit recording is pending
+    // Instant replay started on its own (Settings::instantReplayAuto).
+    GameDetector *m_gameDetector = nullptr; // only while the mode is "game"
+    bool m_replayAuto = false;          // the ring was started by the setting
+    bool m_replayStarting = false;      // startReplayRing is looking for the window
+    int m_replayWindowTries = 0;        // auto start waiting for the game's window
+    bool m_resumeAutoReplay = false;    // a recording took its place: restart it after
+    std::function<void()> m_afterReplayStops; // the recording waiting for the ring to stop
+    qreal m_saveProgress = -1;
+    void applyInstantReplayAuto();
+    // GameDetector lives while the auto mode is "game" or a replay ring runs
+    // (the clips and the session are named after the game); otherwise there
+    // is no 5 s poll at all.
+    void updateGameDetector();
+    void startReplayRing(bool hold);
+    void onGameChanged(const QString &name);
+    bool yieldAutoReplay(std::function<void()> retry);
+    bool manualRecording() const { return recording() && !autoReplayActive(); }
+    void setSaveProgress(qreal p);
+    void continueAfterRecording();
+    // The on-screen clip pill (Settings > Clips > indicator); see ClipOsd.
+    void showClipIndicator(const QString &title, const QString &detail, const QString &tone,
+                           int ms = 2600);
+    // The steady corner dot (Settings > Clips): on while the ring records.
+    void updateReplayDot();
     bool m_recordBorderCountdownOnly = false; // frame is a bare countdown (full-screen/window)
     int m_pendingCountdownSecs = 0;  // visible countdown length for the hold
     CaptureNotification *showCaptureNotification(const QImage &img, const QString &path,
@@ -1108,12 +1181,13 @@ private:
     bool nowInhibited() const;
     void setupTray();
     void defineHotkeys();
-    // fromInstantReplay travels from GifRecorder::finished down to the history
-    // entry's origin: the file is an .mp4 either way, so nothing downstream can
-    // work out which clips came out of the replay ring.
-    void onRecordingFinished(const QString &path, bool fromInstantReplay = false);
+    // origin ("" | "replay" | "session" | "clip") travels from
+    // GifRecorder::finished or the clip export down to the history entry: the
+    // file is an .mp4 either way, so nothing downstream can work out where it
+    // came from.
+    void onRecordingFinished(const QString &path, const QString &origin = {});
     void finishRecordingEntry(const QString &path, const QImage &thumb, const QString &kind,
-                              bool fromInstantReplay = false);
+                              const QString &origin = {});
     // Region recording marker: a transparent, click-through fullscreen surface
     // that draws a frame just OUTSIDE the recorded rect (physRegion, physical
     // px on screen) so the user sees what is being captured without the frame
@@ -1205,12 +1279,15 @@ private:
     void captureRegionWithTool(int initialTool);
     void runExternalAction(const QImage &image, const QString &savedPath);
     void refreshWatermarkImage();
-    void showTrimWindow(const QString &path, qreal duration, qreal frameDuration = 0);
+    void showTrimWindow(const QString &path, qreal duration, qreal frameDuration = 0,
+                        QSize videoSize = {});
     // One ffmpeg step of a trim. `done(ok, diagnostic)` runs on the GUI thread;
     // the GIF cut chains two of these (palettegen, then paletteuse).
     void runTrimStep(const QStringList &args,
-                     std::function<void(bool, const QString &)> done);
-    void trimGif(const QString &path, const QString &output, qreal start, qreal end);
+                     std::function<void(bool, const QString &)> done,
+                     qint64 progressMs = 0, qreal from = 0, qreal to = 1);
+    void trimGif(const QString &path, const QString &output, const QList<QPointF> &segments,
+                 const QString &videoTail, qint64 lengthMs);
     // Dev harness: cut a generated clip both ways through the real trim path and
     // report whether the files came out where the selection said they would,
     // plus whether the timeline's filmstrip and keyframe table built. Async -
@@ -1265,6 +1342,8 @@ private:
     GifRecorder *m_recorder;
     ScrollCaptureController *m_scrollCapture = nullptr;
     OcrEngine *m_ocr = nullptr;
+    bool m_ocrEnginesChecked = false;
+    bool m_windowsOcrUsable = true;
     QTranslator *m_appTranslator = nullptr; // bundled unisic_<lang>.qm
     QTranslator *m_qtTranslator = nullptr;  // Qt's own strings for the locale
     QSystemTrayIcon *m_tray = nullptr;
@@ -1280,6 +1359,7 @@ private:
     NotificationInhibitor *m_dnd = nullptr;
     ExternalActionRunner *m_actionRunner = nullptr;
     LayerShellNotifier *m_layerNotifier = nullptr; // set when layer-shell is usable, and on Windows
+    ClipOsd *m_clipOsd = nullptr;                  // built on the first clip event
     bool m_layerShellAvailable = false;            // compositor exposes zwlr_layer_shell_v1
     QPointer<QQuickWindow> m_recordBorderWindow; // live region-recording frame
     QPointer<PreviewController> m_lastPreview;   // newest preview, for previewHopCheck

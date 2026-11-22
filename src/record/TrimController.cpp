@@ -13,8 +13,9 @@
 #include <algorithm>
 
 TrimController::TrimController(const QString &path, qreal duration, qreal frameDuration,
-                               QObject *parent)
-    : QObject(parent), m_path(path), m_duration(duration), m_frameDuration(frameDuration)
+                               QSize videoSize, QObject *parent)
+    : QObject(parent), m_path(path), m_duration(duration), m_frameDuration(frameDuration),
+      m_videoSize(videoSize)
 {
     m_gif = QFileInfo(path).suffix().compare(QLatin1String("gif"), Qt::CaseInsensitive) == 0;
 }
@@ -195,6 +196,7 @@ void TrimController::loadAudioTracks()
     const QString ffprobe = QStandardPaths::findExecutable(QStringLiteral("ffprobe"));
     if (ffprobe.isEmpty()) {
         m_audioProbed = true;
+        emit audioTracksChanged();
         return;
     }
     auto *proc = new QProcess(this);
@@ -206,8 +208,10 @@ void TrimController::loadAudioTracks()
         const QByteArray out = proc->readAllStandardOutput();
         proc->deleteLater();
         m_audioProbed = true;
-        if (code != 0 || status != QProcess::NormalExit)
+        if (code != 0 || status != QProcess::NormalExit) {
+            emit audioTracksChanged();
             return;
+        }
         // Label preference: Matroska `title`, then the MP4 `handler_name` the
         // recorder writes (skipping ffmpeg's own "SoundHandler" default, which
         // names the muxer and not the track), then a plain number.
@@ -223,11 +227,15 @@ void TrimController::loadAudioTracks()
         // ours to rebuild.
         static const QSet<QString> kMixTitles{
             QStringLiteral("Mix"), QStringLiteral("Miks"),
-            QStringLiteral("Mezcla"), QStringLiteral("Микс")};
+            QStringLiteral("Mezcla"), QStringLiteral("Микс"),
+            QStringLiteral("混合")};
         int n = 0;
         for (const QJsonValue &value : streams) {
             const QJsonObject tags = value.toObject().value(QStringLiteral("tags")).toObject();
             QString label = tags.value(QStringLiteral("title")).toString();
+            // ffmpeg 8's MP4 muxer stores a track title as "name", not "title".
+            if (label.isEmpty())
+                label = tags.value(QStringLiteral("name")).toString();
             if (label.isEmpty()) {
                 const QString handler = tags.value(QStringLiteral("handler_name")).toString();
                 if (handler != QLatin1String("SoundHandler"))
@@ -241,8 +249,7 @@ void TrimController::loadAudioTracks()
                                              {QStringLiteral("mix"), mix}});
             ++n;
         }
-        if (n > 0)
-            emit audioTracksChanged();
+        emit audioTracksChanged();
     });
     connect(proc, &QProcess::errorOccurred, this, [this, proc](QProcess::ProcessError error) {
         if (m_audioProc != proc || error != QProcess::FailedToStart)
@@ -250,11 +257,12 @@ void TrimController::loadAudioTracks()
         m_audioProc = nullptr;
         proc->deleteLater();
         m_audioProbed = true;
+        emit audioTracksChanged();
     });
     proc->start(ffprobe, {QStringLiteral("-v"), QStringLiteral("error"),
                           QStringLiteral("-select_streams"), QStringLiteral("a"),
                           QStringLiteral("-show_entries"),
-                          QStringLiteral("stream=index:stream_tags=title,handler_name"),
+                          QStringLiteral("stream=index:stream_tags=title,name,handler_name"),
                           QStringLiteral("-of"), QStringLiteral("json"), m_path});
 }
 

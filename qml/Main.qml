@@ -83,7 +83,7 @@ Window {
     }
     // The one page that is loaded right now. Every other Loader is inactive, so
     // its `item` is null and the chain below picks the single live one.
-    readonly property Item activePageItem: pageCapture.item || pageRecord.item
+    readonly property Item activePageItem: pageCapture.item || pageRecord.item || pageClips.item
             || pageEdit.item || pageHistory.item || pageServers.item || pageSettings.item
 
     // True while the first-run flow owns the window. Asks the flow itself, not
@@ -124,9 +124,10 @@ Window {
     // window has focus, they never register a system-wide grab, and they are
     // deliberately fixed — they do not appear in, nor are editable from, the
     // Settings shortcut UI. Ctrl+/ pops the cheat-sheet listing them — keep its
-    // model in sync with the Shortcut items below. Keep the Ctrl+1..6 list in
-    // sync with the sidebar items and the page Loaders (one source of truth for
-    // the page indices).
+    // model in sync with the Shortcut items below. Keep the Ctrl+1..7 list in
+    // sync with the sidebar items and the page Loaders. Ctrl+N follows the
+    // rail's ORDER; the page indices do not (Clips, added last, is index 6 and
+    // sits third), so nothing that opens a page by index had to change.
     function hideToTray() {
         // "Close to tray" (a friend's Ctrl+W). Only hide when a tray icon
         // actually exists, else the window would vanish with no way back —
@@ -139,7 +140,7 @@ Window {
 
     function quitApp() {
         // Never yank an in-flight recording/encode out from under the user.
-        if (App.recording || App.converting) {
+        if ((App.recording && !App.autoReplayActive) || App.converting) {
             App.showToast(qsTr("Recording in progress. Stop it before closing"), true)
             return
         }
@@ -168,10 +169,11 @@ Window {
     Shortcut { enabled: !App.shortcutRecording && !window.modalOpen; sequences: ["Ctrl+K"]; onActivated: headerSearch.focusField() }
     Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+1"]; onActivated: window.currentPage = 0 }
     Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+2"]; onActivated: window.currentPage = 1 }
-    Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+3"]; onActivated: window.currentPage = 2 }
-    Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+4"]; onActivated: window.currentPage = 3 }
-    Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+5"]; onActivated: window.currentPage = 4 }
-    Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+6"]; onActivated: window.currentPage = 5 }
+    Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+3"]; onActivated: window.currentPage = 6 }
+    Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+4"]; onActivated: window.currentPage = 2 }
+    Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+5"]; onActivated: window.currentPage = 3 }
+    Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+6"]; onActivated: window.currentPage = 4 }
+    Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+7"]; onActivated: window.currentPage = 5 }
 
     UShortcutsHelp {
         id: shortcutsHelp
@@ -182,7 +184,7 @@ Window {
             { keys: ["Ctrl", "V"], label: qsTr("Paste an image into the editor") },
             { keys: ["Ctrl", ","], label: qsTr("Open Settings") },
             { keys: ["Ctrl", "K"], label: qsTr("Search actions, settings and captures") },
-            { keys: ["Ctrl", "1"], label: qsTr("Jump to a page (Ctrl+1 … Ctrl+6)") },
+            { keys: ["Ctrl", "1"], label: qsTr("Jump to a page (Ctrl+1 … Ctrl+7)") },
         ]
     }
 
@@ -199,7 +201,7 @@ Window {
             // close would just leave a hidden resident process. Quit — but
             // never kill an in-flight recording/encode or open editors with
             // unsaved annotations.
-            if (App.recording || App.converting) {
+            if ((App.recording && !App.autoReplayActive) || App.converting) {
                 close.accepted = false
                 App.showToast(qsTr("Recording in progress. Stop it before closing"), true)
             } else if (App.editorWindowsOpen > 0) {
@@ -220,7 +222,7 @@ Window {
         function onEditorWindowsOpenChanged() {
             if (App.editorWindowsOpen === 0 && !window.visible
                     && !(App.settings.minimizeToTrayOnClose && App.trayAvailable)
-                    && !App.recording && !App.converting)
+                    && (!App.recording || App.autoReplayActive) && !App.converting)
                 App.quitApp("last editor closed with no window and no tray")
         }
     }
@@ -348,7 +350,7 @@ Window {
                     onClicked: versionChip.openPatchNotes()
                 }
 
-                // UKeys keeps the window's Ctrl+1..6, Ctrl+, and Ctrl+/ bubbling
+                // UKeys keeps the window's Ctrl+1..7, Ctrl+, and Ctrl+/ bubbling
                 // past a focused chip.
                 activeFocusOnTab: true
                 Keys.onSpacePressed: (e) => UKeys.activate(e, versionChip.openPatchNotes)
@@ -451,9 +453,10 @@ Window {
             anchors.verticalCenter: parent.verticalCenter
             spacing: 2
 
-            // Recording pill
+            // Recording pill. While a stopped recording is written out, the
+            // activity pill below takes its place.
             Rectangle {
-                visible: App.recording || App.converting
+                visible: App.recording && !App.converting
                 width: recRow.width + Theme.spacingS + 4
                 height: 30
                 radius: Theme.radiusS
@@ -494,9 +497,8 @@ Window {
                             function p(v) { return (v < 10 ? "0" : "") + v }
                             return (h > 0 ? h + ":" + p(m) : p(m)) + ":" + p(sec)
                         }
-                        text: App.converting ? qsTr("Encoding…")
-                              : (fmtElapsed(App.recordSeconds)
-                                 + (App.recordingPaused ? " " + qsTr("(paused)") : ""))
+                        text: fmtElapsed(App.recordSeconds)
+                              + (App.recordingPaused ? " " + qsTr("(paused)") : "")
                         color: Theme.textPrimary
                         font.pixelSize: Theme.fontS
                         font.family: "monospace"
@@ -527,6 +529,51 @@ Window {
                             onClicked: App.stopRecording()
                         }
                     }
+                }
+            }
+
+            // Activity pill: a recording or replay being saved, or a capture
+            // being uploaded, with its progress as a bar along the bottom.
+            Rectangle {
+                id: activityPill
+                // Stopping a replay ring "converts" nothing, so it is not saving.
+                readonly property bool saving: (App.converting && !App.instantReplayActive) || App.saveProgress >= 0
+                readonly property real value: saving ? App.saveProgress : App.uploads.progress
+                visible: saving || App.uploads.busy
+                // Sized for "100%" so the pill does not twitch as digits change.
+                width: Math.max(activityLabel.implicitWidth, activityWidest.width) + 2 * Theme.spacingS + 4
+                height: 30
+                radius: Theme.radiusS
+                clip: true
+                anchors.verticalCenter: parent.verticalCenter
+                color: Theme.alpha(Theme.accent, 0.12)
+                border.width: 1
+                border.color: Theme.alpha(Theme.accent, 0.28)
+                Accessible.role: Accessible.ProgressBar
+                Accessible.name: activityLabel.text
+
+                TextMetrics {
+                    id: activityWidest
+                    font: activityLabel.font
+                    text: (activityPill.saving ? qsTr("Saving…") : qsTr("Uploading…")) + " 100%"
+                }
+                Rectangle {
+                    visible: activityPill.value >= 0
+                    anchors.left: parent.left
+                    anchors.bottom: parent.bottom
+                    height: 3
+                    width: parent.width * Math.max(0, activityPill.value)
+                    color: Theme.accent
+                }
+                Text {
+                    id: activityLabel
+                    anchors.centerIn: parent
+                    text: (activityPill.saving ? qsTr("Saving…") : qsTr("Uploading…"))
+                          + (activityPill.value >= 0 ? " " + Math.round(activityPill.value * 100) + "%" : "")
+                    color: Theme.textPrimary
+                    font.pixelSize: Theme.fontS
+                    font.weight: Font.DemiBold
+                    Accessible.ignored: true
                 }
             }
 
@@ -589,6 +636,7 @@ Window {
 
             RailItem { iconName: "line-camera";  label: qsTr("Capture"); active: currentPage === 0; onClicked: currentPage = 0 }
             RailItem { iconName: "line-record";  label: qsTr("Record");  active: currentPage === 1; onClicked: currentPage = 1 }
+            RailItem { iconName: "line-film";    label: qsTr("Clips");   active: currentPage === 6; onClicked: currentPage = 6 }
             RailItem { iconName: "line-pencil";  label: qsTr("Edit");    active: currentPage === 2; onClicked: currentPage = 2 }
 
             Item {
@@ -736,7 +784,7 @@ Window {
         enabled: !window.welcomeOpen
 
         // Only the visible page is instantiated; leaving a page unloads it
-        // so idle RAM tracks a single page instead of all six at once.
+        // so idle RAM tracks a single page instead of all seven at once.
         Component {
             id: capturePage
             CapturePage {
@@ -747,6 +795,13 @@ Window {
         Component {
             id: recordPage
             RecordPage {
+                onOpenPage: (i) => window.currentPage = i
+                onOpenSettings: (tab, query) => window.openSettingsAt(tab, query)
+            }
+        }
+        Component {
+            id: clipsPage
+            ClipsPage {
                 onOpenPage: (i) => window.currentPage = i
                 onOpenSettings: (tab, query) => window.openSettingsAt(tab, query)
             }
@@ -768,6 +823,7 @@ Window {
         Loader { id: pageHistory;  anchors.fill: parent; active: currentPage === 3; visible: active; sourceComponent: historyPage }
         Loader { id: pageServers;  anchors.fill: parent; active: currentPage === 4; visible: active; sourceComponent: destinationsPage }
         Loader { id: pageSettings; anchors.fill: parent; active: currentPage === 5; visible: active; sourceComponent: settingsPage }
+        Loader { id: pageClips;    anchors.fill: parent; active: currentPage === 6; visible: active; sourceComponent: clipsPage }
     }
 
     // Drag and drop anywhere on the window: an image lands in the editor, a
@@ -1085,5 +1141,6 @@ Window {
             }
         }
     }
+    WindowOutline {}
     UWindowResizer { active: !App.settings.useSystemDecoration }
 }

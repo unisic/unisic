@@ -224,7 +224,7 @@ Item {
                             title: modelData.title
                             sub: modelData.sub
                             hotkey: modelData.hotkey
-                            onOpenHotkeys: page.openSettings(7, "")
+                            onOpenHotkeys: page.openSettings(8, "")
                             onActivated: {
                                 if (modelData.action === 0) App.captureFullScreen()
                                 else if (modelData.action === 1) App.captureRegion()
@@ -363,7 +363,7 @@ Item {
                               sub: App.settings.saveDirectory },
                             { label: qsTr("Copy image to clipboard"), key: "copyToClipboard",
                               sub: qsTr("Ready to paste anywhere") },
-                            { label: qsTr("Upload and copy the link"), key: "uploadAfterCapture",
+                            { label: qsTr("Upload to the server"), key: "uploadAfterCapture",
                               //: %1 is the name of the active upload server.
                               sub: App.settings.activeDestination !== "" ? qsTr("To %1").arg(App.settings.activeDestination)
                                                                          : qsTr("No server yet") },

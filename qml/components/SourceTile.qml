@@ -148,7 +148,7 @@ Rectangle {
         }
     }
 
-    // UKeys keeps the window's Ctrl+1..6 / Ctrl+V bubbling past a focused tile.
+    // UKeys keeps the window's Ctrl+1..7 / Ctrl+V bubbling past a focused tile.
     activeFocusOnTab: enabled
     Keys.onSpacePressed: (e) => UKeys.activate(e, tile.activate)
     Keys.onReturnPressed: (e) => UKeys.activate(e, tile.activate)

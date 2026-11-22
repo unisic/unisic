@@ -244,7 +244,7 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     text: qsTranslate("CapturePage", "Manage")
                     Accessible.description: qsTr("Open Settings at Editor")
-                    onActivated: page.openSettings(3, "")
+                    onActivated: page.openSettings(4, "")
                 }
             }
 

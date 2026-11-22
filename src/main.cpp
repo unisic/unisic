@@ -1,5 +1,6 @@
 #include "AppContext.h"
 #include "record/RecordBorderHelper.h"
+#include "notify/ClipOsd.h"
 #include "notify/NotificationHelper.h"
 #include "theme/ThemeController.h"
 #include "theme/IconImageProvider.h"
@@ -708,6 +709,9 @@ int main(int argc, char *argv[])
         // reason as the record border (one process can't host two QPA platforms).
         if (qstrcmp(argv[i], "--notification-helper") == 0)
             return runNotificationHelper(argc, argv);
+        // The clip indicator on X11 / GNOME, same reason again.
+        if (qstrcmp(argv[i], "--osd-helper") == 0)
+            return runOsdHelper(argc, argv);
     }
     for (int i = 1; i < argc; ++i) {
         if (qstrncmp(argv[i], "--", 2) == 0 && !isKnownOption(argv[i])) {

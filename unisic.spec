@@ -144,15 +144,19 @@ Requires:       pipewire-utils
 Requires:       tesseract-langpack-eng
 Requires:       tesseract-langpack-pol
 Requires:       tesseract-osd
-# The one optional piece (docs/dev/packaging.md "Background removal"): ONNX
-# Runtime is dlopen()ed, never linked, and Settings can download it instead.
-# Suggests, not Recommends, so dnf does not pull it into every install.
-Suggests:       onnxruntime
+# ONNX Runtime is dlopen()ed, never linked, so no autodep sees it: it runs
+# PaddleOCR, the default OCR engine (1.20 or newer), and background removal
+# (1.25 or newer, else Settings downloads one). Every Fedora Packit builds for
+# ships 1.20 or newer.
+Requires:       onnxruntime
 %else
 Requires:       pipewire-tools
 Requires:       tesseract-ocr-traineddata-eng
 Requires:       tesseract-ocr-traineddata-pol
 Requires:       tesseract-ocr-traineddata-osd
+# Tumbleweed ships libonnxruntime1, Leap 16.0 nothing: a Recommends installs it
+# where it exists, and Leap reads with Tesseract.
+Recommends:     libonnxruntime1
 %endif
 # Runtime pieces the auto-dep scanner cannot see (dlopened QML modules, the
 # SVG image plugin, the wayland platform plugin). Fedora's monolithic
@@ -225,6 +229,9 @@ appstream-util validate-relax --nonet \
 # Twemoji art, the Unicode License v3 for their names and groups.
 %license %{_datadir}/unisic/LICENSE.twemoji
 %license %{_datadir}/unisic/LICENSE.unicode
+# The OCR model (PP-OCRv6 tiny, Apache-2.0), read from here by PaddleOcr.cpp.
+%{_datadir}/unisic/models/
+%license %{_datadir}/unisic/LICENSE.paddleocr
 %{_datadir}/applications/app.unisic.Unisic.desktop
 %{_mandir}/man1/unisic.1*
 %{_datadir}/bash-completion/completions/unisic

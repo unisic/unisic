@@ -10,7 +10,7 @@ Item {
     property string look: "pill"
     // The status dot's corner, "" while it is off.
     property string dotCorner: ""
-    implicitHeight: 132
+    implicitHeight: Math.max(132, pills.implicitHeight + 2 * Theme.spacingL)
     Accessible.role: Accessible.Graphic
     Accessible.name: qsTr("Indicator preview")
 
@@ -39,35 +39,42 @@ Item {
         Accessible.ignored: true
     }
 
-    Row {
+    // One row when the three titles fit whole (the file name gives way,
+    // elided as in the real indicator), else stacked: shrinking each pill to
+    // a third cut the longer titles (most languages), which a game never sees.
+    Grid {
         id: pills
         visible: root.look !== ""
         anchors.centerIn: parent
         spacing: Theme.spacingM
-        readonly property real each: (root.width - 2 * Theme.spacingM - 2 * spacing) / 3
+        horizontalItemAlignment: Grid.AlignHCenter
+        verticalItemAlignment: Grid.AlignVCenter
+        readonly property real each: root.width - 2 * Theme.spacingM
+        columns: pill1.width + pill2.width + pill3.titleFitWidth + 2 * spacing <= each ? 3 : 1
         ClipOsdPill {
-            anchors.verticalCenter: parent.verticalCenter
+            id: pill1
             look: root.look
             Accessible.ignored: true
-            maxWidth: pills.each
+            maxWidth: Math.min(420, pills.each)
             tone: "rec"
             title: qsTranslate("AppContext", "Instant replay on")
             detail: qsTranslate("AppContext", "Keeping the last %1").arg(qsTranslate("AppContext", "%1 min").arg(5))
         }
         ClipOsdPill {
-            anchors.verticalCenter: parent.verticalCenter
+            id: pill2
             look: root.look
             Accessible.ignored: true
-            maxWidth: pills.each
+            maxWidth: Math.min(420, pills.each)
             tone: "busy"
             title: qsTranslate("AppContext", "Saving clip…")
             animate: root.visible
         }
         ClipOsdPill {
-            anchors.verticalCenter: parent.verticalCenter
+            id: pill3
             look: root.look
             Accessible.ignored: true
-            maxWidth: pills.each
+            maxWidth: Math.min(420, pills.columns === 3 ? pills.each - pill1.width - pill2.width - 2 * pills.spacing
+                                                        : pills.each)
             tone: "ok"
             title: qsTranslate("AppContext", "Clip saved")
             detail: "Unisic_Replay_2026-05-14_21-08-33_Hades II.mp4"

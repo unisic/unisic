@@ -1362,7 +1362,7 @@ void AppContext::devTestInstantReplay()
     }
     if (instantReplayActive())
         saveInstantReplay();
-    else if (!recording())
+    else
         startInstantReplay();
 }
 

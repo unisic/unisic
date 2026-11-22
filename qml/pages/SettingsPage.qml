@@ -1694,7 +1694,7 @@ Item {
                     SettingRow {
                         label: qsTr("Hide Unisic while capturing")
                         help: qsTr("Takes the Unisic window off screen so it never lands in the shot.")
-                        helpDetail: qsTr("Applies to every capture started while the window is open, and to recordings. The window comes back as soon as the capture ends. Turn this off only when Unisic itself is the subject, for example when taking documentation screenshots.")
+                        helpDetail: qsTr("Applies when the Unisic window is in front as a capture or recording starts, and the window comes back as soon as it ends. A window behind another app stays where it is, because showing it again would bring it to the front. Turn this off only when Unisic itself is the subject, for example when taking documentation screenshots.")
                         USwitch { checked: App.settings.hideWindowOnCapture; onToggled: (c) => App.settings.hideWindowOnCapture = c }
                     }
                     SettingRow {
@@ -2292,11 +2292,11 @@ Item {
                                 compact: true
                                 variant: "tonal"
                                 text: App.instantReplayActive ? qsTr("Stop") : qsTr("Start")
-                                enabled: App.instantReplayActive || !App.recording
-                                onClicked: App.instantReplayActive ? App.stopRecording() : App.startInstantReplay()
+                                onClicked: App.instantReplayActive ? App.stopInstantReplay() : App.startInstantReplay()
                             }
                             UButton {
-                                width: 110
+                                // Wider where the language needs it ("Enregistrer le clip").
+                                width: Math.max(110, implicitWidth)
                                 compact: true
                                 text: qsTr("Save clip")
                                 enabled: App.instantReplayActive
@@ -2307,7 +2307,7 @@ Item {
                     SettingRow {
                         label: qsTr("Start automatically")
                         help: qsTr("Keeps recording the screen in the background, ready to save the last moments.")
-                        helpDetail: qsTr("When Unisic starts: from launch until you stop it. While a game is running: games started by Steam, and on Linux also Proton games from Heroic, Lutris or Bottles, games using GameMode, and cloud gaming in the GeForce NOW, Steam Link, Moonlight, Boosteroid or Greenlight app, or in a browser app window; it stops when the game closes. Starting a recording pauses it, and it comes back afterwards.")
+                        helpDetail: qsTr("When Unisic starts: from launch until you stop it. While a game is running: games started by Steam, and on Linux also Proton games from Heroic, Lutris or Bottles, games using GameMode, and cloud gaming in the GeForce NOW, Steam Link, Moonlight, Boosteroid or Greenlight app, or in a browser app window; it stops when the game closes. It keeps running while you record.")
                         UComboBox {
                             width: 220
                             readonly property var ids: ["off", "launch", "game"]

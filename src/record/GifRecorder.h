@@ -123,6 +123,13 @@ public:
     // The game being played, for the names of the files the ring writes.
     // Empty when none; the session keeps the last game seen while it ran.
     void setReplayGame(const QString &name);
+    // KWin hides every window of the process that asked for a native stream,
+    // so a monitor stream never shows our own record frame. While a region
+    // recording's frame is up, this recorder paints it into its frames itself
+    // (the replay ring beside a recording). physLocal: the framed region in
+    // physical px local to `screen`; an empty rect clears it.
+    void setOwnFrame(const QRect &physLocal, QScreen *screen, const QColor &accent,
+                     const QColor &contrast);
     // The replay watermark over `img`, as the ring burns it in (and Settings previews it).
     static QImage stampReplayWatermark(const Settings *settings, const QImage &img,
                                        const QString &game);
@@ -219,7 +226,6 @@ private:
     bool m_committed = false;     // commit() received; encoding may proceed
     QSize m_heldStreamSize;       // stream size stashed while holding
     bool m_probeWarmed = false; // ffmpeg encoder probe kicked off once
-    bool m_orphansSwept = false; // stale-temp sweep runs once, on first start()
     QFutureWatcher<void> m_probeWatcher; // gates beginEncoding until the probe warms
     ScreenCastSession *m_session = nullptr;
     IScreenGrabber *m_grabber = nullptr;
@@ -315,6 +321,13 @@ private:
     // pixels so each frame blends only that rectangle.
     QImage m_replayStamp;
     QPoint m_replayStampAt;
+    // setOwnFrame(), and the monitor a native full-screen stream shows.
+    QRect m_ownFrame;
+    QPointer<QScreen> m_ownFrameScreen;
+    QColor m_ownFrameAccent;
+    QColor m_ownFrameContrast;
+    QPointer<QScreen> m_castScreen;
+    QRectF ownFrameInEncoded(qreal *unit) const;
     qint64 m_convertTotalMs = 0;   // recorded length, for conversion progress
     qreal m_progressFrom = 0;      // where the next conversion pass starts on the bar
     // Adds the ffmpeg "-progress pipe:1" reader to p (call before start): maps

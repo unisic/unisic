@@ -4,40 +4,40 @@
 <context>
     <name>AppContext</name>
     <message>
-        <location filename="../src/AppContext.cpp" line="+313"/>
+        <location filename="../src/AppContext.cpp" line="+319"/>
         <source>Encoding…</source>
         <translation>正在编码…</translation>
     </message>
     <message>
-        <location line="+34"/>
+        <location line="+51"/>
         <source>Recording failed: %1</source>
         <translation>录制失败：%1</translation>
     </message>
     <message>
-        <location line="+6"/>
+        <location line="+15"/>
         <source>Could not move %1 to trash; the file is still on disk</source>
         <translation>无法将 %1 移到回收站，文件仍在磁盘上</translation>
     </message>
     <message>
-        <location line="+3527"/>
+        <location line="+3532"/>
         <location line="+1998"/>
         <location line="+20"/>
         <source>Copied to clipboard</source>
         <translation>已复制到剪贴板</translation>
     </message>
     <message>
-        <location line="-5001"/>
+        <location line="-5004"/>
         <location line="+25"/>
         <source>Nothing to recognize</source>
         <translation>没有可识别的内容</translation>
     </message>
     <message>
-        <location line="-688"/>
+        <location line="-719"/>
         <source>Unisic %1 installed - it will start on the next launch</source>
         <translation>Unisic %1 已安装，下次启动时将使用新版本</translation>
     </message>
     <message>
-        <location line="+666"/>
+        <location line="+697"/>
         <source>Recognizing text…</source>
         <translation>正在识别文本…</translation>
     </message>
@@ -82,7 +82,7 @@
         <translation>Dev: 形状编辑：%1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="+5672"/>
+        <location filename="../src/AppContext.cpp" line="+5679"/>
         <location filename="../src/diag/SmokeTests.cpp" line="+818"/>
         <location line="+3580"/>
         <source>Quit</source>
@@ -114,7 +114,7 @@
         <translation>Dev: 释放时截图：%1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="-6585"/>
+        <location filename="../src/AppContext.cpp" line="-6623"/>
         <source>Opened a terminal to install the update.</source>
         <translation>已打开终端以安装更新。</translation>
     </message>
@@ -124,12 +124,12 @@
         <translation>无法启动更新：%1</translation>
     </message>
     <message>
-        <location line="+979"/>
+        <location line="+1010"/>
         <source>Reading key presses needs access to input devices. Run “%1”, then log out and back in.</source>
         <translation>读取按键需要访问输入设备。运行 “%1”，然后注销并重新登录。</translation>
     </message>
     <message>
-        <location line="+349"/>
+        <location line="+355"/>
         <location line="+2"/>
         <location line="+87"/>
         <location line="+2"/>
@@ -173,7 +173,7 @@
         <translation>无屏幕</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="+583"/>
+        <location filename="../src/AppContext.cpp" line="+585"/>
         <source>No log file was opened for this run</source>
         <translation>本次运行没有打开日志文件</translation>
     </message>
@@ -343,7 +343,7 @@
         <translation>快捷键：%1 项（共 %2 项）未绑定，已重新注册（详情见日志）</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="+1200"/>
+        <location filename="../src/AppContext.cpp" line="+1195"/>
         <location line="+219"/>
         <location line="+1632"/>
         <source>Saved %1</source>
@@ -450,17 +450,17 @@
     <message>
         <location filename="../src/AppContext.cpp" line="+131"/>
         <location line="+295"/>
-        <location line="+287"/>
+        <location line="+291"/>
         <source>Copy last capture</source>
         <translation>复制上次截图</translation>
     </message>
     <message>
-        <location line="-2878"/>
+        <location line="-2882"/>
         <source>Uploaded, link copied</source>
         <translation>已上传，链接已复制</translation>
     </message>
     <message>
-        <location line="-3708"/>
+        <location line="-3742"/>
         <source>Unisic %1 is available - updating automatically</source>
         <translation>Unisic %1 已发布，正在自动更新</translation>
     </message>
@@ -471,12 +471,13 @@
         <translation>Unisic %1 已发布</translation>
     </message>
     <message>
-        <location line="+116"/>
+        <location line="+130"/>
+        <location line="+28"/>
         <source>Instant replay failed: %1</source>
         <translation>即时回放失败：%1</translation>
     </message>
     <message>
-        <location line="+760"/>
+        <location line="+749"/>
         <location line="+5"/>
         <source>Capture in %1…</source>
         <translation>将在 %1 秒后截图…</translation>
@@ -492,7 +493,7 @@
         <translation>读取鼠标点击需要访问输入设备。请运行“%1”，然后注销并重新登录。</translation>
     </message>
     <message>
-        <location line="+149"/>
+        <location line="+155"/>
         <location line="+13"/>
         <location line="+32"/>
         <location line="+10"/>
@@ -516,7 +517,7 @@
         <translation>截图已取消</translation>
     </message>
     <message>
-        <location line="+360"/>
+        <location line="+371"/>
         <source>Start instant replay first</source>
         <translation>请先启动即时回放</translation>
     </message>
@@ -526,7 +527,7 @@
         <translation>正在保存即时回放…</translation>
     </message>
     <message>
-        <location line="+138"/>
+        <location line="+126"/>
         <source>No game window found: recording the whole screen</source>
         <translation>未找到游戏窗口：正在录制整个屏幕</translation>
     </message>
@@ -863,7 +864,7 @@
         <translation>Dev: 滚动拼接：%1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="+408"/>
+        <location filename="../src/AppContext.cpp" line="+411"/>
         <source>recording</source>
         <translation>录像</translation>
     </message>
@@ -962,7 +963,7 @@
         <translation>保存截图（开发测试）</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="+1204"/>
+        <location filename="../src/AppContext.cpp" line="+1199"/>
         <location filename="../src/diag/SmokeTests.cpp" line="+2"/>
         <source>Images (*.png *.jpg *.jpeg *.webp)</source>
         <translation>图片 (*.png *.jpg *.jpeg *.webp)</translation>
@@ -1213,18 +1214,18 @@
         <translation>无法编码截图</translation>
     </message>
     <message>
-        <location line="-3640"/>
+        <location line="-3674"/>
         <source>It installs itself in the background. Click to open Unisic.</source>
         <translation>更新会在后台自动安装。点击打开 Unisic。</translation>
     </message>
     <message>
-        <location filename="../qml/pages/ClipsPage.qml" line="+226"/>
-        <location filename="../src/AppContext.cpp" line="+86"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="+236"/>
+        <location filename="../src/AppContext.cpp" line="+91"/>
         <source>%1 s</source>
         <translation>%1 秒</translation>
     </message>
     <message>
-        <location filename="../qml/components/ClipOsdPreview.qml" line="+55"/>
+        <location filename="../qml/components/ClipOsdPreview.qml" line="+61"/>
         <location filename="../qml/pages/ClipsPage.qml" line="+1"/>
         <location filename="../src/AppContext.cpp" line="+0"/>
         <source>%1 min</source>
@@ -1248,17 +1249,17 @@
         <translation>%1 保存最近 %2</translation>
     </message>
     <message>
-        <location line="+16"/>
+        <location line="+17"/>
         <source>Instant replay off</source>
         <translation>即时回放已关闭</translation>
     </message>
     <message>
-        <location line="+20"/>
+        <location line="+28"/>
         <source>Clip not saved</source>
         <translation>剪辑未保存</translation>
     </message>
     <message>
-        <location line="+1092"/>
+        <location line="+1115"/>
         <location line="+1"/>
         <source>Selection is too small for scrolling capture</source>
         <translation>选区太小，无法进行滚动截图</translation>
@@ -1270,12 +1271,12 @@
     </message>
     <message>
         <location filename="../qml/components/ClipOsdPreview.qml" line="+8"/>
-        <location filename="../src/AppContext.cpp" line="+44"/>
+        <location filename="../src/AppContext.cpp" line="+55"/>
         <source>Saving clip…</source>
         <translation>正在保存剪辑…</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="+520"/>
+        <location filename="../src/AppContext.cpp" line="+511"/>
         <location line="+11"/>
         <source>Found.</source>
         <translation>已找到。</translation>
@@ -1287,8 +1288,8 @@
         <translation>此安装中缺少：%1。</translation>
     </message>
     <message>
-        <location filename="../qml/components/ClipOsdPreview.qml" line="+9"/>
-        <location filename="../src/AppContext.cpp" line="+1215"/>
+        <location filename="../qml/components/ClipOsdPreview.qml" line="+10"/>
+        <location filename="../src/AppContext.cpp" line="+1210"/>
         <source>Clip saved</source>
         <translation>剪辑已保存</translation>
     </message>
@@ -1872,17 +1873,17 @@
         <translation type="vanished">开始/保存即时回放</translation>
     </message>
     <message>
-        <location line="-4944"/>
+        <location line="-4941"/>
         <source>No monitor named %1. Connected: %2</source>
         <translation>没有名为 %1 的显示器。已连接的显示器：%2</translation>
     </message>
     <message>
-        <location line="+842"/>
+        <location line="+844"/>
         <source>Missing from this install. The Tesseract &quot;osd&quot; pack is required for OCR script detection.</source>
         <translation>当前安装缺少该组件。OCR 书写系统检测需要 Tesseract 的 “osd” 语言包。</translation>
     </message>
     <message>
-        <location line="+1252"/>
+        <location line="+1247"/>
         <source>Better Blur blurs the screen under Unisic&apos;s capture frame, so this capture came out blurred. Exclude Unisic in Better Blur&apos;s window list (System Settings › Desktop Effects) or turn the effect off.</source>
         <translation>Better Blur 会模糊 Unisic 截图框下方的屏幕，因此这次截图是模糊的。请在 Better Blur 的窗口列表中排除 Unisic（系统设置 › 桌面效果），或关闭该效果。</translation>
     </message>
@@ -1991,24 +1992,24 @@
     </message>
     <message>
         <location line="-572"/>
-        <location line="+574"/>
+        <location line="+578"/>
         <source>Upload a file…</source>
         <translation>上传文件…</translation>
     </message>
     <message>
-        <location line="-573"/>
-        <location line="+574"/>
+        <location line="-577"/>
+        <location line="+578"/>
         <source>Upload clipboard</source>
         <translation>上传剪贴板内容</translation>
     </message>
     <message>
-        <location line="-573"/>
-        <location line="+574"/>
+        <location line="-577"/>
+        <location line="+578"/>
         <source>QR code of copied text</source>
         <translation>复制文本的二维码</translation>
     </message>
     <message>
-        <location line="+115"/>
+        <location line="+119"/>
         <source>Restart to update to Unisic %1</source>
         <translation>重启以更新到 Unisic %1</translation>
     </message>
@@ -2023,13 +2024,13 @@
         <translation>有可用更新：Unisic %1</translation>
     </message>
     <message>
-        <location line="-124"/>
+        <location line="-128"/>
         <location filename="../src/diag/SmokeTests.cpp" line="+2"/>
         <source>Open Unisic</source>
         <translation>打开 Unisic</translation>
     </message>
     <message>
-        <location line="+368"/>
+        <location line="+370"/>
         <source>Images (*.png *.svg *.svgz *.xpm *.ico *.jpg *.jpeg *.webp)</source>
         <translation>图像 (*.png *.svg *.svgz *.xpm *.ico *.jpg *.jpeg *.webp)</translation>
     </message>
@@ -2132,7 +2133,7 @@
 <context>
     <name>AudioCapture</name>
     <message>
-        <location filename="../src/record/AudioCapture_win.cpp" line="+622"/>
+        <location filename="../src/record/AudioCapture_win.cpp" line="+623"/>
         <source>Windows does not let desktop apps use the microphone. Allow it in Settings &gt; Privacy &amp; security &gt; Microphone.</source>
         <translation>Windows 不允许桌面应用使用麦克风。请在“设置 &gt; 隐私和安全性 &gt; 麦克风”中允许。</translation>
     </message>
@@ -2650,7 +2651,7 @@
 <context>
     <name>ClipOsdPreview</name>
     <message>
-        <location filename="../qml/components/ClipOsdPreview.qml" line="-57"/>
+        <location filename="../qml/components/ClipOsdPreview.qml" line="-64"/>
         <source>Indicator preview</source>
         <translation>指示预览</translation>
     </message>
@@ -2796,17 +2797,17 @@
         <translation>剪辑选项</translation>
     </message>
     <message>
-        <location line="+42"/>
+        <location line="+44"/>
         <source>Start automatically</source>
         <translation>自动开启</translation>
     </message>
     <message>
-        <location line="+80"/>
+        <location line="+82"/>
         <source>Open saved clips in the editor</source>
         <translation>在编辑器中打开已保存的剪辑</translation>
     </message>
     <message>
-        <location line="+35"/>
+        <location line="+39"/>
         <source>All clip settings</source>
         <translation>全部剪辑设置</translation>
     </message>
@@ -4108,7 +4109,7 @@
 <context>
     <name>GifRecorder</name>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="+523"/>
+        <location filename="../src/record/GifRecorder.cpp" line="+528"/>
         <location line="+53"/>
         <source>Screen sharing was stopped</source>
         <translation>屏幕共享已停止</translation>
@@ -4159,7 +4160,7 @@
         <translation>录制流尺寸太小</translation>
     </message>
     <message>
-        <location line="+118"/>
+        <location line="+116"/>
         <source>System audio</source>
         <translation>系统音频</translation>
     </message>
@@ -4866,7 +4867,7 @@ Starred (favorite) captures in the selection are kept - un-star them first.</sou
         <translation>打开此版本的更新日志</translation>
     </message>
     <message>
-        <location line="+128"/>
+        <location line="+127"/>
         <location line="+13"/>
         <source>Saving…</source>
         <translation>正在保存…</translation>
@@ -4923,12 +4924,12 @@ Starred (favorite) captures in the selection are kept - un-star them first.</sou
         <translation>最小化</translation>
     </message>
     <message>
-        <location line="-399"/>
+        <location line="-398"/>
         <source>Jump to a page (Ctrl+1 … Ctrl+7)</source>
         <translation>跳转到页面 (Ctrl+1 … Ctrl+7)</translation>
     </message>
     <message>
-        <location line="+406"/>
+        <location line="+405"/>
         <source>Maximize</source>
         <translation>最大化</translation>
     </message>
@@ -4957,7 +4958,7 @@ Starred (favorite) captures in the selection are kept - un-star them first.</sou
         <translation type="vanished">素材库</translation>
     </message>
     <message>
-        <location line="-278"/>
+        <location line="-277"/>
         <source>Unisic %1</source>
         <extracomment>Spoken name of the version chip in the header: %1 is the version.</extracomment>
         <translation>Unisic %1</translation>
@@ -4999,7 +5000,7 @@ Starred (favorite) captures in the selection are kept - un-star them first.</sou
         <translation>查看更新日志</translation>
     </message>
     <message>
-        <location line="+224"/>
+        <location line="+223"/>
         <source>History</source>
         <translation>历史记录</translation>
     </message>
@@ -5731,7 +5732,7 @@ Starred (favorite) captures in the selection are kept - un-star them first.</sou
         <translation>为每个音频源保留一条独立的命名音轨以便编辑，第一条音轨为完整混音。需要两个或更多音频源，否则录制仍只有一条音轨。</translation>
     </message>
     <message>
-        <location filename="../qml/pages/ClipsPage.qml" line="-141"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="-149"/>
         <location filename="../qml/pages/RecordPage.qml" line="+11"/>
         <source>Replay length</source>
         <translation>回放长度</translation>
@@ -5775,7 +5776,7 @@ Starred (favorite) captures in the selection are kept - un-star them first.</sou
         <translation>0 = 不限</translation>
     </message>
     <message>
-        <location filename="../qml/pages/ClipsPage.qml" line="+44"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="+46"/>
         <location filename="../qml/pages/RecordPage.qml" line="+42"/>
         <source>Record system audio</source>
         <translation>录制系统音频</translation>
@@ -6704,7 +6705,7 @@ Off or unsupported: a native desktop notification is shown instead - the capture
         <translation>常规</translation>
     </message>
     <message>
-        <location filename="../qml/pages/ClipsPage.qml" line="+41"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="+43"/>
         <location filename="../qml/pages/SettingsPage.qml" line="-845"/>
         <location line="+845"/>
         <source>Compact</source>
@@ -7378,7 +7379,12 @@ Off or unsupported: a native desktop notification is shown instead - the capture
         <translation>把 Unisic 窗口移出屏幕，使其绝不会出现在截图中。</translation>
     </message>
     <message>
-        <location line="+6"/>
+        <location line="+1"/>
+        <source>Applies when the Unisic window is in front as a capture or recording starts, and the window comes back as soon as it ends. A window behind another app stays where it is, because showing it again would bring it to the front. Turn this off only when Unisic itself is the subject, for example when taking documentation screenshots.</source>
+        <translation>截图或录制开始时 Unisic 窗口位于最前面才会生效，结束后窗口立即回来。位于其他应用后面的窗口保持原位，因为重新显示会把它带到最前面。只有在 Unisic 本身就是拍摄对象时才关闭它，例如拍摄文档用截图时。</translation>
+    </message>
+    <message>
+        <location line="+5"/>
         <source>The plain Screenshot portal cannot include the cursor on this desktop.</source>
         <translation>此桌面上，纯 Screenshot 桌面门户无法包含光标。</translation>
     </message>
@@ -7886,12 +7892,11 @@ Applies to the next capture.</source>
         <translation>查看日志</translation>
     </message>
     <message>
-        <location line="+71"/>
         <source>Applies to every capture started while the window is open, and to recordings. The window comes back as soon as the capture ends. Turn this off only when Unisic itself is the subject, for example when taking documentation screenshots.</source>
-        <translation>适用于窗口打开期间发起的每次截图，也适用于录制。截图一结束窗口就会回来。只有在 Unisic 本身就是拍摄对象时才关闭它，例如拍摄文档用截图时。</translation>
+        <translation type="vanished">适用于窗口打开期间发起的每次截图，也适用于录制。截图一结束窗口就会回来。只有在 Unisic 本身就是拍摄对象时才关闭它，例如拍摄文档用截图时。</translation>
     </message>
     <message>
-        <location line="+465"/>
+        <location line="+536"/>
         <source>Taken from the default playback device through Windows loopback capture. Mixed with the microphone when both are enabled. GIFs have no audio.</source>
         <translation>从默认播放设备经 Windows 环回采集获取。两者都启用时会与麦克风混合。GIF 没有声音。</translation>
     </message>
@@ -8387,7 +8392,7 @@ Applies to the next capture.</source>
         <translation>快捷键：开启或停止即时回放。</translation>
     </message>
     <message>
-        <location filename="../qml/pages/ClipsPage.qml" line="-15"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="-17"/>
         <location filename="../qml/pages/SettingsPage.qml" line="-1817"/>
         <source>On-screen indicator</source>
         <translation>屏幕指示</translation>
@@ -8452,17 +8457,21 @@ Applies to the next capture.</source>
         <translation>与剪辑相同：%1</translation>
     </message>
     <message>
-        <location line="-228"/>
         <source>When Unisic starts: from launch until you stop it. While a game is running: games started by Steam, and on Linux also Proton games from Heroic, Lutris or Bottles, games using GameMode, and cloud gaming in the GeForce NOW, Steam Link, Moonlight, Boosteroid or Greenlight app, or in a browser app window; it stops when the game closes. Starting a recording pauses it, and it comes back afterwards.</source>
-        <translation>Unisic 启动时：从启动起一直运行，直到你停止它。游戏运行时：由 Steam 启动的游戏；在 Linux 上还包括 Heroic、Lutris 或 Bottles 的 Proton 游戏、使用 GameMode 的游戏，以及在 GeForce NOW、Steam Link、Moonlight、Boosteroid 或 Greenlight 应用或浏览器应用窗口中的云游戏；游戏关闭时停止。开始录制会暂停它，之后再恢复。</translation>
+        <translation type="vanished">Unisic 启动时：从启动起一直运行，直到你停止它。游戏运行时：由 Steam 启动的游戏；在 Linux 上还包括 Heroic、Lutris 或 Bottles 的 Proton 游戏、使用 GameMode 的游戏，以及在 GeForce NOW、Steam Link、Moonlight、Boosteroid 或 Greenlight 应用或浏览器应用窗口中的云游戏；游戏关闭时停止。开始录制会暂停它，之后再恢复。</translation>
     </message>
     <message>
-        <location line="-2"/>
+        <location line="-230"/>
         <source>Start automatically</source>
         <translation>自动开启</translation>
     </message>
     <message>
-        <location line="+12"/>
+        <location line="+2"/>
+        <source>When Unisic starts: from launch until you stop it. While a game is running: games started by Steam, and on Linux also Proton games from Heroic, Lutris or Bottles, games using GameMode, and cloud gaming in the GeForce NOW, Steam Link, Moonlight, Boosteroid or Greenlight app, or in a browser app window; it stops when the game closes. It keeps running while you record.</source>
+        <translation>Unisic 启动时：从启动起一直运行，直到你停止它。游戏运行时：由 Steam 启动的游戏；在 Linux 上还包括 Heroic、Lutris 或 Bottles 的 Proton 游戏、使用 GameMode 的游戏，以及在 GeForce NOW、Steam Link、Moonlight、Boosteroid 或 Greenlight 应用或浏览器应用窗口中的云游戏；游戏关闭时停止。录制时它会继续运行。</translation>
+    </message>
+    <message>
+        <location line="+10"/>
         <source>Replay length</source>
         <translation>回放时长</translation>
     </message>
@@ -9539,13 +9548,13 @@ Applies to the next capture.</source>
         <translation type="vanished">录制</translation>
     </message>
     <message>
-        <location filename="../qml/pages/ClipsPage.qml" line="-51"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="-53"/>
         <location filename="../qml/pages/SettingsPage.qml" line="+17"/>
         <source>What to record</source>
         <translation>录制内容</translation>
     </message>
     <message>
-        <location line="+5"/>
+        <location line="+7"/>
         <location filename="../qml/pages/SettingsPage.qml" line="+6"/>
         <source>Whole screen</source>
         <translation>整个屏幕</translation>
@@ -9575,7 +9584,7 @@ Applies to the next capture.</source>
         <translation>指示样式</translation>
     </message>
     <message>
-        <location line="+6"/>
+        <location line="+8"/>
         <location filename="../qml/pages/SettingsPage.qml" line="+5"/>
         <source>Pill</source>
         <translation>胶囊</translation>
@@ -9664,8 +9673,8 @@ Applies to the next capture.</source>
         <translation>裁剪窗口启动时使用的画幅。竖屏适合 TikTok、Shorts 和 Reels。</translation>
     </message>
     <message>
-        <location filename="../qml/pages/ClipsPage.qml" line="+5"/>
-        <location line="+12"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="+7"/>
+        <location line="+14"/>
         <location filename="../qml/pages/SettingsPage.qml" line="+4"/>
         <location line="+11"/>
         <source>As recorded</source>
@@ -9687,7 +9696,7 @@ Applies to the next capture.</source>
         <translation>方形 1:1</translation>
     </message>
     <message>
-        <location filename="../qml/pages/ClipsPage.qml" line="-5"/>
+        <location filename="../qml/pages/ClipsPage.qml" line="-7"/>
         <location filename="../qml/pages/SettingsPage.qml" line="+6"/>
         <source>Default clip size</source>
         <translation>默认剪辑尺寸</translation>

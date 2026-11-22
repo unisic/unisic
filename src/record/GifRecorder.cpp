@@ -3,6 +3,7 @@
 #include "KeyCapture.h"
 #include "InputPermission.h"
 #include <QPainter>
+#include <QPainterPath>
 #include <ctime>
 #include "Settings.h"
 #include "MatroskaRawStream.h"
@@ -190,8 +191,12 @@ void GifRecorder::start(Output output, SourceType source, const QRect &cropPhysi
     // invocations (--export-settings etc.) construct a recorder but never
     // record, and sweeping there would unlink the *live* temp of a concurrent
     // recording instance that shares the cache dir.
-    if (!m_orphansSwept) {
-        m_orphansSwept = true;
+    // Once per PROCESS, not per recorder: the replay ring and a recording run
+    // side by side, and the second one's first start would unlink the live
+    // files of the first.
+    static bool orphansSwept = false;
+    if (!orphansSwept) {
+        orphansSwept = true;
         QDir cache(QStandardPaths::writableLocation(QStandardPaths::CacheLocation));
         const QStringList stale = cache.entryList({QStringLiteral("unisic-rec-*")}, QDir::Files);
         for (const QString &f : stale)
@@ -240,6 +245,7 @@ void GifRecorder::start(Output output, SourceType source, const QRect &cropPhysi
     m_lastSampledSeq = 0;
     m_monitorRetryDone = false;
     m_nativeStream = false;
+    m_castScreen = nullptr;
 
     // BOTH grabbers are compiled in; which one runs is a per-SESSION choice, not
     // a build one. X11 session: the ScreenCast portal has no working path there,
@@ -263,12 +269,43 @@ static qint64 monoNowNs()
     return qint64(ts.tv_sec) * 1000000000LL + ts.tv_nsec;
 }
 
+void GifRecorder::setOwnFrame(const QRect &physLocal, QScreen *screen, const QColor &accent,
+                              const QColor &contrast)
+{
+    m_ownFrame = screen ? physLocal : QRect();
+    m_ownFrameScreen = screen;
+    m_ownFrameAccent = accent;
+    m_ownFrameContrast = contrast;
+}
+
+// The own frame's region in encoded-frame px, and one logical px in the same
+// units. Empty unless this is a native monitor stream of the framed screen:
+// through the portal, on X11 or over a window stream the real frame is either
+// in the picture already or not part of it.
+QRectF GifRecorder::ownFrameInEncoded(qreal *unit) const
+{
+    if (m_ownFrame.isEmpty() || !m_nativeStream || m_source != Screen || !m_castScreen
+        || m_castScreen != m_ownFrameScreen || m_streamSize.isEmpty())
+        return {};
+    const qreal dpr = m_castScreen->devicePixelRatio();
+    const qreal physW = m_castScreen->geometry().width() * dpr;
+    if (physW <= 0)
+        return {};
+    const qreal s = m_streamSize.width() / physW;
+    *unit = dpr * s;
+    return QRectF(m_ownFrame.x() * s, m_ownFrame.y() * s, m_ownFrame.width() * s,
+                  m_ownFrame.height() * s)
+        .translated(-QPointF(m_encodeCrop.topLeft()));
+}
+
 QByteArray GifRecorder::compositeCursorOverlay(const QByteArray &encoded, qint64 nowNs)
 {
     const bool wantCursor = m_cursorOverlayActive && m_cursorOverlay.hasContent(nowNs);
     const bool wantKeys = m_keystrokeOverlayActive && m_keystrokes.hasContent(nowNs);
     const bool wantStamp = !m_replayStamp.isNull();
-    if (encoded.isEmpty() || (!wantCursor && !wantKeys && !wantStamp))
+    qreal unit = 1;
+    const QRectF ownFrame = ownFrameInEncoded(&unit);
+    if (encoded.isEmpty() || (!wantCursor && !wantKeys && !wantStamp && ownFrame.isEmpty()))
         return encoded;
 
     // The frames are kept in the stream's native byte order (see
@@ -296,6 +333,20 @@ QByteArray GifRecorder::compositeCursorOverlay(const QByteArray &encoded, qint64
                m_encodeSize.width(), m_encodeSize.height(),
                m_encodeSize.width() * 4, fmt);
     QPainter p(&img);
+    if (!ownFrame.isEmpty()) {
+        // RecordBorder.qml's look: a 3 px accent band outside the region with
+        // a 1 px contrast line on each side, in logical px scaled to the stream.
+        const auto band = [&p](const QRectF &outer, qreal w, const QColor &c) {
+            QPainterPath ring;
+            ring.addRect(outer);
+            ring.addRect(outer.adjusted(w, w, -w, -w));
+            p.fillPath(ring, c);
+        };
+        const qreal bw = 3 * unit;
+        band(ownFrame.adjusted(-bw - unit, -bw - unit, bw + unit, bw + unit), unit, m_ownFrameContrast);
+        band(ownFrame.adjusted(-bw, -bw, bw, bw), bw, m_ownFrameAccent);
+        band(ownFrame.adjusted(-unit, -unit, unit, unit), unit, m_ownFrameContrast);
+    }
     if (wantStamp)
         p.drawImage(m_replayStampAt, m_replayStamp);
     if (wantCursor)
@@ -481,6 +532,7 @@ bool GifRecorder::tryOpenKWinStream()
         if (!screen)
             screen = QGuiApplication::primaryScreen();
         stream = m_kwinCast->createOutputStream(screen, mode);
+        m_castScreen = screen;
     }
     if (!stream) {
         m_nativeStream = false;
@@ -1348,7 +1400,8 @@ void GifRecorder::sampleFrame()
             m_cursorOverlay.setCursor(sm - QPointF(m_encodeCrop.topLeft()), s.visible, s.shapeId);
         }
     }
-    if (m_cursorOverlayActive || m_keystrokeOverlayActive || !m_replayStamp.isNull())
+    if (m_cursorOverlayActive || m_keystrokeOverlayActive || !m_replayStamp.isNull()
+        || !m_ownFrame.isEmpty())
         encoded = compositeCursorOverlay(encoded, monoNowNs());
 
     // Pacing: the timer interval truncates (1000/30 = 33 ms -> 30.3 fps) and

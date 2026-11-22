@@ -6,7 +6,7 @@ within it, the `### English` / `### Polski` block for the toggled language is
 displayed. Keep the newest version at the top; each version is translated as a
 whole per release (not per individual change).
 
-## 0.8.10-test1
+## 0.8.10-test2
 
 ### English
 **Added**

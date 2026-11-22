@@ -167,6 +167,9 @@ class Settings : public QObject
     Q_PROPERTY(QString clipSource READ clipSource WRITE setClipSource NOTIFY clipSourceChanged)
     Q_PROPERTY(bool clipKeepSession READ clipKeepSession WRITE setClipKeepSession NOTIFY clipKeepSessionChanged)
     Q_PROPERTY(QString clipSessionDirectory READ clipSessionDirectory WRITE setClipSessionDirectory NOTIFY clipSessionDirectoryChanged)
+    Q_PROPERTY(bool clipSystemAudio READ clipSystemAudio WRITE setClipSystemAudio NOTIFY clipSystemAudioChanged)
+    Q_PROPERTY(bool clipMicrophone READ clipMicrophone WRITE setClipMicrophone NOTIFY clipMicrophoneChanged)
+    Q_PROPERTY(bool clipKeystrokes READ clipKeystrokes WRITE setClipKeystrokes NOTIFY clipKeystrokesChanged)
     Q_PROPERTY(bool clipStatusDot READ clipStatusDot WRITE setClipStatusDot NOTIFY clipStatusDotChanged)
     Q_PROPERTY(QString clipStatusCorner READ clipStatusCorner WRITE setClipStatusCorner NOTIFY clipStatusCornerChanged)
     Q_PROPERTY(QStringList recentGames READ recentGames WRITE setRecentGames NOTIFY recentGamesChanged)
@@ -693,14 +696,21 @@ public:
     U_SETTING(QString, clipSessionDirectory, setClipSessionDirectory, "clips/sessionDirectory", QString())
     // A steady dot in a screen corner while instant replay runs (ClipOsd::
     // setStatusDot), in "top-left" / "top-right" / "bottom-left" / "bottom-right".
+    // Instant replay's own audio and key badge, apart from recordings': a game
+    // clip wants the game's sound and rarely the typed keys. Per-app audio and
+    // the microphone device stay shared (GifRecorder reads them for both).
+    U_SETTING(bool, clipSystemAudio, setClipSystemAudio, "clips/systemAudio", true)
+    U_SETTING(bool, clipMicrophone, setClipMicrophone, "clips/microphone", false)
+    U_SETTING(bool, clipKeystrokes, setClipKeystrokes, "clips/keystrokes", false)
     U_SETTING(bool, clipStatusDot, setClipStatusDot, "clips/statusDot", false)
     U_SETTING(QString, clipStatusCorner, setClipStatusCorner, "clips/statusCorner", QStringLiteral("top-right"))
     // What instant replay records: "screen" (the monitor under the pointer)
     // or "window" (the game's window, else the window in front when it starts;
     // AppContext::startReplayRing).
     U_SETTING(QString, clipSource, setClipSource, "clips/source", QStringLiteral("screen"))
-    // Games GameDetector saw, newest first, "<epoch seconds>\t<name>", at
-    // most 12 (AppContext::noteRecentGame).
+    // Games GameDetector saw, newest first, "<epoch seconds>\t<name>" plus
+    // "\t<cover path>" when Steam had art for it, at most 12
+    // (AppContext::onGameChanged).
     U_SETTING(QStringList, recentGames, setRecentGames, "clips/recentGames", QStringList())
     // Turns the replay ring on or off; hotkeyInstantReplay saves (or starts).
     U_SETTING(QString, hotkeyReplayToggle, setHotkeyReplayToggle, "hotkeys/replayToggle", QString())
@@ -883,7 +893,7 @@ public:
         emit replayWatermarkEnabledChanged(); emit replayWatermarkTextChanged(); emit replayWatermarkPositionChanged();
         emit clipOpenReplayChanged(); emit clipAspectChanged(); emit clipShortSideChanged();
         emit clipSaveDirectoryChanged(); emit clipIndicatorChanged(); emit hotkeyReplayToggleChanged();
-        emit clipIndicatorStyleChanged(); emit clipKeepSessionChanged(); emit clipSessionDirectoryChanged(); emit clipStatusDotChanged(); emit clipStatusCornerChanged(); emit clipSourceChanged(); emit recentGamesChanged();
+        emit clipIndicatorStyleChanged(); emit clipKeepSessionChanged(); emit clipSessionDirectoryChanged(); emit clipSystemAudioChanged(); emit clipMicrophoneChanged(); emit clipKeystrokesChanged(); emit clipStatusDotChanged(); emit clipStatusCornerChanged(); emit clipSourceChanged(); emit recentGamesChanged();
         emit showCapturePopupChanged(); emit capturePopupPositionChanged();
         emit capturePopupDurationSecChanged(); emit capturePopupStyleChanged(); emit capturePopupMarginChanged();
         emit hiddenNotifActionsChanged(); emit notificationActionOrderChanged();
@@ -1025,6 +1035,9 @@ signals:
     void clipIndicatorStyleChanged();
     void clipKeepSessionChanged();
     void clipSessionDirectoryChanged();
+    void clipSystemAudioChanged();
+    void clipMicrophoneChanged();
+    void clipKeystrokesChanged();
     void clipStatusDotChanged();
     void clipStatusCornerChanged();
     void clipSourceChanged();

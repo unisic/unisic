@@ -4,6 +4,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QRegularExpression>
 #include <QFileSystemWatcher>
 #include <QImage>
 #include <QImageReader>
@@ -491,6 +492,25 @@ QString HistoryStore::categoryOfFile(const QString &filePath) const
     for (const Entry &e : m_entries) {
         if (e.filePath == filePath)
             return categoryOf(e);
+    }
+    return {};
+}
+
+QString HistoryStore::gameThumbnail(const QString &tag) const
+{
+    if (tag.isEmpty())
+        return {};
+    static const QRegularExpression numbered(QStringLiteral("-\\d+$")); // "<stem>-2.mp4"
+    const QString suffix = QLatin1Char('_') + tag;
+    for (const Entry &e : m_entries) { // newest first
+        if (e.thumbPath.isEmpty())
+            continue;
+        if (e.origin != QLatin1String("replay") && e.origin != QLatin1String("session")
+            && e.origin != QLatin1String("clip"))
+            continue;
+        QString base = QFileInfo(e.filePath).completeBaseName();
+        if (base.endsWith(suffix) || base.remove(numbered).endsWith(suffix))
+            return e.thumbPath;
     }
     return {};
 }

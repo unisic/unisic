@@ -34,10 +34,10 @@ Item {
         searchText: page.gameFilter
     }
 
-    // Settings::recentGames, "<epoch seconds>\t<name>" newest first.
+    // Settings::recentGames, "<epoch seconds>\t<name>[\t<cover path>]" newest first.
     readonly property var games: App.settings.recentGames.map(function (entry) {
-        var tab = entry.indexOf("\t")
-        return { name: entry.slice(tab + 1), when: new Date(parseInt(entry.slice(0, tab)) * 1000) }
+        var f = entry.split("\t")
+        return { name: f[1] || "", cover: f[2] || "", when: new Date(parseInt(f[0]) * 1000) }
     })
     // The game's part of a file name, as GifRecorder::replayStem writes it.
     // "Unisic_Session_2026-01-01_20-00-00_Hades II.mp4" -> "Hades II · 20:00";
@@ -159,20 +159,29 @@ Item {
                     color: Theme.textSecondary
                     font.pixelSize: 13
                 }
-                Flow {
+                // One row, as many cards as fit, newest first; the size comes
+                // from the width alone, so two games look like six.
+                Row {
+                    id: gameRow
                     width: parent.width
-                    spacing: 8
+                    spacing: 10
                     visible: page.games.length > 0
+                    readonly property int perRow: Math.max(1, Math.floor((width + spacing) / (150 + spacing)))
+                    readonly property real cardW: Math.floor((width - (perRow - 1) * spacing) / perRow)
                     Repeater {
-                        model: page.games
-                        UFilterChip {
+                        model: page.games.slice(0, gameRow.perRow)
+                        GameCard {
                             required property var modelData
-                            text: modelData.name
+                            width: gameRow.cardW
+                            height: implicitHeight
+                            name: modelData.name
+                            cover: modelData.cover
+                            // App.history.count: look again when a clip lands.
+                            fallback: App.history.count >= 0 ? App.history.gameThumbnail(page.fileTag(modelData.name)) : ""
                             checked: page.gameFilter !== "" && page.gameFilter === page.fileTag(modelData.name)
-                            accessibleName: modelData.name
                             //: %1 is a date and time.
                             accessibleDescription: qsTr("Last played %1").arg(modelData.when.toLocaleString(Qt.locale(), Locale.ShortFormat))
-                            onClicked: page.gameFilter = checked ? "" : page.fileTag(modelData.name)
+                            onActivated: page.gameFilter = checked ? "" : page.fileTag(modelData.name)
                         }
                     }
                 }
@@ -286,18 +295,18 @@ Item {
                 id: systemAudioRow
                 label: qsTranslate("RecordPage", "Record system audio")
                 MiniSwitch {
-                    checked: App.settings.recordSystemAudio
+                    checked: App.settings.clipSystemAudio
                     accessibleName: systemAudioRow.label
-                    onToggled: (c) => App.settings.recordSystemAudio = c
+                    onToggled: (c) => App.settings.clipSystemAudio = c
                 }
             }
             InspectorRow {
                 id: micRow
                 label: qsTranslate("RecordPage", "Record microphone")
                 MiniSwitch {
-                    checked: App.settings.recordMicrophone
+                    checked: App.settings.clipMicrophone
                     accessibleName: micRow.label
-                    onToggled: (c) => App.settings.recordMicrophone = c
+                    onToggled: (c) => App.settings.clipMicrophone = c
                 }
             }
             InspectorRow {

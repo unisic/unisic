@@ -337,7 +337,8 @@ void GifRecorder::stopClickCapture()
 
 void GifRecorder::startKeyCapture()
 {
-    if (!m_settings->recordKeystrokes() || m_keys)
+    const bool wanted = m_output == Replay ? m_settings->clipKeystrokes() : m_settings->recordKeystrokes();
+    if (!wanted || m_keys)
         return;
     // Same access story as clicks: /dev/input needs the `input` group, and
     // most desktop users are not in it - degrade to no badge, never an error.
@@ -921,9 +922,11 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
             QString label;
         };
         QList<Wanted> wanted;
-        if (m_settings->recordSystemAudio())
+        // Instant replay has its own switches (Settings > Clips).
+        const bool replay = m_output == Replay;
+        if (replay ? m_settings->clipSystemAudio() : m_settings->recordSystemAudio())
             wanted.append({AudioCapture::Source::System, tr("System audio")});
-        if (m_settings->recordMicrophone())
+        if (replay ? m_settings->clipMicrophone() : m_settings->recordMicrophone())
             wanted.append({AudioCapture::Source::Microphone, tr("Microphone")});
         for (const Wanted &w : wanted) {
             QString error;

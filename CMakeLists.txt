@@ -366,6 +366,7 @@ qt_add_qml_module(unisic
         qml/components/ClipOsdPill.qml
         qml/components/ClipOsdPreview.qml
         qml/components/ClipStatusDotMark.qml
+        qml/components/GameCard.qml
         qml/components/HeaderButton.qml
         qml/components/WindowOutline.qml
         qml/components/FilterToggle.qml

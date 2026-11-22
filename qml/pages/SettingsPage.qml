@@ -2357,6 +2357,31 @@ Item {
                         dotCorner: App.settings.clipStatusDot ? App.settings.clipStatusCorner : ""
                         opacity: App.settings.clipIndicator || App.settings.clipStatusDot ? 1 : 0.5
                     }
+                    SettingRow {
+                        label: qsTr("Record system audio in clips")
+                        help: qsTr("The game's sound, and everything else you hear. Apart from the switch for recordings.")
+                        USwitch { checked: App.settings.clipSystemAudio; onToggled: (c) => App.settings.clipSystemAudio = c }
+                    }
+                    SettingRow {
+                        label: qsTr("Record microphone in clips")
+                        help: qsTr("Your voice, from the microphone chosen under Recording > Audio. Apart from the switch for recordings.")
+                        USwitch { checked: App.settings.clipMicrophone; onToggled: (c) => App.settings.clipMicrophone = c }
+                    }
+                    SettingRow {
+                        id: clipKeysRow
+                        label: qsTr("Show pressed keys in clips")
+                        help: qsTr("The key badge from recordings, in clips too. Off by default: a game clip rarely needs it.")
+                        readonly property string blocked: App.keystrokeCaptureBlockedReason()
+                        available: blocked === "" || App.devBuild
+                        hint: blocked
+                        footer: InputFixFooter { command: App.inputAccessFixCommand() }
+                        USwitch {
+                            accessibleName: clipKeysRow.label
+                            accessibleDescription: clipKeysRow.detail
+                            checked: App.settings.clipKeystrokes
+                            onToggled: (c) => App.settings.clipKeystrokes = c
+                        }
+                    }
                     Text {
                         id: clipDirLabel
                         text: qsTr("Clips folder")

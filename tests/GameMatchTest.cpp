@@ -1,3 +1,4 @@
+#include <QTemporaryDir>
 #include <QTest>
 #include "record/GameMatch.h"
 
@@ -49,6 +50,44 @@ private slots:
         QCOMPARE(GameMatch::manifestName("garbage"), QString());
         QCOMPARE(GameMatch::libraryPaths("\"0\"\n{\n\t\t\"path\"\t\t\"/home/u/.local/share/Steam\"\n}\n\"1\"\n{\n\t\t\"path\"\t\t\"D:\\\\SteamLibrary\"\n}"),
                  QStringList({QStringLiteral("/home/u/.local/share/Steam"), QStringLiteral("D:\\SteamLibrary")}));
+    }
+    void geforceNowLog()
+    {
+        const QByteArray launch =
+            "2026-11-22T00:50:58.395[I] cefclien 1398     ShadowPlayApi.cpp:109  CreateGfnCaptureStreamApiInt\n";
+        QCOMPARE(GameMatch::gfnGame(launch, QString()), QString()); // the client alone is no game
+        const QByteArray start =
+            "2026-11-22T00:53:23.859[I]                   ShadowPlayApi.cpp:3280 StreamingStarted calling NotifyGameStart\n"
+            "2026-11-22T00:53:23.859[D] libgfnsp TASK     ShadowPlayApi.cpp:3492 CShadowPlayApi::NotifyGameStart Fortnite\xc2\xae PID: 100013311 CMSID: 100013311\n"
+            "2026-11-22T00:53:25.652[I] libgfnsp TASK              Rtsp.cpp:68   operator() NotifyGameStart not required\n";
+        QCOMPARE(GameMatch::gfnGame(start, QString()), QStringLiteral("Fortnite"));
+        QCOMPARE(GameMatch::gfnGame(launch, QStringLiteral("Fortnite")), QStringLiteral("Fortnite")); // later lines keep it
+        const QByteArray end =
+            "2026-11-21T21:58:25.834[I] cefclien 1401     ShadowPlayApi.cpp:3537 NotifyGameEnd with PID = 100013311 isStremEnd 1\n";
+        QCOMPARE(GameMatch::gfnGame(end, QStringLiteral("Fortnite")), QString());
+        QCOMPARE(GameMatch::gfnGame(start + end, QString()), QString());
+    }
+    void steamCovers()
+    {
+        QTemporaryDir root;
+        QVERIFY(root.isValid());
+        const QString cache = root.path() + QStringLiteral("/appcache/librarycache/");
+        const auto touch = [](const QString &path) {
+            QDir().mkpath(QFileInfo(path).path());
+            QFile f(path);
+            QVERIFY(f.open(QIODevice::WriteOnly));
+        };
+        QCOMPARE(GameMatch::steamCover(root.path(), 10), QString());
+        touch(cache + QStringLiteral("10/library_600x900.jpg"));
+        QCOMPARE(GameMatch::steamCover(root.path(), 10), cache + QStringLiteral("10/library_600x900.jpg"));
+        touch(cache + QStringLiteral("10/abc123/library_header.jpg"));
+        QCOMPARE(GameMatch::steamCover(root.path(), 10), cache + QStringLiteral("10/abc123/library_header.jpg"));
+        touch(cache + QStringLiteral("10/library_600x900.jpg")); // portrait loses to the wide one
+        QCOMPARE(GameMatch::steamCover(root.path(), 10), cache + QStringLiteral("10/abc123/library_header.jpg"));
+        touch(cache + QStringLiteral("10/header.jpg"));
+        QCOMPARE(GameMatch::steamCover(root.path(), 10), cache + QStringLiteral("10/header.jpg"));
+        touch(cache + QStringLiteral("20_library_600x900.jpg")); // the old flat layout
+        QCOMPARE(GameMatch::steamCover(root.path(), 20), cache + QStringLiteral("20_library_600x900.jpg"));
     }
 };
 

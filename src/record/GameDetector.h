@@ -18,6 +18,8 @@ class QDBusMessage;
 //   - Cloud gaming and game streaming (Linux): the GeForce NOW, Steam Link,
 //     Moonlight, Boosteroid and Greenlight clients, and a browser app window
 //     on a known service's page (GameMatch.h has the rules and their limit).
+//     GeForce NOW's native client counts only while it streams, named after
+//     the game its own log says it started (GameMatch::gfnGame).
 //   - GameMode (Linux): games that register with the daemon (gamemoderun,
 //     libgamemode), named after the executable it reports.
 // Not Discord Rich Presence: reading it means serving Discord's own IPC
@@ -31,6 +33,8 @@ public:
     bool running() const { return m_probe.running || m_gameModeClients > 0; }
     // The game's display name, empty when none runs or it has no name.
     QString game() const { return m_probe.running ? m_probe.name : m_gameModeName; }
+    // A local picture of the game (Steam's library art), "" when there is none.
+    QString cover() const { return m_probe.running ? m_probe.cover : QString(); }
 
     // The game's processes: the one that found it (Steam's reaper, Proton,
     // the cloud client, the GameMode client) and everything under it, read
@@ -42,6 +46,7 @@ public:
         bool running = false;
         QString name;
         qint64 pid = 0;
+        QString cover;
     };
 
 signals:

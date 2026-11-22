@@ -1947,9 +1947,21 @@ void AppContext::onGameChanged(const QString &name)
     emit currentGameChanged();
     if (name.isEmpty())
         return;
+    // "<epoch>\t<name>[\t<cover path>]"; an older cover is kept when this
+    // detector found none (a game seen through Steam once, by GameMode now).
     QStringList games = m_settings->recentGames();
-    games.removeIf([&name](const QString &entry) { return entry.section(QLatin1Char('\t'), 1) == name; });
-    games.prepend(QString::number(QDateTime::currentSecsSinceEpoch()) + QLatin1Char('\t') + name);
+    QString cover = m_gameDetector ? m_gameDetector->cover() : QString();
+    games.removeIf([&name, &cover](const QString &entry) {
+        if (entry.section(QLatin1Char('\t'), 1, 1) != name)
+            return false;
+        if (cover.isEmpty())
+            cover = entry.section(QLatin1Char('\t'), 2, 2);
+        return true;
+    });
+    QString entry = QString::number(QDateTime::currentSecsSinceEpoch()) + QLatin1Char('\t') + name;
+    if (!cover.isEmpty())
+        entry += QLatin1Char('\t') + cover;
+    games.prepend(entry);
     m_settings->setRecentGames(games.mid(0, 12));
 }
 

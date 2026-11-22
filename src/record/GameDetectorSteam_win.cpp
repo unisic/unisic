@@ -1,4 +1,5 @@
 #include "GameDetector.h"
+#include "GameMatch.h"
 
 #include <QSettings>
 
@@ -13,7 +14,8 @@ GameDetector::Probe GameDetector::probe()
     const int appId = steam.value(QStringLiteral("RunningAppID")).toInt();
     if (appId <= 0)
         return {};
-    return {true, steam.value(QStringLiteral("Apps/%1/Name").arg(appId)).toString()};
+    return {true, steam.value(QStringLiteral("Apps/%1/Name").arg(appId)).toString(), 0,
+            GameMatch::steamCover(steam.value(QStringLiteral("SteamPath")).toString(), appId)};
 }
 
 QList<qint64> GameDetector::withDescendants(qint64)

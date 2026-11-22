@@ -1,9 +1,12 @@
 #pragma once
 #include <QByteArray>
+#include <QDir>
+#include <QFileInfo>
 #include <QList>
 #include <QRegularExpression>
 #include <QString>
 #include <QStringList>
+#include <initializer_list>
 
 // What a running process says about a game, from its /proc comm and cmdline
 // alone. Pure functions, so tests/GameMatchTest.cpp covers every rule.
@@ -97,5 +100,63 @@ inline QStringList libraryPaths(const QByteArray &vdf)
     for (auto it = path.globalMatch(QString::fromUtf8(vdf)); it.hasNext();)
         out << it.next().captured(1).replace(QLatin1String("\\\\"), QLatin1String("\\"));
     return out;
+}
+
+// A Steam game's art in the client's own cache (<steam>/appcache/
+// librarycache), "" when it has none. Wide pictures first, as the card is
+// wide: the header, the library header (newer clients keep it in a hashed
+// subfolder), the hero, then the portrait cover; the old flat layout as
+// <id>_<kind>.jpg last.
+inline QString steamCover(const QString &steamRoot, int appId)
+{
+    const QString cache = steamRoot + QStringLiteral("/appcache/librarycache/");
+    const QString dir = cache + QString::number(appId);
+    const auto first = [&dir](std::initializer_list<const char *> names) -> QString {
+        for (const char *name : names) {
+            const QString path = dir + QLatin1Char('/') + QLatin1String(name);
+            if (QFileInfo::exists(path))
+                return path;
+        }
+        return {};
+    };
+    QString found = first({"header.jpg", "library_header.jpg"});
+    if (!found.isEmpty())
+        return found;
+    for (const QFileInfo &sub : QDir(dir).entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot)) {
+        const QString path = sub.filePath() + QStringLiteral("/library_header.jpg");
+        if (QFileInfo::exists(path))
+            return path;
+    }
+    found = first({"library_hero.jpg", "library_600x900.jpg"});
+    if (!found.isEmpty())
+        return found;
+    for (const char *kind : {"header", "library_600x900"}) {
+        const QString path = cache + QStringLiteral("%1_%2.jpg").arg(appId).arg(QLatin1String(kind));
+        if (QFileInfo::exists(path))
+            return path;
+    }
+    return {};
+}
+
+// GeForce NOW's native client logs the game it streams in its
+// CxNative_GeForceNOW.log: "CShadowPlayApi::NotifyGameStart <name> PID: ..."
+// once the stream starts, "NotifyGameEnd with PID = ..." when it ends. Reads
+// the lines of `chunk` in order, starting from `current` (what the earlier
+// part of the log said), and returns the game streaming after them, "" for
+// none. The client running is not a game: its library and the queue are not.
+inline QString gfnGame(const QByteArray &chunk, QString current)
+{
+    static const QRegularExpression start(QStringLiteral("CShadowPlayApi::NotifyGameStart (.+?) PID: "));
+    static const QRegularExpression marks(QStringLiteral("[\\x{00AE}\\x{2122}\\x{00A9}]")); // ® ™ ©
+    for (const QByteArray &line : chunk.split('\n')) {
+        if (line.contains("NotifyGameEnd with PID")) {
+            current.clear();
+        } else if (line.contains("CShadowPlayApi::NotifyGameStart")) {
+            const QRegularExpressionMatch m = start.match(QString::fromUtf8(line));
+            if (m.hasMatch())
+                current = m.captured(1).remove(marks).trimmed();
+        }
+    }
+    return current;
 }
 }

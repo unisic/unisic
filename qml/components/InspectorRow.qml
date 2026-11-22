@@ -16,17 +16,30 @@ Item {
     // text shows in full on hover.
     property bool compact: false
     default property alias control: slot.data
+    // Opt-in: the control's natural width. The row then lays out side by side
+    // or stacked (label above, control at full width): stacked once the
+    // label's longest word cannot fit beside the control, so a long compound
+    // ("Standardbildausschnitt") is never broken mid-word and the control's
+    // text is never cut. Bind the control's width to slotWidth.
+    property real controlWidth: 0
+    readonly property bool stacked: controlWidth > 0 && controlWidth + 12 + Math.max(80, _longestWord) > width
+    readonly property real slotWidth: stacked ? width : controlWidth
+    readonly property real _longestWord: {
+        var words = label.split(/\s+/), m = 0
+        for (var i = 0; i < words.length; ++i)
+            m = Math.max(m, labelMetrics.advanceWidth(words[i]))
+        return Math.ceil(m)
+    }
+    FontMetrics { id: labelMetrics; font.pixelSize: 13; font.weight: Font.Medium }
 
     width: parent ? parent.width : 0
-    height: Math.max(texts.height, slot.height)
+    height: stacked ? texts.height + 8 + slot.height : Math.max(texts.height, slot.height)
     opacity: enabled ? 1.0 : 0.5
 
     Column {
         id: texts
-        anchors.left: parent.left
-        anchors.right: slot.left
-        anchors.rightMargin: 12
-        anchors.verticalCenter: parent.verticalCenter
+        width: row.stacked ? row.width : row.width - slot.width - 12
+        y: row.stacked ? 0 : (row.height - height) / 2
         spacing: 1
         Text {
             width: parent.width
@@ -53,8 +66,8 @@ Item {
     }
     Item {
         id: slot
-        anchors.right: parent.right
-        anchors.verticalCenter: parent.verticalCenter
+        x: row.stacked ? 0 : row.width - width
+        y: row.stacked ? texts.height + 8 : (row.height - height) / 2
         width: childrenRect.width
         height: childrenRect.height
     }

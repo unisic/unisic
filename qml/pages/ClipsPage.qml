@@ -13,7 +13,7 @@ Item {
 
     readonly property bool modalOpen: false
     readonly property bool compact: height < 760 || width - aside.width - 2 * 40 < 3 * 200 + 2 * 14
-    readonly property bool canStart: App.recordingAvailable && !App.recording && !App.converting
+    readonly property bool canStart: App.recordingAvailable
 
     signal openPage(int index)
     signal openSettings(int tab, string query)
@@ -42,6 +42,16 @@ Item {
     // The game's part of a file name, as GifRecorder::replayStem writes it.
     // "Unisic_Session_2026-01-01_20-00-00_Hades II.mp4" -> "Hades II · 20:00";
     // any other name (a renamed or cut clip) stays as it is.
+    // A UComboBox wide enough for its longest entry (14 px text inset, 36 px
+    // for the chevron), never under `least`: a translation stays readable.
+    FontMetrics { id: comboMetrics; font.pixelSize: Theme.fontM }
+    function comboWidth(entries, least) {
+        var m = 0
+        for (var i = 0; i < entries.length; ++i)
+            m = Math.max(m, comboMetrics.advanceWidth(entries[i]))
+        return Math.max(least, Math.ceil(m) + 50)
+    }
+
     function tileName(path) {
         var file = path.split("/").pop()
         var m = /^Unisic_(?:Replay|Session)_\d{4}-\d\d-\d\d_(\d\d)-(\d\d)-\d\d(?:-\d+)?(?:_(.+?))?(?:-\d+)?\.\w+$/.exec(file)
@@ -116,7 +126,7 @@ Item {
                         sub: App.instantReplayActive ? qsTr("Running") : qsTr("Off")
                         hotkey: App.settings.hotkeyReplayToggle
                         enabled: App.instantReplayActive || page.canStart
-                        onActivated: App.instantReplayActive ? App.stopRecording() : App.startInstantReplay()
+                        onActivated: App.instantReplayActive ? App.stopInstantReplay() : App.startInstantReplay()
                     }
                     ActionTile {
                         width: grid.cellW
@@ -126,7 +136,7 @@ Item {
                         //: %1 is the replay length, e.g. "30 s" or "2 min".
                         sub: qsTr("The last %1").arg(page.lengthText)
                         hotkey: App.settings.hotkeyInstantReplay
-                        enabled: App.instantReplayActive && !App.converting
+                        enabled: App.instantReplayActive
                         onActivated: App.saveInstantReplay()
                     }
                     ActionTile {
@@ -261,8 +271,10 @@ Item {
             InspectorRow {
                 id: sourceRow
                 label: qsTranslate("SettingsPage", "What to record")
+                controlWidth: page.comboWidth(sourceCombo.model, 150)
                 UComboBox {
-                    width: 150
+                    id: sourceCombo
+                    width: sourceRow.slotWidth
                     accessibleName: sourceRow.label
                     readonly property var ids: ["screen", "window"]
                     model: [qsTranslate("SettingsPage", "Whole screen"), qsTranslate("SettingsPage", "Game window")]
@@ -322,8 +334,10 @@ Item {
                 id: styleRow
                 label: qsTranslate("SettingsPage", "Indicator style")
                 enabled: App.settings.clipIndicator
+                controlWidth: page.comboWidth(styleCombo.model, 104)
                 UComboBox {
-                    width: 104
+                    id: styleCombo
+                    width: styleRow.slotWidth
                     accessibleName: styleRow.label
                     readonly property var ids: ["pill", "compact", "dot", "tinted"]
                     model: [qsTranslate("SettingsPage", "Pill"), qsTranslate("SettingsPage", "Compact"),
@@ -365,8 +379,10 @@ Item {
             InspectorRow {
                 id: frameRow
                 label: qsTranslate("SettingsPage", "Default frame")
+                controlWidth: page.comboWidth(frameCombo.model, 130)
                 UComboBox {
-                    width: 130
+                    id: frameCombo
+                    width: frameRow.slotWidth
                     accessibleName: frameRow.label
                     readonly property var ids: ["original", "16:9", "9:16", "1:1"]
                     model: [qsTranslate("SettingsPage", "As recorded"), "16:9", "9:16", "1:1"]
@@ -377,8 +393,10 @@ Item {
             InspectorRow {
                 id: sizeRow
                 label: qsTranslate("SettingsPage", "Default clip size")
+                controlWidth: page.comboWidth(sizeCombo.model, 130)
                 UComboBox {
-                    width: 130
+                    id: sizeCombo
+                    width: sizeRow.slotWidth
                     accessibleName: sizeRow.label
                     readonly property var ids: [0, 1080, 720, 480]
                     model: [qsTranslate("SettingsPage", "As recorded"), "1080p", "720p", "480p"]

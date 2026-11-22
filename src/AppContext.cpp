@@ -151,6 +151,7 @@ AppContext::AppContext(QObject *parent)
     , m_history(new HistoryStore(this))
     , m_hotkeys(new GlobalHotkeys(this))
     , m_recorder(new GifRecorder(m_settings, this))
+    , m_replay(new GifRecorder(m_settings, this))
 {
     m_notifier = new DesktopNotifier(this, this);
     m_dnd = new NotificationInhibitor(this);
@@ -161,7 +162,7 @@ AppContext::AppContext(QObject *parent)
     KSystemClipboard::instance();
     // Keystroke-badge colors follow the active theme (incl. custom themes).
     // Resolved lazily at key-capture start - m_engine is null here.
-    m_recorder->setKeystrokeThemeProvider([this]() -> QPair<QColor, QColor> {
+    const auto keystrokeTheme = [this]() -> QPair<QColor, QColor> {
         if (m_engine) {
             if (QObject *theme = m_engine->singletonInstance<QObject *>(
                     QStringLiteral("Unisic.Kit"), QStringLiteral("Theme")))
@@ -169,7 +170,9 @@ AppContext::AppContext(QObject *parent)
                         theme->property("keystrokeText").value<QColor>()};
         }
         return {QColor(), QColor()};
-    });
+    };
+    m_recorder->setKeystrokeThemeProvider(keystrokeTheme);
+    m_replay->setKeystrokeThemeProvider(keystrokeTheme);
     refreshWatermarkImage();
     connect(m_settings, &Settings::watermarkImagePathChanged,
             this, &AppContext::refreshWatermarkImage);
@@ -203,7 +206,7 @@ AppContext::AppContext(QObject *parent)
         // Windows: also a system notification, once per version like the rest
         // of this handler. Never while recording: the direct grab would film it.
         if (UpdateChecker::notifiesFromTray() && m_tray && m_settings->showNotifications()
-            && !recording())
+            && !recording() && !instantReplayActive())
             m_tray->showMessage(tr("Unisic %1 is available").arg(v),
                                 tr("It installs itself in the background. Click to open Unisic."));
         // Native package install: no silent self-update path, but we CAN offer to
@@ -258,8 +261,8 @@ AppContext::AppContext(QObject *parent)
     // Portal approved + stream live, but encoding is HELD: run the countdown /
     // start cue, then commit. The start sound is played here (before commit), not
     // on started(), so it is never captured in the recording.
-    connect(m_recorder, &GifRecorder::armed, this, [this] {
-        if (!m_recordHoldActive)
+    const auto onArmed = [this](GifRecorder *from) {
+        if (!m_recordHoldActive || from != m_countdownTarget)
             return;
         const int secs = m_pendingCountdownSecs;
         m_pendingCountdownSecs = 0;
@@ -267,7 +270,9 @@ AppContext::AppContext(QObject *parent)
             runRecordCountdownVisuals(secs); // ends in commitRecordingAfterCue()
         else
             commitRecordingAfterCue();       // start-sound pre-roll only
-    });
+    };
+    connect(m_recorder, &GifRecorder::armed, this, [this, onArmed] { onArmed(m_recorder); });
+    connect(m_replay, &GifRecorder::armed, this, [this, onArmed] { onArmed(m_replay); });
     // Badge/unbadge the tray icon as recording starts and stops.
     connect(this, &AppContext::recordingChanged, this, &AppContext::applyTrayIcon);
     connect(this, &AppContext::recordingChanged, this, &AppContext::updateGameDetector);
@@ -284,24 +289,26 @@ AppContext::AppContext(QObject *parent)
         // Here rather than at the trigger because the countdown renders as a
         // toast INSIDE that window; endCaptureIsolation() puts it back, and the
         // converting/failed signals that call it cover every way a recording can
-        // end. Never for the instant-replay ring: that rolls for as long as the
-        // user leaves it armed, and taking the window away for an open-ended
-        // period is not "for the duration of a capture", it is losing the window.
-        if (!m_recorder->instantReplayActive()) {
-            hideOwnWindowForCapture();
-        } else {
-            const int secs = m_settings->instantReplaySeconds();
-            const QString length = secs < 60 ? tr("%1 s").arg(secs) : tr("%1 min").arg(secs / 60);
-            const QString keys = m_settings->hotkeyInstantReplay().section(QLatin1Char(','), 0, 0).trimmed();
-            showClipIndicator(tr("Instant replay on"),
-                              keys.isEmpty()
-                                  ? tr("Keeping the last %1").arg(length)
-                                  : tr("%1 saves the last %2")
-                                        .arg(QKeySequence::fromString(keys, QKeySequence::PortableText)
-                                                 .toString(QKeySequence::NativeText),
-                                             length),
-                              QStringLiteral("rec"));
-        }
+        // end.
+        hideOwnWindowForCapture();
+    });
+    // Never hides the window for the instant-replay ring: that rolls for as
+    // long as the user leaves it armed, and taking the window away for an
+    // open-ended period is not "for the duration of a capture", it is losing
+    // the window.
+    connect(m_replay, &GifRecorder::started, this, [this] {
+        emit recordingChanged();
+        const int secs = m_settings->instantReplaySeconds();
+        const QString length = secs < 60 ? tr("%1 s").arg(secs) : tr("%1 min").arg(secs / 60);
+        const QString keys = m_settings->hotkeyInstantReplay().section(QLatin1Char(','), 0, 0).trimmed();
+        showClipIndicator(tr("Instant replay on"),
+                          keys.isEmpty()
+                              ? tr("Keeping the last %1").arg(length)
+                              : tr("%1 saves the last %2")
+                                    .arg(QKeySequence::fromString(keys, QKeySequence::PortableText)
+                                             .toString(QKeySequence::NativeText),
+                                         length),
+                          QStringLiteral("rec"));
     });
     connect(m_recorder, &GifRecorder::elapsedChanged, this, &AppContext::recordSecondsChanged);
     connect(m_recorder, &GifRecorder::converting, this, [this] {
@@ -309,42 +316,67 @@ AppContext::AppContext(QObject *parent)
         endCaptureIsolation();
         hideRecordBorder(); // capture is over; the frame must not linger over encoding
         emit recordingChanged();
-        if (!m_recorder->instantReplayActive()) // stopping the ring encodes nothing
-            showToast(tr("Encoding…"));
-        else
-            showClipIndicator(tr("Instant replay off"), QString(), QStringLiteral("rec"), 1800);
+        showToast(tr("Encoding…"));
     });
-    connect(m_recorder, &GifRecorder::finished, this, &AppContext::onRecordingFinished);
-    connect(m_recorder, &GifRecorder::saveProgress, this, &AppContext::setSaveProgress);
-    connect(m_recorder, &GifRecorder::replayExportFailed, this, [this] { setSaveProgress(-1); });
-    connect(m_recorder, &GifRecorder::failed, this, [this] {
-        setSaveProgress(-1);
-        continueAfterRecording();
+    connect(m_replay, &GifRecorder::converting, this, [this] {
+        m_replayStopping = true; // stopping the ring encodes nothing
+        emit recordingChanged();
+        showClipIndicator(tr("Instant replay off"), QString(), QStringLiteral("rec"), 1800);
     });
+    connect(m_recorder, &GifRecorder::finished, this, [this](const QString &path, const QString &origin) {
+        m_converting = false;
+        onRecordingFinished(path, origin);
+    });
+    connect(m_replay, &GifRecorder::finished, this, [this](const QString &path, const QString &origin) {
+        // A clip leaves the ring running; an empty origin is the ring stopping.
+        if (origin.isEmpty())
+            m_replayStopping = false;
+        onRecordingFinished(path, origin);
+    });
+    for (GifRecorder *r : {m_recorder, m_replay}) {
+        connect(r, &GifRecorder::saveProgress, this, &AppContext::setSaveProgress);
+        connect(r, &GifRecorder::replayExportFailed, this, [this] { setSaveProgress(-1); });
+        connect(r, &GifRecorder::failed, this, [this] { setSaveProgress(-1); });
+    }
     connect(m_settings, &Settings::instantReplayAutoChanged, this, &AppContext::applyInstantReplayAuto);
     // Queued: the recorder signals before it is fully idle, and the ring must
     // read as stopped by then or the dot comes back after a stop.
     connect(this, &AppContext::recordingChanged, this, &AppContext::updateReplayDot, Qt::QueuedConnection);
-    connect(m_recorder, &GifRecorder::failed, this, &AppContext::updateReplayDot, Qt::QueuedConnection);
+    connect(m_replay, &GifRecorder::failed, this, &AppContext::updateReplayDot, Qt::QueuedConnection);
     connect(m_settings, &Settings::clipStatusDotChanged, this, &AppContext::updateReplayDot);
     connect(m_settings, &Settings::clipStatusCornerChanged, this, &AppContext::updateReplayDot);
     // After startup settles (portal probe, tray), not on the startup path.
     QTimer::singleShot(3000, this, &AppContext::applyInstantReplayAuto);
-    connect(m_recorder, &GifRecorder::replayExportFailed, this, [this](const QString &error) {
+    connect(m_replay, &GifRecorder::replayExportFailed, this, [this](const QString &error) {
         showToast(tr("Instant replay failed: %1").arg(error), true);
         showClipIndicator(tr("Clip not saved"), error, QStringLiteral("error"), 4000);
     });
-    connect(m_recorder, &GifRecorder::failed, this, [this](const QString &e) {
-        m_converting = false;
-        endCaptureIsolation();
-        // A failure can land before arming (portal denied): clear the pending
-        // hold so a later recording can't inherit it.
+    // A failure can land before arming (portal denied): clear the pending
+    // hold so a later recording can't inherit it.
+    const auto dropHold = [this](GifRecorder *from) {
+        if (m_countdownTarget != from)
+            return;
         m_pendingCountdownSecs = 0;
         m_recordHoldActive = false;
+        m_countdownTarget = nullptr;
+    };
+    connect(m_recorder, &GifRecorder::failed, this, [this, dropHold](const QString &e) {
+        m_converting = false;
+        endCaptureIsolation();
+        dropHold(m_recorder);
         hideRecordBorder();
         emit recordingChanged();
         if (e != QLatin1String("cancelled"))
             showToast(tr("Recording failed: %1").arg(e), true);
+    });
+    connect(m_replay, &GifRecorder::failed, this, [this, dropHold](const QString &e) {
+        m_replayStopping = false;
+        if (m_countdownTarget == m_replay && !recording())
+            hideRecordBorder(); // its countdown disc
+        dropHold(m_replay);
+        emit recordingChanged();
+        if (e != QLatin1String("cancelled"))
+            showToast(tr("Instant replay failed: %1").arg(e), true);
     });
 
     // A history file that could not be trashed still gets its entry removed;
@@ -512,6 +544,8 @@ void AppContext::dispatchHotkey(const QString &action)
     if (action == QLatin1String("stop-recording")) {
         if (recording())
             stopRecording();
+        else if (instantReplayActive())
+            stopInstantReplay();
         return;
     }
     if (m_shortcutRecording)
@@ -542,25 +576,25 @@ void AppContext::dispatchHotkey(const QString &action)
     }
     else if (action == QLatin1String("ocr-region")) captureRegionOcr();
     else if (action == QLatin1String("record-gif")) {
-        if (manualRecording()) stopRecording();
+        if (recording()) stopRecording();
         else startGifRegion();
     } else if (action == QLatin1String("record-video")) {
-        if (manualRecording()) stopRecording();
+        if (recording()) stopRecording();
         else startVideoRegion();
     } else if (action == QLatin1String("instant-replay")) {
         if (instantReplayActive()) saveInstantReplay();
-        else if (!recording()) startInstantReplay();
+        else startInstantReplay();
     } else if (action == QLatin1String("replay-toggle")) {
-        if (instantReplayActive()) stopRecording();
-        else if (!recording()) startInstantReplay();
+        if (instantReplayActive()) stopInstantReplay();
+        else startInstantReplay();
     } else if (action == QLatin1String("record-screen")) {
-        if (manualRecording()) stopRecording();
+        if (recording()) stopRecording();
         else startVideoScreen();
     } else if (action == QLatin1String("gif-screen")) {
-        if (manualRecording()) stopRecording();
+        if (recording()) stopRecording();
         else startGifFullScreen();
     } else if (action == QLatin1String("record-window")) {
-        if (manualRecording()) stopRecording();
+        if (recording()) stopRecording();
         else startVideoWindow();
     } else if (action == QLatin1String("pause-recording")) {
         if (recordingCanPause()) togglePauseRecording();
@@ -1235,10 +1269,16 @@ void AppContext::beginCaptureIsolation()
     if (!m_hiddenForCapture) {
         // focusWindow() is only ever one of our own windows. The editor, the
         // preview and the trim window have no transient parent; popups and
-        // dialogs of the main window do, and count as the main window.
+        // dialogs of the main window do, and count as the main window. No focus
+        // at all means another application is in front: a main window hidden
+        // then comes back through show(), which KWin maps ON TOP of that app,
+        // so every hotkey capture pulled Unisic up over what the user was doing.
+        // The tray menu takes the focus from our window too, but whoever opens
+        // it from there is looking at Unisic, so a tray trigger counts as ours.
         const QWindow *focus = QGuiApplication::focusWindow();
         const QQuickWindow *main = mainWindow();
-        m_otherWindowFocused = focus && focus != main && focus->transientParent() != main;
+        m_otherWindowFocused = focus ? focus != main && focus->transientParent() != main
+                                     : !m_trayTrigger;
     }
     if (m_settings->doNotDisturbWhileCapturing() && capDoNotDisturb())
         m_dnd->acquire();
@@ -1266,9 +1306,9 @@ bool AppContext::hideOwnWindowForCapture()
         return false;
     if (m_hiddenForCapture)
         return true; // already down for this capture - do not stack restores
-    // The user is in the editor (or another Unisic window of ours): the main
-    // window is not what they are looking at, and show() afterwards would map it
-    // on top of the window they are working in. Leave it exactly where it is.
+    // The user is in the editor, another Unisic window or another application:
+    // the main window is not what they are looking at, and show() afterwards
+    // would map it on top of the window they are working in. Leave it be.
     if (m_otherWindowFocused)
         return false;
     QQuickWindow *win = mainWindow();
@@ -1719,7 +1759,7 @@ void AppContext::captureWindow()
 
 void AppContext::startGifRegion()
 {
-    if (manualRecording()) return;
+    if (recording()) return;
     m_overlay->pickRegion([this](const QRect &phys, QScreen *screen, qreal scale) {
         if (phys.isEmpty()) return;
         m_pendingRecordRegion = phys;
@@ -1732,7 +1772,7 @@ void AppContext::startGifRegion()
 
 void AppContext::startGifFullScreen()
 {
-    if (manualRecording()) return;
+    if (recording()) return;
     m_pendingRecordRegion = QRect();
     m_pendingRecordScreen = nullptr; // stale region target would misplace the countdown
     startRecorderCountdown([this](bool hold) {
@@ -1748,7 +1788,7 @@ GifRecorder::Output AppContext::videoOutput() const
 
 void AppContext::startVideoScreen()
 {
-    if (manualRecording()) return;
+    if (recording()) return;
     m_pendingRecordRegion = QRect();
     m_pendingRecordScreen = nullptr;
     startRecorderCountdown([this](bool hold) {
@@ -1758,7 +1798,7 @@ void AppContext::startVideoScreen()
 
 void AppContext::startVideoRegion()
 {
-    if (manualRecording()) return;
+    if (recording()) return;
     m_overlay->pickRegion([this](const QRect &phys, QScreen *screen, qreal scale) {
         if (phys.isEmpty()) return;
         m_pendingRecordRegion = phys;
@@ -1771,7 +1811,7 @@ void AppContext::startVideoRegion()
 
 void AppContext::startVideoWindow()
 {
-    if (manualRecording()) return;
+    if (recording()) return;
     // Reachable from the tray menu and the dev pane too, not just the (disabled)
     // Window button: on an X11-only desktop there is no window picker, so say so
     // instead of opening a portal session that fails with a raw D-Bus error.
@@ -1858,11 +1898,22 @@ void AppContext::togglePauseRecording()
 
 void AppContext::startInstantReplay()
 {
-    if (recording()) return;
+    if (instantReplayActive() || m_replayStarting) return;
     m_replayAuto = false;
+    // Beside a running recording: no countdown or start cue, which would
+    // take over that recording's frame and play into its sound.
+    if (recording()) {
+        startReplayRing(false);
+        return;
+    }
     m_pendingRecordRegion = {};
     m_pendingRecordScreen = nullptr;
-    startRecorderCountdown([this](bool hold) { startReplayRing(hold); });
+    startRecorderCountdown([this](bool hold) { startReplayRing(hold); }, m_replay);
+}
+
+void AppContext::stopInstantReplay()
+{
+    m_replay->stop();
 }
 
 void AppContext::saveInstantReplay()
@@ -1875,13 +1926,13 @@ void AppContext::saveInstantReplay()
     // Held until "Clip saved" or "Clip not saved"; the 2-minute cap only
     // matters if neither arrives.
     showClipIndicator(tr("Saving clip…"), QString(), QStringLiteral("busy"), 120000);
-    m_recorder->saveInstantReplay();
+    m_replay->saveInstantReplay();
     showToast(tr("Saving instant replay…"));
 }
 
 void AppContext::updateReplayDot()
 {
-    const bool on = m_settings->clipStatusDot() && m_recorder->instantReplayActive() && !m_converting
+    const bool on = m_settings->clipStatusDot() && instantReplayActive() && !m_replayStopping
                     && !QCoreApplication::closingDown();
     if (!on && !m_clipOsd)
         return;
@@ -1906,18 +1957,6 @@ void AppContext::setSaveProgress(qreal p)
         return;
     m_saveProgress = p;
     emit saveProgressChanged();
-}
-
-// A recording or the replay ring has ended: start what was waiting for it.
-void AppContext::continueAfterRecording()
-{
-    // Queued: the recorder emits finished/failed before it is fully idle.
-    if (m_afterReplayStops) {
-        QTimer::singleShot(0, this, std::exchange(m_afterReplayStops, nullptr));
-    } else if (m_resumeAutoReplay) {
-        m_resumeAutoReplay = false;
-        QTimer::singleShot(0, this, &AppContext::applyInstantReplayAuto);
-    }
 }
 
 // Settings::instantReplayAuto: "launch" keeps the ring running from startup,
@@ -1951,7 +1990,7 @@ QString AppContext::currentGame() const
 // played" (Settings::recentGames, at most 12, one entry per name).
 void AppContext::onGameChanged(const QString &name)
 {
-    m_recorder->setReplayGame(name);
+    m_replay->setReplayGame(name);
     emit currentGameChanged();
     if (m_settings->replayWatermarkText().contains(QLatin1String("%game%"))) {
         ++m_replayWatermarkPreviewRev;
@@ -1984,10 +2023,10 @@ void AppContext::applyInstantReplayAuto()
     const bool want = mode == QLatin1String("launch") || (m_gameDetector && m_gameDetector->running());
     if (!want) {
         if (autoReplayActive())
-            stopRecording();
+            stopInstantReplay();
         return;
     }
-    if (recording() || m_converting || m_recordHoldActive || m_afterReplayStops || m_replayStarting
+    if (instantReplayActive() || m_replayStarting || (m_recordHoldActive && m_countdownTarget == m_replay)
         || !recordingAvailable())
         return;
     m_pendingRecordRegion = {};
@@ -2006,7 +2045,7 @@ void AppContext::applyInstantReplayAuto()
 void AppContext::startReplayRing(bool hold)
 {
     if (m_settings->clipSource() != QLatin1String("window") || !KWinWindowGeometry::isAvailable()) {
-        m_recorder->start(GifRecorder::Replay, GifRecorder::Screen, {}, nullptr, hold);
+        m_replay->start(GifRecorder::Replay, GifRecorder::Screen, {}, nullptr, hold);
         return;
     }
     const QList<qint64> pids = m_gameDetector && m_gameDetector->running() ? m_gameDetector->gamePids()
@@ -2015,7 +2054,7 @@ void AppContext::startReplayRing(bool hold)
     // "window in front" would be Unisic, so the screen is recorded instead.
     if (pids.isEmpty() && QGuiApplication::focusWindow()) {
         showToast(tr("No game window found: recording the whole screen"));
-        m_recorder->start(GifRecorder::Replay, GifRecorder::Screen, {}, nullptr, hold);
+        m_replay->start(GifRecorder::Replay, GifRecorder::Screen, {}, nullptr, hold);
         return;
     }
     m_replayStarting = true;
@@ -2024,12 +2063,12 @@ void AppContext::startReplayRing(bool hold)
                                                      const QString &error) {
         geom->deleteLater();
         m_replayStarting = false;
-        if (recording())
-            return; // something else started while KWin answered
-        if (!uuid.isEmpty() && m_recorder->canStreamWindow()) {
+        if (instantReplayActive())
+            return; // started another way while KWin answered
+        if (!uuid.isEmpty() && m_replay->canStreamWindow()) {
             m_replayWindowTries = 0;
-            m_recorder->setWindowUuid(uuid);
-            m_recorder->start(GifRecorder::Replay, GifRecorder::Window, {}, nullptr, hold);
+            m_replay->setWindowUuid(uuid);
+            m_replay->start(GifRecorder::Replay, GifRecorder::Window, {}, nullptr, hold);
             return;
         }
         QScreen *screen = nullptr;
@@ -2037,7 +2076,7 @@ void AppContext::startReplayRing(bool hold)
         const QRect phys = windowCrop(logical, &screen, &dpr);
         if (!phys.isEmpty()) {
             m_replayWindowTries = 0;
-            m_recorder->start(GifRecorder::Replay, GifRecorder::Region, phys, screen, hold, dpr);
+            m_replay->start(GifRecorder::Replay, GifRecorder::Region, phys, screen, hold, dpr);
             return;
         }
         if (m_replayAuto && !pids.isEmpty() && m_replayWindowTries < 10) {
@@ -2047,32 +2086,32 @@ void AppContext::startReplayRing(bool hold)
         }
         m_replayWindowTries = 0;
         qWarning() << "Instant replay: no window to record, recording the screen:" << error;
-        m_recorder->start(GifRecorder::Replay, GifRecorder::Screen, {}, nullptr, hold);
+        m_replay->start(GifRecorder::Replay, GifRecorder::Screen, {}, nullptr, hold);
     });
 }
 
-void AppContext::startRecorderCountdown(std::function<void(bool)> begin)
+void AppContext::startRecorderCountdown(std::function<void(bool)> begin, GifRecorder *target)
 {
-    // An automatic replay ring gives way to a recording and comes back after.
-    if (autoReplayActive()) {
-        m_afterReplayStops = [this, begin] { startRecorderCountdown(begin); };
-        m_resumeAutoReplay = true;
-        stopRecording();
-        return;
-    }
+    if (!target)
+        target = m_recorder;
+    // The replay ring rolls open-ended: no do-not-disturb for all of it.
+    const bool isolate = target == m_recorder;
     const int secs = qBound(0, m_settings->recordCountdownSec(), 10);
     const bool hasStartCue = m_settings->recordStartSound() != QLatin1String("off")
                              && m_settings->soundVolume() > 0;
     // No countdown AND no start cue: nothing to sequence - record immediately.
     if (secs <= 0 && !hasStartCue) {
-        beginCaptureIsolation();
+        if (isolate)
+            beginCaptureIsolation();
         begin(false);
         return;
     }
     if (m_recordHoldActive)
         return; // a second trigger while a hold is pending must not stack
     m_recordHoldActive = true;
-    beginCaptureIsolation();
+    m_countdownTarget = target;
+    if (isolate)
+        beginCaptureIsolation();
     m_pendingCountdownSecs = secs;
     // Portal negotiates FIRST (its share dialog). The recorder holds encoding
     // until commit(); armed() drives the countdown/cue below, then commits.
@@ -2113,8 +2152,8 @@ void AppContext::runRecordCountdownVisuals(int secs)
             // window's POSITION is not knowable on Wayland, so the disc stays
             // centered on the screen; only its size tracks the target.
             QSize cdRef;
-            if (m_recorder->sourceType() == GifRecorder::Window) {
-                const QSize ss = m_recorder->armedStreamSize();
+            if (m_countdownTarget && m_countdownTarget->sourceType() == GifRecorder::Window) {
+                const QSize ss = m_countdownTarget->armedStreamSize();
                 if (!ss.isEmpty())
                     cdRef = QSize(qRound(ss.width() / dpr), qRound(ss.height() / dpr));
             }
@@ -2173,11 +2212,14 @@ void AppContext::commitRecordingAfterCue()
     } else {
         tail = inFrame ? 150 : 0;
     }
+    GifRecorder *target = std::exchange(m_countdownTarget, nullptr);
+    if (!target)
+        return; // its recorder failed meanwhile
     if (tail <= 0) {
-        m_recorder->commit();
+        target->commit();
         return;
     }
-    QTimer::singleShot(tail, this, [this]() { m_recorder->commit(); });
+    QTimer::singleShot(tail, target, [target]() { target->commit(); });
 }
 
 void AppContext::setRecordBorderCountdown(int n)
@@ -2540,7 +2582,7 @@ QImage autoRedactTestImage()
 QString AppContext::autoRestartBlockers() const
 {
     QStringList b;
-    if (manualRecording() || m_converting)
+    if (recording() || m_converting || (instantReplayActive() && !m_replayAuto))
         b << tr("recording");
     if (m_captureInFlight)
         b << tr("capture in progress");
@@ -3457,6 +3499,15 @@ void AppContext::showRecordBorder(QRect physRegion, QScreen *screen, int countdo
     borderCtl->setParent(win);
     borderCtl->setWindow(win);
     win->setScreen(screen);
+    // An in-process frame is invisible to a replay ring on KWin's native
+    // stream (KWin hides the requesting process's windows), so the ring paints
+    // it into the clip itself. The helper is another process: KWin shows it.
+    if (!countdownOnly) {
+        if (QObject *theme = m_engine->singletonInstance<QObject *>(
+                QStringLiteral("Unisic.Kit"), QStringLiteral("Theme")))
+            m_replay->setOwnFrame(physRegion, screen, theme->property("accent").value<QColor>(),
+                                  theme->property("recordFrameContrast").value<QColor>());
+    }
     // Pre-recording countdown number (0 = none) - RecordBorder.qml shows it
     // centered in the region and hides the REC badge while it ticks.
     win->setProperty("countdown", countdown);
@@ -3513,6 +3564,7 @@ void AppContext::hideRecordBorder()
 {
     m_pendingRecordRegion = QRect();
     m_recordBorderCountdownOnly = false;
+    m_replay->setOwnFrame({}, nullptr, {}, {});
     if (m_recordBorderHelper) {
         QProcess *p = m_recordBorderHelper;
         m_recordBorderHelper = nullptr;
@@ -3537,13 +3589,8 @@ void AppContext::hideRecordBorder()
 
 void AppContext::onRecordingFinished(const QString &path, const QString &origin)
 {
-    m_converting = false;
     setSaveProgress(-1);
     emit recordingChanged();
-    // A clip leaves the ring running; a session or a trim lands after the
-    // recording that made it was already over.
-    if (origin.isEmpty())
-        continueAfterRecording();
     if (path.isEmpty())
         return; // stopping the rolling replay ring creates no output by itself
     const QString kind = path.endsWith(QLatin1String(".gif")) ? QStringLiteral("gif")
@@ -6799,7 +6846,11 @@ QVector<TrayEntry> trayEntryTable(AppContext *a)
         {QStringLiteral("gif-screen"), QStringLiteral("gif"), AppContext::tr("Record GIF (full screen)"), 1, false, [a] { a->startGifFullScreen(); }},
         {QStringLiteral("replay-start"), QStringLiteral("media-record"), AppContext::tr("Start instant replay"), 1, false, [a] { a->startInstantReplay(); }},
         {QStringLiteral("replay-save"), QStringLiteral("document-save"), AppContext::tr("Save instant replay"), 1, false, [a] { a->saveInstantReplay(); }},
-        {QStringLiteral("stop-recording"), QStringLiteral("stop"), AppContext::tr("Stop recording"), 1, false, [a] { a->stopRecording(); }},
+        {QStringLiteral("stop-recording"), QStringLiteral("stop"), AppContext::tr("Stop recording"), 1, false, [a] {
+            // The recording first; with none, the replay ring.
+            if (a->recording()) a->stopRecording();
+            else a->stopInstantReplay();
+        }},
         {QStringLiteral("copy-last"), QStringLiteral("content-copy"), AppContext::tr("Copy last capture"), 2, false, [a] { a->copyLastCapture(); }},
         {QStringLiteral("upload-file"), QStringLiteral("upload-cloud"), AppContext::tr("Upload a file…"), 2, false, [a] { a->uploadAnyFile(); }},
         {QStringLiteral("upload-clipboard"), QStringLiteral("document-send"), AppContext::tr("Upload clipboard"), 2, false, [a] { a->uploadClipboard(); }},
@@ -6905,7 +6956,11 @@ QMenu *AppContext::buildTrayMenu()
         }
         QAction *a = menu->addAction(trayMenuIcon(e.icon), e.label);
         a->setProperty("symIcon", e.icon);
-        connect(a, &QAction::triggered, this, e.run);
+        connect(a, &QAction::triggered, this, [this, run = e.run] {
+            m_trayTrigger = true;
+            run();
+            m_trayTrigger = false;
+        });
         actions.insert(e.id, a);
     };
     for (const TrayEntry &e : entries)
@@ -6941,14 +6996,12 @@ QMenu *AppContext::buildTrayMenu()
     connect(menu, &QMenu::aboutToShow, this, [this, menu, actions] {
         styleTrayMenu(menu);
         const bool replay = instantReplayActive();
-        if (QAction *a = actions.value(QStringLiteral("replay-start"))) {
+        if (QAction *a = actions.value(QStringLiteral("replay-start")))
             a->setVisible(!replay);
-            a->setEnabled(!recording());
-        }
         if (QAction *a = actions.value(QStringLiteral("replay-save")))
             a->setVisible(replay);
         if (QAction *a = actions.value(QStringLiteral("stop-recording")))
-            a->setEnabled(recording());
+            a->setEnabled(recording() || replay);
         if (QAction *a = actions.value(QStringLiteral("recapture")))
             a->setEnabled(!m_settings->lastCaptureRegion().isEmpty());
         // Rebuilt on every open, so a monitor plugged in or a mode changed
@@ -7164,7 +7217,7 @@ void AppContext::applyTrayIcon()
         return;
     // Badge the tray while ACTIVELY recording (not during encoding) so it's an
     // at-a-glance "recording now" and clears the instant the user stops.
-    m_tray->setIcon(recording() && !converting() ? trayIconBadged() : trayIcon());
+    m_tray->setIcon((recording() && !converting()) || instantReplayActive() ? trayIconBadged() : trayIcon());
 }
 
 void AppContext::addTrayIcon()

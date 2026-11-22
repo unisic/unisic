@@ -140,7 +140,7 @@ Window {
 
     function quitApp() {
         // Never yank an in-flight recording/encode out from under the user.
-        if ((App.recording && !App.autoReplayActive) || App.converting) {
+        if ((App.recording || (App.instantReplayActive && !App.autoReplayActive)) || App.converting) {
             App.showToast(qsTr("Recording in progress. Stop it before closing"), true)
             return
         }
@@ -201,7 +201,7 @@ Window {
             // close would just leave a hidden resident process. Quit — but
             // never kill an in-flight recording/encode or open editors with
             // unsaved annotations.
-            if ((App.recording && !App.autoReplayActive) || App.converting) {
+            if ((App.recording || (App.instantReplayActive && !App.autoReplayActive)) || App.converting) {
                 close.accepted = false
                 App.showToast(qsTr("Recording in progress. Stop it before closing"), true)
             } else if (App.editorWindowsOpen > 0) {
@@ -222,7 +222,7 @@ Window {
         function onEditorWindowsOpenChanged() {
             if (App.editorWindowsOpen === 0 && !window.visible
                     && !(App.settings.minimizeToTrayOnClose && App.trayAvailable)
-                    && (!App.recording || App.autoReplayActive) && !App.converting)
+                    && !(App.recording || (App.instantReplayActive && !App.autoReplayActive)) && !App.converting)
                 App.quitApp("last editor closed with no window and no tray")
         }
     }
@@ -536,8 +536,7 @@ Window {
             // being uploaded, with its progress as a bar along the bottom.
             Rectangle {
                 id: activityPill
-                // Stopping a replay ring "converts" nothing, so it is not saving.
-                readonly property bool saving: (App.converting && !App.instantReplayActive) || App.saveProgress >= 0
+                readonly property bool saving: App.converting || App.saveProgress >= 0
                 readonly property real value: saving ? App.saveProgress : App.uploads.progress
                 visible: saving || App.uploads.busy
                 // Sized for "100%" so the pill does not twitch as digits change.

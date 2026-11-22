@@ -267,6 +267,9 @@ Column {
 
         Text {
             anchors.centerIn: parent
+            width: parent.width - 48
+            horizontalAlignment: Text.AlignHCenter
+            wrapMode: Text.WordWrap
             visible: root.model ? root.model.count === 0 : true
             text: root.emptyText
             color: Theme.textTertiary

@@ -18,6 +18,10 @@ Rectangle {
     property real maxWidth: 420
     // Off while hidden, so the saving dot does not animate an invisible pill.
     property bool animate: true
+    // What the texts may take: maxWidth less the padding, the icon and the gap.
+    readonly property real textMax: maxWidth - 3 * Theme.spacingM - 18
+    // The narrowest pill that still shows the whole title (the detail elides).
+    readonly property real titleFitWidth: look === "dot" ? height : titleText.implicitWidth + 3 * Theme.spacingM + 18
     readonly property color toneColor: tone === "rec" ? Theme.recDot
                                      : tone === "busy" ? Theme.accent
                                      : tone === "ok" ? Theme.success : Theme.danger
@@ -64,7 +68,10 @@ Rectangle {
             visible: pill.look !== "dot"
             anchors.verticalCenter: parent.verticalCenter
             Text {
+                id: titleText
+                width: Math.min(implicitWidth, pill.textMax)
                 text: pill.title
+                elide: Text.ElideRight
                 color: pill.look === "tinted" ? pill.toneColor : Theme.recBadgeText
                 font.pixelSize: Theme.fontM
                 font.weight: Font.DemiBold
@@ -72,7 +79,7 @@ Rectangle {
             }
             Text {
                 visible: pill.detail !== "" && pill.look !== "compact"
-                width: Math.min(implicitWidth, pill.maxWidth - 80)
+                width: Math.min(implicitWidth, pill.textMax)
                 text: pill.detail
                 elide: Text.ElideMiddle
                 color: Theme.alpha(Theme.recBadgeText, 0.75)

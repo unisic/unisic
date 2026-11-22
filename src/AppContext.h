@@ -250,7 +250,7 @@ public:
 
     bool recording() const;
     bool converting() const;
-    bool instantReplayActive() const { return m_recorder->instantReplayActive(); }
+    bool instantReplayActive() const { return m_replay->instantReplayActive(); }
     bool autoReplayActive() const { return m_replayAuto && instantReplayActive(); }
     QString currentGame() const;
     qreal saveProgress() const { return m_saveProgress; }
@@ -662,6 +662,7 @@ public:
     Q_INVOKABLE void stopRecording();
     Q_INVOKABLE void togglePauseRecording();
     Q_INVOKABLE void startInstantReplay();
+    Q_INVOKABLE void stopInstantReplay();
     Q_INVOKABLE void saveInstantReplay();
 
     Q_INVOKABLE void copyText(const QString &text);
@@ -1141,7 +1142,8 @@ private:
     // set, holdForCommit=true and the recorder waits for commit(). On armed() the
     // countdown/cue runs, then commitRecordingAfterCue() releases encoding so no
     // countdown number and no start sound land in the recording.
-    void startRecorderCountdown(std::function<void(bool)> begin);
+    // target: the recorder whose armed() the countdown commits (null = m_recorder).
+    void startRecorderCountdown(std::function<void(bool)> begin, GifRecorder *target = nullptr);
     void startVideoWindowArea(); // Windows: the target window's area as a region
     // Ticks the visible countdown (region frame number or toast), then commits.
     void runRecordCountdownVisuals(int secs);
@@ -1154,8 +1156,7 @@ private:
     bool m_replayAuto = false;          // the ring was started by the setting
     bool m_replayStarting = false;      // startReplayRing is looking for the window
     int m_replayWindowTries = 0;        // auto start waiting for the game's window
-    bool m_resumeAutoReplay = false;    // a recording took its place: restart it after
-    std::function<void()> m_afterReplayStops; // the recording waiting for the ring to stop
+    bool m_replayStopping = false;      // the ring is closing its last segment
     qreal m_saveProgress = -1;
     void applyInstantReplayAuto();
     // GameDetector lives while the auto mode is "game" or a replay ring runs
@@ -1164,10 +1165,7 @@ private:
     void updateGameDetector();
     void startReplayRing(bool hold);
     void onGameChanged(const QString &name);
-    bool yieldAutoReplay(std::function<void()> retry);
-    bool manualRecording() const { return recording() && !autoReplayActive(); }
     void setSaveProgress(qreal p);
-    void continueAfterRecording();
     // The on-screen clip pill (Settings > Clips > indicator); see ClipOsd.
     void showClipIndicator(const QString &title, const QString &detail, const QString &tone,
                            int ms = 2600);
@@ -1349,6 +1347,11 @@ private:
     QString m_hotkeyBackend; // "kglobalaccel" | "portal" | "x11" | "win32" | ""
     QVariantMap m_hotkeyConflicts; // see hotkeyConflicts; at most one entry per action of our component
     GifRecorder *m_recorder;
+    // The instant-replay ring has its own recorder, so a recording can run
+    // beside it (the ring paints the record frame in: GifRecorder::setOwnFrame).
+    // Cost while both run: a second grab and a second ffmpeg encode.
+    GifRecorder *m_replay;
+    GifRecorder *m_countdownTarget = nullptr; // whose armed() the countdown commits
     ScrollCaptureController *m_scrollCapture = nullptr;
     OcrEngine *m_ocr = nullptr;
     bool m_ocrEnginesChecked = false;
@@ -1376,10 +1379,13 @@ private:
     // "this window was visible, we took it down, put it back". QPointer because
     // quitting from the tray mid-capture deletes it underneath us.
     QPointer<QQuickWindow> m_hiddenForCapture;
-    // Another window of ours (editor, preview, trim) had focus when this capture
-    // was triggered. Set by beginCaptureIsolation(); hideOwnWindowForCapture()
-    // then leaves the main window alone.
+    // Another window (ours: editor, preview, trim; or another application's)
+    // had focus when this capture was triggered. Set by beginCaptureIsolation();
+    // hideOwnWindowForCapture() then leaves the main window alone.
     bool m_otherWindowFocused = false;
+    // True while a tray menu action runs, which is synchronous up to
+    // beginCaptureIsolation(): the menu took the focus, the user did not leave.
+    bool m_trayTrigger = false;
     // A scrolling capture is running and holds one share of the capture
     // isolation. While it does, endCaptureIsolation() leaves the window down:
     // the selection and the shot before it end their own shares as the

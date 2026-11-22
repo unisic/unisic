@@ -1183,6 +1183,14 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
              << QStringLiteral("-segment_time") << QStringLiteral("2")
              << QStringLiteral("-segment_wrap") << QString::number(segments)
              << QStringLiteral("-reset_timestamps") << QStringLiteral("1")
+             // The completed segments in order, newest last (see ringOrder).
+             // wrap - 1 entries at most, or the oldest could name the file
+             // being rewritten; no more than a clip needs, so a session ring
+             // rewrites a small list every 2 s rather than hours of names.
+             << QStringLiteral("-segment_list") << m_replayDir + QStringLiteral("/ring.txt")
+             << QStringLiteral("-segment_list_type") << QStringLiteral("flat")
+             << QStringLiteral("-segment_list_size")
+             << QString::number(qMin(segments - 1, replaySegmentCount(m_settings->instantReplaySeconds())))
              << m_tempPath;
     } else {
         args << m_tempPath;
@@ -1587,24 +1595,48 @@ bool GifRecorder::devFreezeEncoderForTest()
     return true;
 }
 
+// The ring's COMPLETED segments, oldest first, from the list ffmpeg rewrites
+// after each one. Not from modification times: Windows keeps a file's
+// directory entry (what a listing reads) at its last close while it is open
+// for writing, so once the ring wraps, the segment being rewritten sorted as
+// the oldest and a clip lost its last seconds and took the live file in.
+// The time order stays as the fallback for a list caught mid-rewrite.
+QStringList GifRecorder::ringOrder(const QString &dir)
+{
+    QFile list(dir + QStringLiteral("/ring.txt"));
+    if (list.open(QIODevice::ReadOnly)) {
+        QStringList names;
+        for (const QByteArray &line : list.readAll().split('\n')) {
+            const QString name = QString::fromUtf8(line.trimmed());
+            if (name.startsWith(QLatin1String("segment-")) && name.endsWith(QLatin1String(".mkv")))
+                names << name;
+        }
+        if (!names.isEmpty())
+            return names;
+    }
+    QStringList names;
+    for (const QFileInfo &f : QDir(dir).entryInfoList({QStringLiteral("segment-*.mkv")}, QDir::Files,
+                                                      QDir::Time | QDir::Reversed))
+        names << f.fileName();
+    if (!names.isEmpty())
+        names.removeLast(); // the newest is still being written
+    return names;
+}
+
 void GifRecorder::saveInstantReplay()
 {
     if (m_state != Recording || m_output != Replay || m_replayExporter || m_replaySnapshot)
         return;
-    QDir ring(m_replayDir);
-    QFileInfoList segments = ring.entryInfoList({QStringLiteral("segment-*.mkv")},
-                                                QDir::Files, QDir::Time | QDir::Reversed);
-    if (segments.size() < 2) {
+    QStringList segments = ringOrder(m_replayDir);
+    if (segments.isEmpty()) {
         emit replayExportFailed(tr("Instant replay needs at least one completed segment"));
         return;
     }
-    // The newest segment is still being written. COPY the completed files into
-    // an independent snapshot before concatenating: a symlink (what QFile::link
-    // makes on Unix) OR even a hard link is insufficient, because segment_wrap
+    // COPY the completed files into an independent snapshot before
+    // concatenating: a symlink (what QFile::link makes on Unix) OR even a hard link is insufficient, because segment_wrap
     // reopens the ring names with O_TRUNC and rewrites the SAME inode - ffmpeg
     // would then read a truncated/mutating file. Only a byte copy isolates the
     // export from the live ring.
-    segments.removeLast();
     // A full ring's oldest file is the next one segment_wrap truncates, maybe
     // while the copy below reads it: leave it out.
     if (segments.size() > 1 && segments.size() + 1 >= m_replayWrap)
@@ -1619,8 +1651,8 @@ void GifRecorder::saveInstantReplay()
                              + QUuid::createUuid().toString(QUuid::WithoutBraces);
     QDir().mkpath(snapshot);
     QStringList sources;
-    for (const QFileInfo &source : std::as_const(segments))
-        sources << source.absoluteFilePath();
+    for (const QString &name : std::as_const(segments))
+        sources << m_replayDir + QLatin1Char('/') + name;
     // Off the GUI thread: an hour-long ring is gigabytes. Oldest first, which
     // stays ahead of the writer (one new segment every 2 s). Joined in the
     // destructor; IO = one read + one write of the ring, RAM = Qt's copy buffer.
@@ -1684,15 +1716,16 @@ QImage GifRecorder::stampReplayWatermark(const Settings *settings, const QImage 
                      opacity, position, QStringLiteral("single"), scale);
 }
 
-// The replay watermark, drawn once into a frame-sized canvas and cropped to
-// what it covers, so each frame blends only that box. Built at ring start and
-// again when the game changes (setReplayGame): with a manual start the game
-// detector only finds the game after the first frames, and %game% would
-// otherwise stay empty for the whole ring.
+// The recording watermark (every output, the replay ring included), drawn once
+// into a frame-sized canvas and cropped to what it covers, so each frame blends
+// only that box. Built at start, on a watermark setting change, and again when
+// the game changes (setReplayGame): with a manual start the game detector only
+// finds the game after the first frames, and %game% would otherwise stay empty
+// for the whole recording. A no-op while idle (m_encodeSize is empty then).
 void GifRecorder::buildReplayStamp()
 {
     m_replayStamp = {};
-    if (m_output != Replay || !m_settings->replayWatermarkEnabled() || m_encodeSize.isEmpty())
+    if (!m_settings->replayWatermarkEnabled() || m_encodeSize.isEmpty())
         return;
     QImage canvas(m_encodeSize, QImage::Format_ARGB32_Premultiplied);
     canvas.fill(Qt::transparent);
@@ -1722,7 +1755,7 @@ void GifRecorder::setReplayGame(const QString &name)
     m_replayGame = name;
     if (!name.isEmpty() && m_state != Idle)
         m_sessionGame = name;
-    if (changed && m_state != Idle && m_output == Replay
+    if (changed && m_state != Idle
         && m_settings->replayWatermarkText().contains(QLatin1String("%game%")))
         buildReplayStamp();
 }

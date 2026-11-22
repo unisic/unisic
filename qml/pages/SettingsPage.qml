@@ -299,7 +299,7 @@ Item {
     // The Developer category (index 9) only exists in a dev build.
     readonly property var tabNames: {
         var t = [qsTr("General"), qsTr("Capture"), qsTr("Recording"), qsTr("Clips"), qsTr("Editor"),
-                 qsTr("Saving"), qsTr("Notifications"), qsTr("Appearance"), qsTr("Hotkeys")]
+                 qsTr("Saving & uploads"), qsTr("Notifications"), qsTr("Appearance"), qsTr("Hotkeys")]
         if (App.devBuild)
             t.push(qsTr("Developer"))
         return t
@@ -1278,77 +1278,6 @@ Item {
                         }
                     }
                     SettingRow {
-                        id: ocrEngineRow
-                        // Only where there is a choice: Windows OCR on Windows,
-                        // PaddleOCR on Linux. App.ocrEngines is CONSTANT, so
-                        // this is settled per platform at load and never
-                        // toggles under the pointer.
-                        visible: App.ocrEngines.length > 1
-                        readonly property bool win: App.ocrEngines.indexOf("windows") >= 0
-                        readonly property var ids: App.ocrEngines
-                        label: qsTr("OCR engine")
-                        // Only the text changes when the answer lands, so the
-                        // row keeps its place; the combo shows the engine that
-                        // actually runs (OcrEngines::effective()).
-                        help: win && !App.windowsOcrUsable
-                              ? qsTr("No OCR language is installed in Windows. Tesseract reads the text instead.")
-                              : !win && App.settings.ocrEngine === "paddle" && App.ocrEffectiveEngine !== "paddle"
-                                ? qsTr("PaddleOCR cannot run: ONNX Runtime or its model is missing. Tesseract reads the text instead.")
-                                : qsTr("Which recognizer reads the text in your captures.")
-                        Component.onCompleted: if (App.ocrEngines.length > 1) App.checkOcrEngines()
-                        helpDetail: win
-                                    ? qsTr("Windows OCR is built into Windows and reads the languages installed for your Windows account. Tesseract uses its own language packs and the language settings below. When no Windows OCR language is installed, Unisic recognizes with Tesseract instead.")
-                                    : qsTr("PaddleOCR makes far fewer mistakes on screenshots and needs no language packs, but it reads only Latin-script languages and Chinese. Tesseract uses its own language packs and the language settings below, and reads the scripts PaddleOCR cannot, such as Cyrillic, Korean or Arabic.")
-                        UComboBox {
-                            width: 180
-                            // Product names, the same in every language.
-                            readonly property var names: ({ windows: "Windows OCR", tesseract: "Tesseract", paddle: "PaddleOCR" })
-                            model: ocrEngineRow.ids.map((id) => names[id] || id)
-                            currentIndex: Math.max(0, ocrEngineRow.ids.indexOf(App.ocrEffectiveEngine))
-                            onActivated: (i) => App.settings.ocrEngine = ocrEngineRow.ids[i]
-                        }
-                    }
-                    // The language rows below only steer Tesseract.
-                    SettingRow {
-                        available: App.ocrEffectiveEngine === "tesseract"
-                        label: qsTr("Detect languages automatically")
-                        help: qsTr("Detects the script and recognizes with the matching language pack.")
-                        helpDetail: qsTr("No need to know Tesseract language codes. With the OSD data installed (the “osd” Tesseract pack), Unisic detects the script of each capture - Latin, Arabic, Hebrew, Chinese/Japanese/Korean, Devanagari, and so on - and recognizes with just that script's installed packs, which is faster and more accurate than loading them all. Without the OSD pack it falls back to loading every installed pack. Install the packs for the scripts you use.")
-                        USwitch { checked: App.settings.ocrAutoLanguage; onToggled: (c) => App.settings.ocrAutoLanguage = c }
-                    }
-                    SettingRow {
-                        available: App.ocrEffectiveEngine === "tesseract" && !App.settings.ocrAutoLanguage
-                        label: qsTr("OCR languages")
-                        help: qsTr("Tesseract language spec used when recognizing text.")
-                        helpDetail: qsTr("Combine languages with “+”, e.g. “pol+eng”; each needs its Tesseract langpack installed. OCR also scans QR and bar codes: a code found in the region copies its content instead of the surrounding text.")
-                        UTextField {
-                            width: 150
-                            text: App.settings.ocrLanguages
-                            placeholder: "eng"
-                            onEdited: (t) => App.settings.ocrLanguages = t
-                        }
-                    }
-                    // Built in (always), but nothing to recognize with yet -
-                    // the real "OCR does nothing" trap. The language data is a
-                    // separate install that no build flag can supply.
-                    Text {
-                        visible: !App.ocrHasLanguages && App.ocrEffectiveEngine === "tesseract"
-                        width: parent.width
-                        wrapMode: Text.WordWrap
-                        text: qsTr("No Tesseract language pack is installed, so OCR can't recognize anything yet. Install one, e.g. “tesseract-langpack-eng”.")
-                        color: Theme.danger
-                        font.pixelSize: Theme.fontS
-                    }
-                }
-            }
-
-            SettingsGroup {
-                width: page.cardWidth
-                Column {
-                    width: parent.width
-                    spacing: Theme.spacingS
-                    SectionTitle { text: qsTr("Application") }
-                    SettingRow {
                         label: qsTr("Closing the window minimizes to tray")
                         help: qsTr("Close button hides to the tray instead of quitting.")
                         helpDetail: qsTr("The app keeps running in the background: global hotkeys, uploads and recordings stay active. Quit for real from the tray icon's menu.")
@@ -1780,7 +1709,7 @@ Item {
                         USwitch { checked: App.settings.autoSave; onToggled: (c) => App.settings.autoSave = c }
                     }
                     SettingRow {
-                        label: qsTr("Upload to the active server")
+                        label: qsTr("Upload to the server")
                         help: qsTr("Uploads every capture immediately after taking it.")
                         helpDetail: qsTr("Uses the server selected on the Servers page. What happens with the link afterwards is set under After upload.")
                         USwitch { checked: App.settings.uploadAfterCapture; onToggled: (c) => App.settings.uploadAfterCapture = c }
@@ -1799,90 +1728,197 @@ Item {
                 Column {
                     width: parent.width
                     spacing: Theme.spacingS
-                    SectionTitle { text: qsTr("After upload") }
-                    SettingRow {
-                        label: qsTr("Open link in browser")
-                        help: qsTr("Opens the uploaded file's URL in your browser.")
-                        helpDetail: qsTr("Runs after every successful upload, using the system default browser.")
-                        USwitch { checked: App.settings.afterUploadOpenInBrowser; onToggled: (c) => App.settings.afterUploadOpenInBrowser = c }
+                    SectionTitle { text: qsTr("Watermark") }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Adds a text or logo stamp to the captured image before it is saved, copied, uploaded, shown in history or opened in the editor.")
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
                     }
                     SettingRow {
-                        label: qsTr("Shorten the link")
-                        help: qsTr("Swaps the link for a short one before it is copied or opened.")
-                        helpDetail: qsTr("Off by default because the shortener, a free public service, gets every link you upload. When it fails or takes longer than 15 seconds, the full link is used.")
-                        USwitch { checked: App.settings.afterUploadShortenUrl; onToggled: (c) => App.settings.afterUploadShortenUrl = c }
+                        label: qsTr("Stamp screenshots")
+                        help: qsTr("Applies the selected stamp to every new screenshot.")
+                        helpDetail: qsTr("The stamp is baked into the final capture once, before the independent save, clipboard, upload, history and editor actions. It does not alter existing files. Recordings have their own watermark, under Recording.")
+                        USwitch { checked: App.settings.watermarkEnabled; onToggled: (c) => App.settings.watermarkEnabled = c }
+                    }
+                    // The stamp on a mock capture, rendered by the same code the
+                    // after-capture pipeline runs, so what is shown here is what
+                    // a screenshot gets. The mock has a light half and a dark
+                    // one on purpose: a mark that reads over one can vanish over
+                    // the other, and opacity and size are what decide it.
+                    WatermarkPreview {
+                        width: parent.width
+                        visible: App.settings.watermarkEnabled
+                        source: App.watermarkPreviewSource
+                        caption: qsTr("A sample capture, stamped by the same code your screenshots go through.")
                     }
                     SettingRow {
-                        visible: App.settings.afterUploadShortenUrl
-                        label: qsTr("Shortener")
-                        // Tried live: is.gd refused files.catbox.moe and
-                        // litter.catbox.moe links and took Imgur, Uguu,
-                        // tmpfiles and buzzheavier ones; TinyURL took Catbox.
-                        help: App.settings.linkShortener === "tinyurl"
-                              ? qsTr("TinyURL also shortens Catbox links.")
-                              : qsTr("is.gd refuses links to catbox.moe, so Catbox and Litterbox links stay long.")
-                        helpDetail: qsTr("is.gd also refuses links to other shorteners and to addresses on its blacklist. A refused link is used in full, and a message says why.")
+                        available: App.settings.watermarkEnabled
+                        label: qsTr("Stamp")
                         UComboBox {
-                            width: 200
-                            model: ["is.gd", "TinyURL"]
-                            readonly property var ids: ["isgd", "tinyurl"]
-                            currentIndex: Math.max(0, ids.indexOf(App.settings.linkShortener))
-                            onActivated: (i) => App.settings.linkShortener = ids[i]
+                            width: 180
+                            model: [qsTr("Text"), qsTr("Logo image")]
+                            currentIndex: App.settings.watermarkType === "image" ? 1 : 0
+                            onActivated: (i) => App.settings.watermarkType = i === 1 ? "image" : "text"
+                        }
+                    }
+                    // Text or logo in one row, as in the recording watermark.
+                    SettingRow {
+                        id: shotContentRow
+                        readonly property bool logo: App.settings.watermarkType === "image"
+                        available: App.settings.watermarkEnabled
+                        label: logo ? qsTr("Logo image") : qsTr("Text")
+                        help: logo ? (App.settings.watermarkImagePath.length > 0
+                                      ? App.settings.watermarkImagePath
+                                      : qsTr("Choose a PNG, SVG, JPEG or WebP image."))
+                                   : qsTr("The label stamped onto the screenshot.")
+                        Row {
+                            UTextField {
+                                visible: !shotContentRow.logo
+                                width: 260
+                                accessibleName: shotContentRow.label
+                                text: App.settings.watermarkText
+                                onEdited: (t) => App.settings.watermarkText = t
+                            }
+                            UButton {
+                                visible: shotContentRow.logo
+                                compact: true
+                                variant: "tonal"
+                                accessibleName: shotContentRow.label
+                                text: App.settings.watermarkImagePath.length > 0
+                                      ? qsTr("Change image…") : qsTr("Choose image…")
+                                onClicked: App.pickWatermarkImage()
+                            }
                         }
                     }
                     SettingRow {
-                        label: qsTr("Move the file to the trash")
-                        help: qsTr("After a capture or recording uploads on its own, its local file goes to the trash.")
-                        helpDetail: qsTr("History keeps the entry and its link. Uploads you start by hand keep their file, and so does every capture while an after-capture program is set, because that program may still be reading it.")
-                        USwitch { checked: App.settings.afterUploadTrashFile; onToggled: (c) => App.settings.afterUploadTrashFile = c }
-                    }
-                    // Uploading and copying the link are two decisions: the link
-                    // stays in the toast, the notification and History either way.
-                    DisclosureRow {
-                        id: advancedUpload
-                        label: expanded ? qsTr("Hide advanced options")
-                                        : qsTr("Show advanced options")
-                        summary: qsTr("Copy link to clipboard")
+                        available: App.settings.watermarkEnabled
+                        label: qsTr("Pattern")
+                        help: qsTr("One stamp, or a ready-made layout that covers the whole capture.")
+                        helpDetail: qsTr("One stamp sits where Position says. Tiled and Diagonal repeat a small stamp across the picture, staggered row by row, which is what makes a screenshot awkward to crop the mark out of. Four corners puts one in each corner. Diagonal band is a single large stamp running across the middle. Everything except One stamp covers the whole capture and ignores Position.")
+                        UComboBox {
+                            width: 180
+                            // The setting stores the id; the labels are shown
+                            // and translated, never written to the config.
+                            property var ids: ["single", "tile", "diagonal", "corners", "band"]
+                            model: [qsTr("One stamp"), qsTr("Tiled"), qsTr("Diagonal tiled"),
+                                    qsTr("Four corners"), qsTr("Diagonal band")]
+                            currentIndex: Math.max(0, ids.indexOf(App.settings.watermarkPattern))
+                            onActivated: (i) => App.settings.watermarkPattern = ids[i]
+                        }
                     }
                     SettingRow {
-                        visible: advancedUpload.expanded || page.searchActive
-                        discloser: advancedUpload
-                        label: qsTr("Copy link to clipboard")
-                        help: qsTr("Copies the upload URL once the upload finishes.")
-                        helpDetail: qsTr("Separate from uploading: when off, the link is still shown after the upload and kept in History, and your clipboard keeps what it had.")
-                        USwitch { checked: App.settings.afterUploadCopyLink; onToggled: (c) => App.settings.afterUploadCopyLink = c }
+                        // One stamp is the only preset that leaves a choice of
+                        // where it goes; the rest cover the whole capture.
+                        available: App.settings.watermarkEnabled
+                                   && App.settings.watermarkPattern === "single"
+                        label: qsTr("Position")
+                        help: qsTr("Corner, center edge, or middle of the image for the watermark.")
+                        UComboBox {
+                            width: 180
+                            model: page.watermarkPosNames
+                            currentIndex: Math.max(0, page.watermarkPosIds.indexOf(App.settings.watermarkPosition))
+                            onActivated: (i) => App.settings.watermarkPosition = page.watermarkPosIds[i]
+                        }
+                    }
+                    SettingRow {
+                        available: App.settings.watermarkEnabled
+                        label: qsTr("Size")
+                        help: qsTr("How big the stamp is, against the size the pattern picks itself.")
+                        helpDetail: qsTr("100% is the pattern's own size, which is a fraction of the capture's shorter side - so one setting looks the same on a 720p window and a 4K screen. Below 100% the stamp shrinks and a tiled pattern packs tighter; above it the stamp grows and the tiles spread out. A logo is scaled from the file you chose, so pushing a small logo far past 100% will look soft.")
+                        UValueCombo {
+                            width: 120
+                            values: [25, 50, 75, 100, 125, 150, 200, 250, 300, 400]
+                            // The same bounds ImageEffects clamps to, so a typed
+                            // number can never mean something else than shown.
+                            from: 10; to: 400
+                            suffix: "%"
+                            value: App.settings.watermarkScale
+                            onChanged: (v) => App.settings.watermarkScale = v
+                        }
+                    }
+                    SettingRow {
+                        available: App.settings.watermarkEnabled
+                        label: qsTr("Opacity: %1%").arg(App.settings.watermarkOpacity)
+                        help: qsTr("How strongly the watermark appears over the capture.")
+                        USlider {
+                            width: 200
+                            from: 10; to: 100
+                            value: App.settings.watermarkOpacity
+                            onMoved: (v) => App.settings.watermarkOpacity = Math.round(v)
+                        }
                     }
                 }
             }
+
+
 
             SettingsGroup {
                 width: page.cardWidth
                 Column {
                     width: parent.width
                     spacing: Theme.spacingS
-                    SectionTitle { text: qsTr("Upload from a folder") }
+                    SectionTitle { text: qsTr("Text recognition (OCR)") }
                     SettingRow {
-                        id: watchFolderRow
-                        label: qsTr("Watched folder")
-                        help: qsTr("Uploads every new file that lands in this folder. Empty is off.")
-                        helpDetail: qsTr("Each file goes to the active server once it has stopped changing for a second, then the after-upload actions run. Files already in the folder, hidden files and partial downloads are left alone, and captures Unisic saves there follow \"Upload to the active server\" instead.")
-                        UTextField {
-                            width: Math.min(420, page.cardWidth - 140)
-                            placeholder: qsTr("No folder")
-                            // Set here, so the row bridge keeps off it: the
-                            // error under the card is a Text, which a screen
-                            // reader never reaches on its own.
-                            accessibleDescription: watchFolderError.visible ? watchFolderError.text : watchFolderRow.help
-                            text: App.settings.watchFolder
-                            onEdited: (t) => App.settings.watchFolder = t
+                        id: ocrEngineRow
+                        // Only where there is a choice: Windows OCR on Windows,
+                        // PaddleOCR on Linux. App.ocrEngines is CONSTANT, so
+                        // this is settled per platform at load and never
+                        // toggles under the pointer.
+                        visible: App.ocrEngines.length > 1
+                        readonly property bool win: App.ocrEngines.indexOf("windows") >= 0
+                        readonly property var ids: App.ocrEngines
+                        label: qsTr("OCR engine")
+                        // Only the text changes when the answer lands, so the
+                        // row keeps its place; the combo shows the engine that
+                        // actually runs (OcrEngines::effective()).
+                        help: win && !App.windowsOcrUsable
+                              ? qsTr("No OCR language is installed in Windows. Tesseract reads the text instead.")
+                              : !win && App.settings.ocrEngine === "paddle" && App.ocrEffectiveEngine !== "paddle"
+                                ? qsTr("PaddleOCR cannot run: ONNX Runtime or its model is missing. Tesseract reads the text instead.")
+                                : qsTr("Which recognizer reads the text in your captures.")
+                        Component.onCompleted: if (App.ocrEngines.length > 1) App.checkOcrEngines()
+                        helpDetail: win
+                                    ? qsTr("Windows OCR is built into Windows and reads the languages installed for your Windows account. Tesseract uses its own language packs and the language settings below. When no Windows OCR language is installed, Unisic recognizes with Tesseract instead.")
+                                    : qsTr("PaddleOCR makes far fewer mistakes on screenshots and needs no language packs, but it reads only Latin-script languages and Chinese. Tesseract uses its own language packs and the language settings below, and reads the scripts PaddleOCR cannot, such as Cyrillic, Korean or Arabic.")
+                        UComboBox {
+                            width: 180
+                            // Product names, the same in every language.
+                            readonly property var names: ({ windows: "Windows OCR", tesseract: "Tesseract", paddle: "PaddleOCR" })
+                            model: ocrEngineRow.ids.map((id) => names[id] || id)
+                            currentIndex: Math.max(0, ocrEngineRow.ids.indexOf(App.ocrEffectiveEngine))
+                            onActivated: (i) => App.settings.ocrEngine = ocrEngineRow.ids[i]
                         }
                     }
+                    // The language rows below only steer Tesseract.
+                    SettingRow {
+                        available: App.ocrEffectiveEngine === "tesseract"
+                        label: qsTr("Detect languages automatically")
+                        help: qsTr("Detects the script and recognizes with the matching language pack.")
+                        helpDetail: qsTr("No need to know Tesseract language codes. With the OSD data installed (the “osd” Tesseract pack), Unisic detects the script of each capture - Latin, Arabic, Hebrew, Chinese/Japanese/Korean, Devanagari, and so on - and recognizes with just that script's installed packs, which is faster and more accurate than loading them all. Without the OSD pack it falls back to loading every installed pack. Install the packs for the scripts you use.")
+                        USwitch { checked: App.settings.ocrAutoLanguage; onToggled: (c) => App.settings.ocrAutoLanguage = c }
+                    }
+                    SettingRow {
+                        available: App.ocrEffectiveEngine === "tesseract" && !App.settings.ocrAutoLanguage
+                        label: qsTr("OCR languages")
+                        help: qsTr("Tesseract language spec used when recognizing text.")
+                        helpDetail: qsTr("Combine languages with “+”, e.g. “pol+eng”; each needs its Tesseract langpack installed. OCR also scans QR and bar codes: a code found in the region copies its content instead of the surrounding text.")
+                        UTextField {
+                            width: 150
+                            text: App.settings.ocrLanguages
+                            placeholder: "eng"
+                            onEdited: (t) => App.settings.ocrLanguages = t
+                        }
+                    }
+                    // Built in (always), but nothing to recognize with yet -
+                    // the real "OCR does nothing" trap. The language data is a
+                    // separate install that no build flag can supply.
                     Text {
-                        id: watchFolderError
+                        visible: !App.ocrHasLanguages && App.ocrEffectiveEngine === "tesseract"
                         width: parent.width
                         wrapMode: Text.WordWrap
-                        visible: App.settings.watchFolder.trim() !== "" && !App.watchFolderActive
-                        text: qsTr("This is not a folder, so nothing is watched.")
+                        text: qsTr("No Tesseract language pack is installed, so OCR can't recognize anything yet. Install one, e.g. “tesseract-langpack-eng”.")
                         color: Theme.danger
                         font.pixelSize: Theme.fontS
                     }
@@ -1979,6 +2015,82 @@ Item {
                     spacing: Theme.spacingS
                     SectionTitle { text: qsTr("Recording") }
                     SettingRow {
+                        label: qsTr("Countdown before recording")
+                        help: qsTr("Waits this many seconds before recording starts, showing a 3-2-1 cue.")
+                        helpDetail: qsTr("Gives you a moment to switch windows or get ready. 0 starts immediately. Applies to GIF and video, region and full screen.")
+                        UValueCombo {
+                            width: 120
+                            values: [0, 1, 2, 3, 5, 10]
+                            from: 0; to: 10
+                            suffix: " s"
+                            tooltip: qsTr("0 = start immediately")
+                            value: App.settings.recordCountdownSec
+                            onChanged: (v) => App.settings.recordCountdownSec = v
+                        }
+                    }
+                }
+            }
+
+            // MP4 and WebM: frame rate, quality and the encoder.
+            SettingsGroup {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Video") }
+                    SettingRow {
+                        label: qsTr("Video frame rate")
+                        help: qsTr("Frames per second for video recordings.")
+                        helpDetail: qsTr("30 fps suits most screen content; 60 fps doubles smoothness and file size.")
+                        UComboBox { width: 130; model: ["15 FPS", "30 FPS", "45 FPS", "60 FPS"]; readonly property var opts: [15,30,45,60]; currentIndex: page.nearestFps(App.settings.videoFps); onActivated: (i) => App.settings.videoFps = opts[i] }
+                    }
+                    SettingRow {
+                        label: qsTr("Video quality")
+                        help: qsTr("How much detail the encoder keeps, from 0% to 100%.")
+                        helpDetail: qsTr("100% is mathematically lossless and very large, 50% is the balanced default, and below 25% small text starts to smear. The percent is turned into an encoder CRF, so the same number means the same picture on every codec here.")
+                        UValueCombo {
+                            width: 120
+                            values: [25, 40, 50, 60, 75, 90, 100]
+                            from: 0; to: 100
+                            suffix: "%"
+                            value: App.settings.videoQualityPercent
+                            onChanged: (v) => App.settings.videoQualityPercent = v
+                        }
+                    }
+                    SettingRow {
+                        label: qsTr("MP4 encoder")
+                        help: qsTr("Automatic picks a working hardware encoder; it is much faster than software.")
+                        helpDetail: qsTr("Automatic uses VAAPI or NVENC when they actually encode on this machine, and falls back to software otherwise - a hardware encoder that is merely listed but broken is skipped. Hardware encoding accelerates MP4 (H.264); WebM uses AV1 on NVIDIA GPUs with an AV1 encoder (RTX 40 series and newer) and software VP9 everywhere else.")
+                        UComboBox {
+                            width: 240
+                            property var ids: ["auto", "software", "vaapi", "nvenc"]
+                            model: [qsTr("Automatic (recommended)"),
+                                    qsTr("Software (portable)"),
+                                    App.vaapiAvailable ? qsTr("VAAPI") : qsTr("VAAPI (unavailable)"),
+                                    App.nvencAvailable ? qsTr("NVENC") : qsTr("NVENC (unavailable)")]
+                            currentIndex: Math.max(0, ids.indexOf(App.settings.videoEncoder))
+                            onActivated: (i) => {
+                                if ((i === 2 && !App.vaapiAvailable) || (i === 3 && !App.nvencAvailable))
+                                    return
+                                App.settings.videoEncoder = ids[i]
+                            }
+                        }
+                    }
+                    SettingRow {
+                        visible: App.settings.videoFormat === "webm"
+                        label: qsTr("WebM is slow to save")
+                        help: qsTr("VP9 (WebM) has no hardware encoder here and takes several times longer than MP4. Switch the format to MP4 above for fast, hardware-accelerated saves.")
+                    }
+                }
+            }
+
+            SettingsGroup {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("GIF") }
+                    SettingRow {
                         label: qsTr("GIF frame rate")
                         help: qsTr("Frames per second sampled into the GIF.")
                         helpDetail: qsTr("Higher is smoother but grows the file quickly. 10-15 fps is usually plenty for UI demos.")
@@ -2009,38 +2121,74 @@ Item {
                             onActivated: (i) => App.settings.gifQuality = i
                         }
                     }
+                }
+            }
+
+
+
+
+            SettingsGroup {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Audio") }
                     SettingRow {
-                        label: qsTr("MP4 frame rate")
-                        help: qsTr("Frames per second for video recordings.")
-                        helpDetail: qsTr("30 fps suits most screen content; 60 fps doubles smoothness and file size.")
-                        UComboBox { width: 130; model: ["15 FPS", "30 FPS", "45 FPS", "60 FPS"]; readonly property var opts: [15,30,45,60]; currentIndex: page.nearestFps(App.settings.videoFps); onActivated: (i) => App.settings.videoFps = opts[i] }
+                        label: qsTr("Record system audio")
+                        help: qsTr("Captures what you hear (system output) into video recordings.")
+                        helpDetail: App.audioBackend === "wasapi"
+                                    ? qsTr("Taken from the default playback device through Windows loopback capture. Mixed with the microphone when both are enabled. GIFs have no audio.")
+                                    : qsTr("Taken from the default output monitor via PipeWire/Pulse. Mixed with the microphone when both are enabled. GIFs have no audio.")
+                        USwitch { checked: App.settings.recordSystemAudio; onToggled: (c) => App.settings.recordSystemAudio = c }
                     }
                     SettingRow {
-                        label: qsTr("Video quality")
-                        help: qsTr("How much detail the encoder keeps, from 0% to 100%.")
-                        helpDetail: qsTr("100% is mathematically lossless and very large, 50% is the balanced default, and below 25% small text starts to smear. The percent is turned into an encoder CRF, so the same number means the same picture on every codec here.")
-                        UValueCombo {
-                            width: 120
-                            values: [25, 40, 50, 60, 75, 90, 100]
-                            from: 0; to: 100
-                            suffix: "%"
-                            value: App.settings.videoQualityPercent
-                            onChanged: (v) => App.settings.videoQualityPercent = v
+                        label: qsTr("Record microphone")
+                        help: qsTr("Captures your microphone into video recordings.")
+                        helpDetail: qsTr("Uses the input device selected below. Mixed with system audio when both are enabled. GIFs have no audio.")
+                        USwitch { checked: App.settings.recordMicrophone; onToggled: (c) => App.settings.recordMicrophone = c }
+                    }
+                    SettingRow {
+                        label: qsTr("Microphone input")
+                        help: App.audioInputListAvailable
+                              ? qsTr("Which input device the microphone track records from.")
+                              : qsTr("Requires the pw-dump helper to list input devices.")
+                        helpDetail: App.audioBackend === "wasapi"
+                                    ? qsTr("Default input follows the system's default recording device. Pick a specific device to pin the microphone to it - including virtual devices such as a noise-suppressed microphone. Press Refresh after plugging a device in.")
+                                    : qsTr("Default input follows the system's default source. Pick a specific device to pin the microphone to it - including virtual sources such as a processed EasyEffects microphone. Press Refresh after plugging a device in.")
+                        Row {
+                            spacing: Theme.spacingS
+                            UComboBox {
+                                width: 170
+                                enabled: App.audioInputListAvailable
+                                model: page.micDeviceLabels
+                                currentIndex: Math.max(0, page.micDeviceIds.indexOf(App.settings.microphoneSource))
+                                onActivated: (i) => App.settings.microphoneSource = page.micDeviceIds[i]
+                            }
+                            UButton { compact: true; variant: "tonal"; text: qsTr("Refresh"); enabled: App.audioInputListAvailable; onClicked: page.refreshMicDevices() }
                         }
                     }
                     SettingRow {
-                        label: qsTr("Countdown before recording")
-                        help: qsTr("Waits this many seconds before recording starts, showing a 3-2-1 cue.")
-                        helpDetail: qsTr("Gives you a moment to switch windows or get ready. 0 starts immediately. Applies to GIF and video, region and full screen.")
-                        UValueCombo {
-                            width: 120
-                            values: [0, 1, 2, 3, 5, 10]
-                            from: 0; to: 10
-                            suffix: " s"
-                            tooltip: qsTr("0 = start immediately")
-                            value: App.settings.recordCountdownSec
-                            onChanged: (v) => App.settings.recordCountdownSec = v
-                        }
+                        label: qsTr("Application audio only")
+                        help: App.perAppAudioAvailable
+                              ? qsTr("Record only the applications you tick, one or several.")
+                              : App.audioBackend === "wasapi"
+                                ? qsTr("Requires Windows 10 version 2004 or later.")
+                                : qsTr("Requires the pw-dump and pw-record helpers.")
+                        helpDetail: qsTr("Applications appear here while they play audio and the list updates by itself. A ticked application is remembered by name, so it stays ticked after it restarts, and every stream it has open is recorded. This can be mixed with the microphone or system audio.")
+                        footer: UAppAudioPicker {}
+                    }
+                    SettingRow {
+                        label: qsTr("Separate audio tracks")
+                        help: qsTr("Writes every source as its own named track instead of mixing them together.")
+                        helpDetail: qsTr("For editing: the microphone stays separate from system audio, so you can duck one against the other later. Needs at least two sources - with one there is nothing to separate and the recording keeps its single track. The first track is a ready-made mix of everything, so the file still plays with full sound everywhere; the separate source tracks follow it.")
+                        USwitch { checked: App.settings.separateAudioTracks; onToggled: (c) => App.settings.separateAudioTracks = c }
+                    }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Applies to video recordings (MP4/WebM); GIFs have no audio.")
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
                     }
                 }
             }
@@ -2149,104 +2297,102 @@ Item {
                 }
             }
 
+            // One watermark for every recording: video, GIF and instant replay.
+            // The settings keep their video/replayWatermark* keys from when only
+            // the replay had one, so an existing setup carries over.
             SettingsGroup {
                 width: page.cardWidth
                 Column {
                     width: parent.width
                     spacing: Theme.spacingS
-                    SectionTitle { text: qsTr("Audio") }
+                    SectionTitle { text: qsTr("Watermark") }
                     SettingRow {
-                        label: qsTr("Record system audio")
-                        help: qsTr("Captures what you hear (system output) into video recordings.")
-                        helpDetail: App.audioBackend === "wasapi"
-                                    ? qsTr("Taken from the default playback device through Windows loopback capture. Mixed with the microphone when both are enabled. GIFs have no audio.")
-                                    : qsTr("Taken from the default output monitor via PipeWire/Pulse. Mixed with the microphone when both are enabled. GIFs have no audio.")
-                        USwitch { checked: App.settings.recordSystemAudio; onToggled: (c) => App.settings.recordSystemAudio = c }
+                        label: qsTr("Stamp recordings")
+                        help: qsTr("Puts your text or logo on every recording, GIF and instant replay clip.")
+                        helpDetail: qsTr("Separate from the screenshot watermark. A change shows up in a recording that is already running.")
+                        USwitch { checked: App.settings.replayWatermarkEnabled; onToggled: (c) => App.settings.replayWatermarkEnabled = c }
+                    }
+                    WatermarkPreview {
+                        width: parent.width
+                        visible: App.settings.replayWatermarkEnabled
+                        source: App.replayWatermarkPreviewSource
+                        caption: qsTr("A sample frame, stamped by the same code your recordings go through.")
                     }
                     SettingRow {
-                        label: qsTr("Record microphone")
-                        help: qsTr("Captures your microphone into video recordings.")
-                        helpDetail: qsTr("Uses the input device selected below. Mixed with system audio when both are enabled. GIFs have no audio.")
-                        USwitch { checked: App.settings.recordMicrophone; onToggled: (c) => App.settings.recordMicrophone = c }
+                        available: App.settings.replayWatermarkEnabled
+                        label: qsTr("Stamp")
+                        UComboBox {
+                            width: 180
+                            model: [qsTr("Text"), qsTr("Logo image")]
+                            currentIndex: App.settings.replayWatermarkType === "image" ? 1 : 0
+                            onActivated: (i) => App.settings.replayWatermarkType = i === 1 ? "image" : "text"
+                        }
                     }
+                    // Text or logo in one row: only the one the stamp uses is shown.
                     SettingRow {
-                        label: qsTr("Microphone input")
-                        help: App.audioInputListAvailable
-                              ? qsTr("Which input device the microphone track records from.")
-                              : qsTr("Requires the pw-dump helper to list input devices.")
-                        helpDetail: App.audioBackend === "wasapi"
-                                    ? qsTr("Default input follows the system's default recording device. Pick a specific device to pin the microphone to it - including virtual devices such as a noise-suppressed microphone. Press Refresh after plugging a device in.")
-                                    : qsTr("Default input follows the system's default source. Pick a specific device to pin the microphone to it - including virtual sources such as a processed EasyEffects microphone. Press Refresh after plugging a device in.")
+                        id: stampContentRow
+                        readonly property bool logo: App.settings.replayWatermarkType === "image"
+                        available: App.settings.replayWatermarkEnabled
+                        label: logo ? qsTr("Logo image") : qsTr("Text")
+                        help: logo ? (App.settings.replayWatermarkImagePath.length > 0
+                                      ? App.settings.replayWatermarkImagePath
+                                      : qsTr("Choose a PNG, SVG, JPEG or WebP image."))
+                                   : qsTr("%game% puts in the game you play, %date% today's date.")
+                        // A Row sizes to the visible one of the two.
                         Row {
-                            spacing: Theme.spacingS
-                            UComboBox {
-                                width: 170
-                                enabled: App.audioInputListAvailable
-                                model: page.micDeviceLabels
-                                currentIndex: Math.max(0, page.micDeviceIds.indexOf(App.settings.microphoneSource))
-                                onActivated: (i) => App.settings.microphoneSource = page.micDeviceIds[i]
+                            UTextField {
+                                visible: !stampContentRow.logo
+                                width: 260
+                                accessibleName: stampContentRow.label
+                                text: App.settings.replayWatermarkText
+                                onEdited: (t) => App.settings.replayWatermarkText = t
                             }
-                            UButton { compact: true; variant: "tonal"; text: qsTr("Refresh"); enabled: App.audioInputListAvailable; onClicked: page.refreshMicDevices() }
+                            UButton {
+                                visible: stampContentRow.logo
+                                compact: true
+                                variant: "tonal"
+                                accessibleName: stampContentRow.label
+                                text: App.settings.replayWatermarkImagePath.length > 0
+                                      ? qsTr("Change image…") : qsTr("Choose image…")
+                                onClicked: App.pickWatermarkImage(true)
+                            }
                         }
                     }
                     SettingRow {
-                        label: qsTr("Application audio only")
-                        help: App.perAppAudioAvailable
-                              ? qsTr("Record only the applications you tick, one or several.")
-                              : App.audioBackend === "wasapi"
-                                ? qsTr("Requires Windows 10 version 2004 or later.")
-                                : qsTr("Requires the pw-dump and pw-record helpers.")
-                        helpDetail: qsTr("Applications appear here while they play audio and the list updates by itself. A ticked application is remembered by name, so it stays ticked after it restarts, and every stream it has open is recorded. This can be mixed with the microphone or system audio.")
-                        footer: UAppAudioPicker {}
+                        available: App.settings.replayWatermarkEnabled
+                        label: qsTr("Position")
+                        UComboBox {
+                            width: 180
+                            model: page.watermarkPosNames
+                            currentIndex: Math.max(0, page.watermarkPosIds.indexOf(App.settings.replayWatermarkPosition))
+                            onActivated: (i) => App.settings.replayWatermarkPosition = page.watermarkPosIds[i]
+                        }
                     }
                     SettingRow {
-                        label: qsTr("Separate audio tracks")
-                        help: qsTr("Writes every source as its own named track instead of mixing them together.")
-                        helpDetail: qsTr("For editing: the microphone stays separate from system audio, so you can duck one against the other later. Needs at least two sources - with one there is nothing to separate and the recording keeps its single track. The first track is a ready-made mix of everything, so the file still plays with full sound everywhere; the separate source tracks follow it.")
-                        USwitch { checked: App.settings.separateAudioTracks; onToggled: (c) => App.settings.separateAudioTracks = c }
+                        available: App.settings.replayWatermarkEnabled
+                        label: qsTr("Size")
+                        UValueCombo {
+                            width: 120
+                            values: [50, 75, 100, 125, 150, 200, 300]
+                            from: 10; to: 400
+                            suffix: "%"
+                            value: App.settings.replayWatermarkScale
+                            onChanged: (v) => App.settings.replayWatermarkScale = v
+                        }
                     }
-                    Text {
-                        width: parent.width
-                        wrapMode: Text.WordWrap
-                        text: qsTr("Applies to video recordings (MP4/WebM); GIFs have no audio.")
-                        color: Theme.textTertiary
-                        font.pixelSize: Theme.fontS
+                    SettingRow {
+                        available: App.settings.replayWatermarkEnabled
+                        label: qsTr("Opacity: %1%").arg(App.settings.replayWatermarkOpacity)
+                        USlider {
+                            width: 200
+                            from: 10; to: 100
+                            value: App.settings.replayWatermarkOpacity
+                            onMoved: (v) => App.settings.replayWatermarkOpacity = Math.round(v)
+                        }
                     }
                 }
             }
 
-            SettingsGroup {
-                width: page.cardWidth
-                Column {
-                    width: parent.width
-                    spacing: Theme.spacingS
-                    SectionTitle { text: qsTr("Video acceleration") }
-                    SettingRow {
-                        label: qsTr("MP4 encoder")
-                        help: qsTr("Automatic picks a working hardware encoder; it is much faster than software.")
-                        helpDetail: qsTr("Automatic uses VAAPI or NVENC when they actually encode on this machine, and falls back to software otherwise - a hardware encoder that is merely listed but broken is skipped. Hardware encoding accelerates MP4 (H.264); WebM uses AV1 on NVIDIA GPUs with an AV1 encoder (RTX 40 series and newer) and software VP9 everywhere else.")
-                        UComboBox {
-                            width: 240
-                            property var ids: ["auto", "software", "vaapi", "nvenc"]
-                            model: [qsTr("Automatic (recommended)"),
-                                    qsTr("Software (portable)"),
-                                    App.vaapiAvailable ? qsTr("VAAPI") : qsTr("VAAPI (unavailable)"),
-                                    App.nvencAvailable ? qsTr("NVENC") : qsTr("NVENC (unavailable)")]
-                            currentIndex: Math.max(0, ids.indexOf(App.settings.videoEncoder))
-                            onActivated: (i) => {
-                                if ((i === 2 && !App.vaapiAvailable) || (i === 3 && !App.nvencAvailable))
-                                    return
-                                App.settings.videoEncoder = ids[i]
-                            }
-                        }
-                    }
-                    SettingRow {
-                        visible: App.settings.videoFormat === "webm"
-                        label: qsTr("WebM is slow to save")
-                        help: qsTr("VP9 (WebM) has no hardware encoder here and takes several times longer than MP4. Switch the format to MP4 above for fast, hardware-accelerated saves.")
-                    }
-                }
-            }
         }
         }
 
@@ -2390,85 +2536,6 @@ Item {
                             onToggled: (c) => App.settings.clipKeystrokes = c
                         }
                     }
-                    SettingRow {
-                        label: qsTr("Watermark")
-                        help: qsTr("Marks every instant replay with its own text or logo, separate from the screenshot watermark.")
-                        helpDetail: qsTr("Burned into the replay while it records, so saving stays a quick copy. A change applies the next time instant replay starts.")
-                        USwitch { checked: App.settings.replayWatermarkEnabled; onToggled: (c) => App.settings.replayWatermarkEnabled = c }
-                    }
-                    WatermarkPreview {
-                        width: parent.width
-                        visible: App.settings.replayWatermarkEnabled
-                        source: App.replayWatermarkPreviewSource
-                        caption: qsTr("A sample frame, stamped by the same code your instant replays go through.")
-                    }
-                    SettingRow {
-                        visible: App.settings.replayWatermarkEnabled
-                        label: qsTr("Watermark type")
-                        UComboBox {
-                            width: 180
-                            model: [qsTr("Text"), qsTr("Logo image")]
-                            currentIndex: App.settings.replayWatermarkType === "image" ? 1 : 0
-                            onActivated: (i) => App.settings.replayWatermarkType = i === 1 ? "image" : "text"
-                        }
-                    }
-                    SettingRow {
-                        visible: App.settings.replayWatermarkEnabled && App.settings.replayWatermarkType !== "image"
-                        label: qsTr("Watermark text")
-                        help: qsTr("%game% is the game's name and %date% today's date, both as they are when instant replay starts.")
-                        UTextField {
-                            width: 260
-                            text: App.settings.replayWatermarkText
-                            onEdited: (t) => App.settings.replayWatermarkText = t
-                        }
-                    }
-                    SettingRow {
-                        visible: App.settings.replayWatermarkEnabled && App.settings.replayWatermarkType === "image"
-                        label: qsTr("Logo image")
-                        help: App.settings.replayWatermarkImagePath.length > 0
-                              ? App.settings.replayWatermarkImagePath
-                              : qsTr("Choose a PNG, SVG, JPEG or WebP image.")
-                        UButton {
-                            compact: true
-                            variant: "tonal"
-                            text: App.settings.replayWatermarkImagePath.length > 0
-                                  ? qsTr("Change image…") : qsTr("Choose image…")
-                            onClicked: App.pickWatermarkImage(true)
-                        }
-                    }
-                    SettingRow {
-                        visible: App.settings.replayWatermarkEnabled
-                        label: qsTr("Watermark position")
-                        UComboBox {
-                            width: 180
-                            model: page.watermarkPosNames
-                            currentIndex: Math.max(0, page.watermarkPosIds.indexOf(App.settings.replayWatermarkPosition))
-                            onActivated: (i) => App.settings.replayWatermarkPosition = page.watermarkPosIds[i]
-                        }
-                    }
-                    SettingRow {
-                        visible: App.settings.replayWatermarkEnabled
-                        label: qsTr("Size")
-                        help: qsTr("How big the text or logo is, against its default size.")
-                        UValueCombo {
-                            width: 120
-                            values: [50, 75, 100, 125, 150, 200, 300]
-                            from: 10; to: 400
-                            suffix: "%"
-                            value: App.settings.replayWatermarkScale
-                            onChanged: (v) => App.settings.replayWatermarkScale = v
-                        }
-                    }
-                    SettingRow {
-                        visible: App.settings.replayWatermarkEnabled
-                        label: qsTr("Opacity: %1%").arg(App.settings.replayWatermarkOpacity)
-                        USlider {
-                            width: 200
-                            from: 10; to: 100
-                            value: App.settings.replayWatermarkOpacity
-                            onMoved: (v) => App.settings.replayWatermarkOpacity = Math.round(v)
-                        }
-                    }
                 }
             }
             SettingsGroup {
@@ -2500,6 +2567,12 @@ Item {
                                                          ? App.settings.clipSaveDirectory
                                                          : App.settings.videoSaveDirectory)
                         }
+                    }
+                    SettingRow {
+                        label: qsTr("Upload clips right away")
+                        help: qsTr("Sends every saved clip to your upload server, even when uploading after capture is off.")
+                        helpDetail: qsTr("Uses the server chosen on the Servers page, and the link is handled like any other upload. Session recordings are never uploaded on their own.")
+                        USwitch { checked: App.settings.clipUpload; onToggled: (c) => App.settings.clipUpload = c }
                     }
                     SettingRow {
                         label: qsTr("Keep the whole session")
@@ -3129,6 +3202,101 @@ Item {
                     }
                 }
             }
+
+            SettingsGroup {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("After upload") }
+                    SettingRow {
+                        label: qsTr("Open link in browser")
+                        help: qsTr("Opens the uploaded file's URL in your browser.")
+                        helpDetail: qsTr("Runs after every successful upload, using the system default browser.")
+                        USwitch { checked: App.settings.afterUploadOpenInBrowser; onToggled: (c) => App.settings.afterUploadOpenInBrowser = c }
+                    }
+                    SettingRow {
+                        label: qsTr("Shorten the link")
+                        help: qsTr("Swaps the link for a short one before it is copied or opened.")
+                        helpDetail: qsTr("Off by default because the shortener, a free public service, gets every link you upload. When it fails or takes longer than 15 seconds, the full link is used.")
+                        USwitch { checked: App.settings.afterUploadShortenUrl; onToggled: (c) => App.settings.afterUploadShortenUrl = c }
+                    }
+                    SettingRow {
+                        visible: App.settings.afterUploadShortenUrl
+                        label: qsTr("Shortener")
+                        // Tried live: is.gd refused files.catbox.moe and
+                        // litter.catbox.moe links and took Imgur, Uguu,
+                        // tmpfiles and buzzheavier ones; TinyURL took Catbox.
+                        help: App.settings.linkShortener === "tinyurl"
+                              ? qsTr("TinyURL also shortens Catbox links.")
+                              : qsTr("is.gd refuses links to catbox.moe, so Catbox and Litterbox links stay long.")
+                        helpDetail: qsTr("is.gd also refuses links to other shorteners and to addresses on its blacklist. A refused link is used in full, and a message says why.")
+                        UComboBox {
+                            width: 200
+                            model: ["is.gd", "TinyURL"]
+                            readonly property var ids: ["isgd", "tinyurl"]
+                            currentIndex: Math.max(0, ids.indexOf(App.settings.linkShortener))
+                            onActivated: (i) => App.settings.linkShortener = ids[i]
+                        }
+                    }
+                    SettingRow {
+                        label: qsTr("Move the file to the trash")
+                        help: qsTr("After a capture or recording uploads on its own, its local file goes to the trash.")
+                        helpDetail: qsTr("History keeps the entry and its link. Uploads you start by hand keep their file, and so does every capture while an after-capture program is set, because that program may still be reading it.")
+                        USwitch { checked: App.settings.afterUploadTrashFile; onToggled: (c) => App.settings.afterUploadTrashFile = c }
+                    }
+                    // Uploading and copying the link are two decisions: the link
+                    // stays in the toast, the notification and History either way.
+                    DisclosureRow {
+                        id: advancedUpload
+                        label: expanded ? qsTr("Hide advanced options")
+                                        : qsTr("Show advanced options")
+                        summary: qsTr("Copy link to clipboard")
+                    }
+                    SettingRow {
+                        visible: advancedUpload.expanded || page.searchActive
+                        discloser: advancedUpload
+                        label: qsTr("Copy link to clipboard")
+                        help: qsTr("Copies the upload URL once the upload finishes.")
+                        helpDetail: qsTr("Separate from uploading: when off, the link is still shown after the upload and kept in History, and your clipboard keeps what it had.")
+                        USwitch { checked: App.settings.afterUploadCopyLink; onToggled: (c) => App.settings.afterUploadCopyLink = c }
+                    }
+                }
+            }
+
+            SettingsGroup {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Upload from a folder") }
+                    SettingRow {
+                        id: watchFolderRow
+                        label: qsTr("Watched folder")
+                        help: qsTr("Uploads every new file that lands in this folder. Empty is off.")
+                        helpDetail: qsTr("Each file goes to the active server once it has stopped changing for a second, then the after-upload actions run. Files already in the folder, hidden files and partial downloads are left alone, and captures Unisic saves there follow \"Upload to the active server\" instead.")
+                        UTextField {
+                            width: Math.min(420, page.cardWidth - 140)
+                            placeholder: qsTr("No folder")
+                            // Set here, so the row bridge keeps off it: the
+                            // error under the card is a Text, which a screen
+                            // reader never reaches on its own.
+                            accessibleDescription: watchFolderError.visible ? watchFolderError.text : watchFolderRow.help
+                            text: App.settings.watchFolder
+                            onEdited: (t) => App.settings.watchFolder = t
+                        }
+                    }
+                    Text {
+                        id: watchFolderError
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        visible: App.settings.watchFolder.trim() !== "" && !App.watchFolderActive
+                        text: qsTr("This is not a folder, so nothing is watched.")
+                        color: Theme.danger
+                        font.pixelSize: Theme.fontS
+                    }
+                }
+            }
             SettingsGroup {
                 width: page.cardWidth
                 Column {
@@ -3189,130 +3357,6 @@ Item {
                             model: [qsTr("Same as the saved file"), "PNG", "JPEG", "WebP", "GIF"]
                             currentIndex: Math.max(0, codes.indexOf(App.settings.uploadFormat))
                             onActivated: (i) => App.settings.uploadFormat = codes[i]
-                        }
-                    }
-                }
-            }
-            SettingsGroup {
-                width: page.cardWidth
-                Column {
-                    width: parent.width
-                    spacing: Theme.spacingS
-                    SectionTitle { text: qsTr("Watermark") }
-                    Text {
-                        width: parent.width
-                        wrapMode: Text.WordWrap
-                        text: qsTr("Adds a text or logo stamp to the captured image before it is saved, copied, uploaded, shown in history or opened in the editor.")
-                        color: Theme.textTertiary
-                        font.pixelSize: Theme.fontS
-                    }
-                    SettingRow {
-                        label: qsTr("Apply watermark")
-                        help: qsTr("Applies the selected stamp to every new screenshot.")
-                        helpDetail: qsTr("The stamp is baked into the final capture once, before the independent save, clipboard, upload, history and editor actions. It does not alter recordings or existing files.")
-                        USwitch { checked: App.settings.watermarkEnabled; onToggled: (c) => App.settings.watermarkEnabled = c }
-                    }
-                    // The stamp on a mock capture, rendered by the same code the
-                    // after-capture pipeline runs, so what is shown here is what
-                    // a screenshot gets. The mock has a light half and a dark
-                    // one on purpose: a mark that reads over one can vanish over
-                    // the other, and opacity and size are what decide it.
-                    WatermarkPreview {
-                        width: parent.width
-                        visible: App.settings.watermarkEnabled
-                        source: App.watermarkPreviewSource
-                        caption: qsTr("A sample capture, stamped by the same code your screenshots go through.")
-                    }
-                    SettingRow {
-                        available: App.settings.watermarkEnabled
-                        label: qsTr("Watermark type")
-                        help: qsTr("Use a text label or an image logo.")
-                        UComboBox {
-                            width: 180
-                            model: [qsTr("Text"), qsTr("Logo image")]
-                            currentIndex: App.settings.watermarkType === "image" ? 1 : 0
-                            onActivated: (i) => App.settings.watermarkType = i === 1 ? "image" : "text"
-                        }
-                    }
-                    SettingRow {
-                        available: App.settings.watermarkEnabled && App.settings.watermarkType === "text"
-                        label: qsTr("Watermark text")
-                        help: qsTr("The label stamped onto the screenshot.")
-                        UTextField {
-                            width: 260
-                            text: App.settings.watermarkText
-                            onEdited: (t) => App.settings.watermarkText = t
-                        }
-                    }
-                    SettingRow {
-                        available: App.settings.watermarkEnabled && App.settings.watermarkType === "image"
-                        label: qsTr("Logo image")
-                        help: App.settings.watermarkImagePath.length > 0
-                              ? App.settings.watermarkImagePath
-                              : qsTr("Choose a PNG, SVG, JPEG or WebP image.")
-                        UButton {
-                            compact: true
-                            variant: "tonal"
-                            text: App.settings.watermarkImagePath.length > 0
-                                  ? qsTr("Change image…") : qsTr("Choose image…")
-                            onClicked: App.pickWatermarkImage()
-                        }
-                    }
-                    SettingRow {
-                        available: App.settings.watermarkEnabled
-                        label: qsTr("Pattern")
-                        help: qsTr("One stamp, or a ready-made layout that covers the whole capture.")
-                        helpDetail: qsTr("One stamp sits where Position says. Tiled and Diagonal repeat a small stamp across the picture, staggered row by row, which is what makes a screenshot awkward to crop the mark out of. Four corners puts one in each corner. Diagonal band is a single large stamp running across the middle. Everything except One stamp covers the whole capture and ignores Position.")
-                        UComboBox {
-                            width: 180
-                            // The setting stores the id; the labels are shown
-                            // and translated, never written to the config.
-                            property var ids: ["single", "tile", "diagonal", "corners", "band"]
-                            model: [qsTr("One stamp"), qsTr("Tiled"), qsTr("Diagonal tiled"),
-                                    qsTr("Four corners"), qsTr("Diagonal band")]
-                            currentIndex: Math.max(0, ids.indexOf(App.settings.watermarkPattern))
-                            onActivated: (i) => App.settings.watermarkPattern = ids[i]
-                        }
-                    }
-                    SettingRow {
-                        // One stamp is the only preset that leaves a choice of
-                        // where it goes; the rest cover the whole capture.
-                        available: App.settings.watermarkEnabled
-                                   && App.settings.watermarkPattern === "single"
-                        label: qsTr("Position")
-                        help: qsTr("Corner, center edge, or middle of the image for the watermark.")
-                        UComboBox {
-                            width: 180
-                            model: page.watermarkPosNames
-                            currentIndex: Math.max(0, page.watermarkPosIds.indexOf(App.settings.watermarkPosition))
-                            onActivated: (i) => App.settings.watermarkPosition = page.watermarkPosIds[i]
-                        }
-                    }
-                    SettingRow {
-                        available: App.settings.watermarkEnabled
-                        label: qsTr("Size")
-                        help: qsTr("How big the stamp is, against the size the pattern picks itself.")
-                        helpDetail: qsTr("100% is the pattern's own size, which is a fraction of the capture's shorter side - so one setting looks the same on a 720p window and a 4K screen. Below 100% the stamp shrinks and a tiled pattern packs tighter; above it the stamp grows and the tiles spread out. A logo is scaled from the file you chose, so pushing a small logo far past 100% will look soft.")
-                        UValueCombo {
-                            width: 120
-                            values: [25, 50, 75, 100, 125, 150, 200, 250, 300, 400]
-                            // The same bounds ImageEffects clamps to, so a typed
-                            // number can never mean something else than shown.
-                            from: 10; to: 400
-                            suffix: "%"
-                            value: App.settings.watermarkScale
-                            onChanged: (v) => App.settings.watermarkScale = v
-                        }
-                    }
-                    SettingRow {
-                        available: App.settings.watermarkEnabled
-                        label: qsTr("Opacity: %1%").arg(App.settings.watermarkOpacity)
-                        help: qsTr("How strongly the watermark appears over the capture.")
-                        USlider {
-                            width: 200
-                            from: 10; to: 100
-                            value: App.settings.watermarkOpacity
-                            onMoved: (v) => App.settings.watermarkOpacity = Math.round(v)
                         }
                     }
                 }
@@ -3389,7 +3433,7 @@ Item {
                         USwitch { checked: App.settings.showNotifications; onToggled: (c) => App.settings.showNotifications = c }
                     }
                     SettingRow {
-                        label: qsTr("Show app notifications (stylized)")
+                        label: qsTr("Show Unisic's own card")
                         // The stylized card needs layer-shell; without it the
                         // native desktop notification is used regardless.
                         available: App.capCustomNotification
@@ -3456,7 +3500,7 @@ Item {
                     }
                     SettingRow {
                         visible: App.settings.showCapturePopup
-                        label: qsTr("Notification auto-hide")
+                        label: qsTr("Hide after")
                         help: qsTr("How long the capture card stays on screen. 0 keeps it open.")
                         helpDetail: qsTr("After this many seconds the card disappears on its own. Set 0 to keep it open until you dismiss it manually.")
                         UValueCombo {
@@ -3471,7 +3515,7 @@ Item {
                     }
                     SettingRow {
                         visible: App.settings.showCapturePopup
-                        label: qsTr("Hide it during fullscreen / Do Not Disturb")
+                        label: qsTr("Hide during fullscreen and Do Not Disturb")
                         help: qsTr("Mutes capture cards while a fullscreen app or DND is active.")
                         helpDetail: qsTr("Uses the notification server's inhibition state (fullscreen application, Do Not Disturb, screen sharing). Inhibitors that were already stuck when Unisic started are ignored, so a misbehaving third-party app can't silence your capture feedback forever.")
                         USwitch { checked: App.settings.muteOnFullscreen; onToggled: (c) => App.settings.muteOnFullscreen = c }

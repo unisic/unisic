@@ -345,7 +345,7 @@ Item {
                     }
                     Text {
                         width: parent.width
-                        text: qsTr("Write your own as a small .json file - Settings › Interface opens the folder.")
+                        text: qsTr("Write your own as a small .json file - Settings › Appearance opens the folder.")
                         color: Theme.textTertiary
                         font.pixelSize: Theme.fontS
                         wrapMode: Text.WordWrap

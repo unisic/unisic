@@ -163,6 +163,7 @@ class Settings : public QObject
     Q_PROPERTY(int replayWatermarkOpacity READ replayWatermarkOpacity WRITE setReplayWatermarkOpacity NOTIFY replayWatermarkOpacityChanged)
     Q_PROPERTY(int replayWatermarkScale READ replayWatermarkScale WRITE setReplayWatermarkScale NOTIFY replayWatermarkScaleChanged)
     Q_PROPERTY(bool clipOpenReplay READ clipOpenReplay WRITE setClipOpenReplay NOTIFY clipOpenReplayChanged)
+    Q_PROPERTY(bool clipUpload READ clipUpload WRITE setClipUpload NOTIFY clipUploadChanged)
     Q_PROPERTY(QString clipAspect READ clipAspect WRITE setClipAspect NOTIFY clipAspectChanged)
     Q_PROPERTY(int clipShortSide READ clipShortSide WRITE setClipShortSide NOTIFY clipShortSideChanged)
     Q_PROPERTY(QString clipSaveDirectory READ clipSaveDirectory WRITE setClipSaveDirectory NOTIFY clipSaveDirectoryChanged)
@@ -687,6 +688,8 @@ public:
     // editor; the editor starts with this frame ("original", "16:9", "9:16",
     // "1:1") and output size (shorter side in px, 0 = as recorded).
     U_SETTING(bool, clipOpenReplay, setClipOpenReplay, "clips/openReplay", false)
+    // A saved clip goes to the upload server even with uploadAfterCapture off.
+    U_SETTING(bool, clipUpload, setClipUpload, "clips/upload", false)
     U_SETTING(QString, clipAspect, setClipAspect, "clips/aspect", QStringLiteral("original"))
     U_SETTING(int, clipShortSide, setClipShortSide, "clips/shortSide", 0)
     // Saved instant replays land here; empty = videoSaveDirectory.
@@ -901,7 +904,7 @@ public:
         emit instantReplaySecondsChanged(); emit hotkeyInstantReplayChanged(); emit instantReplayAutoChanged();
         emit replayWatermarkEnabledChanged(); emit replayWatermarkTextChanged(); emit replayWatermarkPositionChanged();
         emit replayWatermarkTypeChanged(); emit replayWatermarkImagePathChanged(); emit replayWatermarkOpacityChanged(); emit replayWatermarkScaleChanged();
-        emit clipOpenReplayChanged(); emit clipAspectChanged(); emit clipShortSideChanged();
+        emit clipOpenReplayChanged(); emit clipUploadChanged(); emit clipAspectChanged(); emit clipShortSideChanged();
         emit clipSaveDirectoryChanged(); emit clipIndicatorChanged(); emit hotkeyReplayToggleChanged();
         emit clipIndicatorStyleChanged(); emit clipKeepSessionChanged(); emit clipSessionDirectoryChanged(); emit clipSystemAudioChanged(); emit clipMicrophoneChanged(); emit clipKeystrokesChanged(); emit clipStatusDotChanged(); emit clipStatusCornerChanged(); emit clipSourceChanged(); emit recentGamesChanged();
         emit showCapturePopupChanged(); emit capturePopupPositionChanged();
@@ -1042,6 +1045,7 @@ signals:
     void replayWatermarkScaleChanged();
     void hotkeyInstantReplayChanged();
     void clipOpenReplayChanged();
+    void clipUploadChanged();
     void clipAspectChanged();
     void clipShortSideChanged();
     void clipSaveDirectoryChanged();

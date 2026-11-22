@@ -2270,6 +2270,10 @@ Item {
                     Qt.callLater(page.rebuildSearch)
             }
             sourceComponent: ScrollPane {
+            // Four groups in the order a user decides them: when replay runs,
+            // what a clip holds, where it lands, what shows on screen. A row
+            // that only applies under a switch is hidden with it, like the
+            // rest of Settings.
             SettingsGroup {
                 width: page.cardWidth
                 Column {
@@ -2300,6 +2304,36 @@ Item {
                             }
                         }
                     }
+                    SettingRow {
+                        label: qsTr("Start automatically")
+                        help: qsTr("Keeps recording the screen in the background, ready to save the last moments.")
+                        helpDetail: qsTr("When Unisic starts: from launch until you stop it. While a game is running: games started by Steam, and on Linux also Proton games from Heroic, Lutris or Bottles, games using GameMode, and cloud gaming in the GeForce NOW, Steam Link, Moonlight, Boosteroid or Greenlight app, or in a browser app window; it stops when the game closes. Starting a recording pauses it, and it comes back afterwards.")
+                        UComboBox {
+                            width: 220
+                            readonly property var ids: ["off", "launch", "game"]
+                            model: [qsTr("Off"), qsTr("When Unisic starts"), qsTr("While a game is running")]
+                            currentIndex: Math.max(0, ids.indexOf(App.settings.instantReplayAuto))
+                            onActivated: (i) => App.settings.instantReplayAuto = ids[i]
+                        }
+                    }
+                    SettingRow {
+                        label: qsTr("Replay length")
+                        help: qsTr("How far back Save clip reaches.")
+                        helpDetail: qsTr("The ring uses fixed-count two-second segments in the disk cache, not raw frames in RAM, and drops the oldest as it goes. Saving snapshots completed segments without stopping the ring. Long replays take gigabytes of disk space, and saving one copies it first.")
+                        UValueCombo { width: 130; values: [10,15,30,60,120,300,600,1800,3600]; from: 10; to: 3600; suffix: " s"; value: App.settings.instantReplaySeconds; onChanged: (v) => App.settings.instantReplaySeconds = v }
+                    }
+                    SettingRow {
+                        label: qsTr("What to record")
+                        help: qsTr("Whole screen: the monitor under the pointer. Game window: only the game, even when something covers it.")
+                        helpDetail: qsTr("Game window finds the running game's window, or takes the window in front when no game is detected. On KDE Plasma the recording follows that window; on Windows its area is recorded; elsewhere the whole screen is. A change applies the next time instant replay starts.")
+                        UComboBox {
+                            width: 220
+                            readonly property var ids: ["screen", "window"]
+                            model: [qsTr("Whole screen"), qsTr("Game window")]
+                            currentIndex: Math.max(0, ids.indexOf(App.settings.clipSource))
+                            onActivated: (i) => App.settings.clipSource = ids[i]
+                        }
+                    }
                     HotkeyRow {
                         visible: App.hotkeysAvailable || App.desktopShortcutsAuto
                         label: qsTr("Save clip")
@@ -2316,61 +2350,35 @@ Item {
                         shortcuts: App.settings.hotkeyReplayToggle
                         onChanged: (t) => { App.settings.hotkeyReplayToggle = t; App.applyHotkey("replay-toggle") }
                     }
-                    SettingRow {
-                        label: qsTr("On-screen indicator")
-                        help: qsTr("A small sign at the top of the screen when instant replay starts or stops, and when a clip is saving or saved.")
-                        helpDetail: qsTr("Shown over fullscreen games too, and never takes a click. Instant replay records the screen, so a clip that covers the moment the sign was up shows it.")
-                        USwitch { checked: App.settings.clipIndicator; onToggled: (c) => App.settings.clipIndicator = c }
-                    }
-                    SettingRow {
-                        available: App.settings.clipIndicator
-                        label: qsTr("Indicator style")
-                        help: qsTr("Pill: icon, title and the file name. Compact: icon and title. Dot: the icon alone. Tinted: the pill with its edge and title in the colour of what happened.")
-                        UComboBox {
-                            width: 220
-                            readonly property var ids: ["pill", "compact", "dot", "tinted"]
-                            model: [qsTr("Pill"), qsTr("Compact"), qsTr("Dot"), qsTr("Tinted")]
-                            currentIndex: Math.max(0, ids.indexOf(App.settings.clipIndicatorStyle))
-                            onActivated: (i) => App.settings.clipIndicatorStyle = ids[i]
-                        }
-                    }
-                    SettingRow {
-                        label: qsTr("Recording dot")
-                        help: qsTr("A small red dot stays in a corner of the screen for as long as instant replay records.")
-                        helpDetail: qsTr("It never takes a click. Instant replay records what is on the screen, so with Whole screen the dot is in your clips too; Game window on KDE Plasma leaves it out.")
-                        USwitch { checked: App.settings.clipStatusDot; onToggled: (c) => App.settings.clipStatusDot = c }
-                    }
-                    SettingRow {
-                        available: App.settings.clipStatusDot
-                        label: qsTr("Dot corner")
-                        UComboBox {
-                            width: 220
-                            readonly property var ids: ["top-left", "top-right", "bottom-left", "bottom-right"]
-                            model: [qsTr("Top left"), qsTr("Top right"), qsTr("Bottom left"), qsTr("Bottom right")]
-                            currentIndex: Math.max(0, ids.indexOf(App.settings.clipStatusCorner))
-                            onActivated: (i) => App.settings.clipStatusCorner = ids[i]
-                        }
-                    }
-                    ClipOsdPreview {
+                }
+            }
+            SettingsGroup {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("What clips include") }
+                    Text {
                         width: parent.width
-                        look: App.settings.clipIndicatorStyle
-                        dotCorner: App.settings.clipStatusDot ? App.settings.clipStatusCorner : ""
-                        opacity: App.settings.clipIndicator || App.settings.clipStatusDot ? 1 : 0.5
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Separate from the same switches for recordings. The microphone itself is chosen under Recording > Audio.")
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
                     }
                     SettingRow {
-                        label: qsTr("Record system audio in clips")
-                        help: qsTr("The game's sound, and everything else you hear. Apart from the switch for recordings.")
+                        label: qsTr("Record system audio")
+                        help: qsTr("The game's sound, and everything else you hear.")
                         USwitch { checked: App.settings.clipSystemAudio; onToggled: (c) => App.settings.clipSystemAudio = c }
                     }
                     SettingRow {
-                        label: qsTr("Record microphone in clips")
-                        help: qsTr("Your voice, from the microphone chosen under Recording > Audio. Apart from the switch for recordings.")
+                        label: qsTr("Record microphone")
+                        help: qsTr("Your voice.")
                         USwitch { checked: App.settings.clipMicrophone; onToggled: (c) => App.settings.clipMicrophone = c }
                     }
                     SettingRow {
                         id: clipKeysRow
-                        label: qsTr("Show pressed keys in clips")
-                        help: qsTr("The key badge from recordings, in clips too. Off by default: a game clip rarely needs it.")
+                        label: qsTr("Show pressed keys")
+                        help: qsTr("The key badge, as in recordings. Off by default: a game clip rarely needs it.")
                         readonly property string blocked: App.keystrokeCaptureBlockedReason()
                         available: blocked === "" || App.devBuild
                         hint: blocked
@@ -2382,6 +2390,39 @@ Item {
                             onToggled: (c) => App.settings.clipKeystrokes = c
                         }
                     }
+                    SettingRow {
+                        label: qsTr("Watermark")
+                        help: qsTr("Marks every instant replay with its own text, separate from the screenshot watermark.")
+                        helpDetail: qsTr("Burned into the replay while it records, so saving stays a quick copy. A change applies the next time instant replay starts.")
+                        USwitch { checked: App.settings.replayWatermarkEnabled; onToggled: (c) => App.settings.replayWatermarkEnabled = c }
+                    }
+                    SettingRow {
+                        visible: App.settings.replayWatermarkEnabled
+                        label: qsTr("Watermark text")
+                        UTextField {
+                            width: 220
+                            text: App.settings.replayWatermarkText
+                            onEdited: (t) => App.settings.replayWatermarkText = t
+                        }
+                    }
+                    SettingRow {
+                        visible: App.settings.replayWatermarkEnabled
+                        label: qsTr("Watermark position")
+                        UComboBox {
+                            width: 180
+                            model: page.watermarkPosNames
+                            currentIndex: Math.max(0, page.watermarkPosIds.indexOf(App.settings.replayWatermarkPosition))
+                            onActivated: (i) => App.settings.replayWatermarkPosition = page.watermarkPosIds[i]
+                        }
+                    }
+                }
+            }
+            SettingsGroup {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Saving") }
                     Text {
                         id: clipDirLabel
                         text: qsTr("Clips folder")
@@ -2407,104 +2448,100 @@ Item {
                         }
                     }
                     SettingRow {
-                        label: qsTr("Instant replay length")
-                        help: qsTr("Keeps only the most recent encoded seconds while replay is active.")
-                        helpDetail: qsTr("The ring uses fixed-count two-second segments in the disk cache, not raw frames in RAM, and drops the oldest as it goes. Saving snapshots completed segments without stopping the ring. Long replays take gigabytes of disk space, and saving one copies it first.")
-                        UValueCombo { width: 130; values: [10,15,30,60,120,300,600,1800,3600]; from: 10; to: 3600; suffix: " s"; value: App.settings.instantReplaySeconds; onChanged: (v) => App.settings.instantReplaySeconds = v }
-                    }
-                    SettingRow {
-                        label: qsTr("Record")
-                        help: qsTr("Whole screen: the monitor under the pointer. Game window: only the game, even when something covers it.")
-                        helpDetail: qsTr("Game window finds the running game's window, or takes the window in front when no game is detected. On KDE Plasma the recording follows that window; on Windows its area is recorded; elsewhere the whole screen is. A change applies the next time instant replay starts.")
-                        UComboBox {
-                            width: 220
-                            readonly property var ids: ["screen", "window"]
-                            model: [qsTr("Whole screen"), qsTr("Game window")]
-                            currentIndex: Math.max(0, ids.indexOf(App.settings.clipSource))
-                            onActivated: (i) => App.settings.clipSource = ids[i]
-                        }
-                    }
-                    SettingRow {
                         label: qsTr("Keep the whole session")
                         help: qsTr("Stopping instant replay saves everything it recorded as one session recording, to cut clips from later on the Clips page.")
                         helpDetail: qsTr("Up to the last 4 hours of a session, written into the session recordings folder while it runs: about 2 to 15 GB per hour, depending on the screen and the quality. Save clip still saves only the replay length. A change applies the next time instant replay starts.")
                         USwitch { checked: App.settings.clipKeepSession; onToggled: (c) => App.settings.clipKeepSession = c }
                     }
-                    Text {
-                        id: sessionDirLabel
-                        text: qsTr("Session recordings folder")
-                        color: Theme.textSecondary
-                        opacity: App.settings.clipKeepSession ? 1 : 0.5
-                        font.pixelSize: Theme.fontS
-                    }
-                    Text {
+                    Column {
                         width: parent.width
-                        wrapMode: Text.WordWrap
-                        text: qsTr("Pick a big second drive here: the session is also recorded into this folder while it runs, not onto the system disk.")
-                        color: Theme.textTertiary
-                        opacity: App.settings.clipKeepSession ? 1 : 0.5
-                        font.pixelSize: Theme.fontS
+                        spacing: Theme.spacingS
+                        visible: App.settings.clipKeepSession
+                        Text {
+                            id: sessionDirLabel
+                            text: qsTr("Session recordings folder")
+                            color: Theme.textSecondary
+                            font.pixelSize: Theme.fontS
+                        }
+                        Text {
+                            width: parent.width
+                            wrapMode: Text.WordWrap
+                            text: qsTr("Pick a big second drive here: the session is also recorded into this folder while it runs, not onto the system disk.")
+                            color: Theme.textTertiary
+                            font.pixelSize: Theme.fontS
+                        }
+                        Row {
+                            width: parent.width
+                            spacing: Theme.spacingM
+                            readonly property string dir: App.settings.clipSessionDirectory.trim() !== ""
+                                                          ? App.settings.clipSessionDirectory
+                                                          : App.settings.clipSaveDirectory.trim() !== ""
+                                                            ? App.settings.clipSaveDirectory
+                                                            : App.settings.videoSaveDirectory
+                            UTextField {
+                                width: parent.width - 110 - Theme.spacingM
+                                accessibleName: sessionDirLabel.text
+                                placeholder: qsTr("Same as clips: %1").arg(App.settings.clipSaveDirectory.trim() !== ""
+                                                                           ? App.settings.clipSaveDirectory
+                                                                           : App.settings.videoSaveDirectory)
+                                text: App.settings.clipSessionDirectory
+                                onEdited: (t) => App.settings.clipSessionDirectory = t
+                            }
+                            UButton {
+                                width: 110; text: qsTr("Open"); variant: "tonal"
+                                accessibleDescription: sessionDirLabel.text
+                                onClicked: App.openDirectory(parent.dir)
+                            }
+                        }
                     }
-                    Row {
-                        width: parent.width
-                        spacing: Theme.spacingM
-                        enabled: App.settings.clipKeepSession
-                        readonly property string dir: App.settings.clipSessionDirectory.trim() !== ""
-                                                      ? App.settings.clipSessionDirectory
-                                                      : App.settings.clipSaveDirectory.trim() !== ""
-                                                        ? App.settings.clipSaveDirectory
-                                                        : App.settings.videoSaveDirectory
-                        UTextField {
-                            width: parent.width - 110 - Theme.spacingM
-                            accessibleName: sessionDirLabel.text
-                            placeholder: qsTr("Same as clips: %1").arg(App.settings.clipSaveDirectory.trim() !== ""
-                                                                       ? App.settings.clipSaveDirectory
-                                                                       : App.settings.videoSaveDirectory)
-                            text: App.settings.clipSessionDirectory
-                            onEdited: (t) => App.settings.clipSessionDirectory = t
-                        }
-                        UButton {
-                            width: 110; text: qsTr("Open"); variant: "tonal"
-                            accessibleDescription: sessionDirLabel.text
-                            onClicked: App.openDirectory(parent.dir)
-                        }
+                }
+            }
+            SettingsGroup {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("On screen") }
+                    SettingRow {
+                        label: qsTr("On-screen indicator")
+                        help: qsTr("A small sign at the top of the screen when instant replay starts or stops, and when a clip is saving or saved.")
+                        helpDetail: qsTr("Shown over fullscreen games too, and never takes a click. Instant replay records the screen, so a clip that covers the moment the sign was up shows it.")
+                        USwitch { checked: App.settings.clipIndicator; onToggled: (c) => App.settings.clipIndicator = c }
                     }
                     SettingRow {
-                        label: qsTr("Start instant replay automatically")
-                        help: qsTr("Keeps recording the screen in the background, ready to save the last moments.")
-                        helpDetail: qsTr("When Unisic starts: from launch until you stop it. While a game is running: games started by Steam, and on Linux also Proton games from Heroic, Lutris or Bottles, games using GameMode, and cloud gaming in the GeForce NOW, Steam Link, Moonlight, Boosteroid or Greenlight app, or in a browser app window; it stops when the game closes. Starting a recording pauses it, and it comes back afterwards.")
+                        visible: App.settings.clipIndicator
+                        label: qsTr("Indicator style")
+                        help: qsTr("Pill: icon, title and the file name. Compact: icon and title. Dot: the icon alone. Tinted: the pill with its edge and title in the colour of what happened.")
                         UComboBox {
                             width: 220
-                            readonly property var ids: ["off", "launch", "game"]
-                            model: [qsTr("Off"), qsTr("When Unisic starts"), qsTr("While a game is running")]
-                            currentIndex: Math.max(0, ids.indexOf(App.settings.instantReplayAuto))
-                            onActivated: (i) => App.settings.instantReplayAuto = ids[i]
+                            readonly property var ids: ["pill", "compact", "dot", "tinted"]
+                            model: [qsTr("Pill"), qsTr("Compact"), qsTr("Dot"), qsTr("Tinted")]
+                            currentIndex: Math.max(0, ids.indexOf(App.settings.clipIndicatorStyle))
+                            onActivated: (i) => App.settings.clipIndicatorStyle = ids[i]
                         }
                     }
                     SettingRow {
-                        label: qsTr("Replay watermark")
-                        help: qsTr("Marks every instant replay with its own text, separate from the screenshot watermark.")
-                        helpDetail: qsTr("Burned into the replay while it records, so saving stays a quick copy. A change applies the next time instant replay starts.")
-                        USwitch { checked: App.settings.replayWatermarkEnabled; onToggled: (c) => App.settings.replayWatermarkEnabled = c }
+                        label: qsTr("Recording dot")
+                        help: qsTr("A small red dot stays in a corner of the screen for as long as instant replay records.")
+                        helpDetail: qsTr("It never takes a click. Instant replay records what is on the screen, so with Whole screen the dot is in your clips too; Game window on KDE Plasma leaves it out.")
+                        USwitch { checked: App.settings.clipStatusDot; onToggled: (c) => App.settings.clipStatusDot = c }
                     }
                     SettingRow {
-                        available: App.settings.replayWatermarkEnabled
-                        label: qsTr("Replay watermark text")
-                        UTextField {
-                            width: 220
-                            text: App.settings.replayWatermarkText
-                            onEdited: (t) => App.settings.replayWatermarkText = t
-                        }
-                    }
-                    SettingRow {
-                        available: App.settings.replayWatermarkEnabled
-                        label: qsTr("Replay watermark position")
+                        visible: App.settings.clipStatusDot
+                        label: qsTr("Dot corner")
                         UComboBox {
-                            width: 180
-                            model: page.watermarkPosNames
-                            currentIndex: Math.max(0, page.watermarkPosIds.indexOf(App.settings.replayWatermarkPosition))
-                            onActivated: (i) => App.settings.replayWatermarkPosition = page.watermarkPosIds[i]
+                            width: 220
+                            readonly property var ids: ["top-left", "top-right", "bottom-left", "bottom-right"]
+                            model: [qsTr("Top left"), qsTr("Top right"), qsTr("Bottom left"), qsTr("Bottom right")]
+                            currentIndex: Math.max(0, ids.indexOf(App.settings.clipStatusCorner))
+                            onActivated: (i) => App.settings.clipStatusCorner = ids[i]
                         }
+                    }
+                    ClipOsdPreview {
+                        visible: App.settings.clipIndicator || App.settings.clipStatusDot
+                        width: parent.width
+                        look: App.settings.clipIndicator ? App.settings.clipIndicatorStyle : ""
+                        dotCorner: App.settings.clipStatusDot ? App.settings.clipStatusCorner : ""
                     }
                 }
             }

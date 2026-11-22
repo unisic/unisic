@@ -260,7 +260,7 @@ Item {
             }
             InspectorRow {
                 id: sourceRow
-                label: qsTranslate("SettingsPage", "Record")
+                label: qsTranslate("SettingsPage", "What to record")
                 UComboBox {
                     width: 150
                     accessibleName: sourceRow.label

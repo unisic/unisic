@@ -41,6 +41,7 @@ Item {
 
     Row {
         id: pills
+        visible: root.look !== ""
         anchors.centerIn: parent
         spacing: Theme.spacingM
         readonly property real each: (root.width - 2 * Theme.spacingM - 2 * spacing) / 3

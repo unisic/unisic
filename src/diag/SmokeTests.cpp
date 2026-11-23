@@ -3543,8 +3543,9 @@ static QString editorLayoutCheck(QQuickWindow *win)
 
     // The inspector minus its padding: what its options may use.
     QQuickItem *body = find("editorInspectorBody");
-    if (!body)
-        return QStringLiteral("FAIL (inspector body not found)");
+    QQuickItem *optionsBar = find("editorOptionsBar");
+    if (!body || !optionsBar)
+        return QStringLiteral("FAIL (inspector body or options bar not found)");
     const auto contentBound = [&] {
         const QRectF in = sceneRect(inspector);
         const QRectF b = sceneRect(body);
@@ -3552,19 +3553,28 @@ static QString editorLayoutCheck(QQuickWindow *win)
     };
 
     QStringList fails;
-    for (const QString &layout : {QStringLiteral("panels"), QStringLiteral("floating")}) {
+    for (const QString &layout : {QStringLiteral("panels"), QStringLiteral("top"), QStringLiteral("bottom"),
+                                  QStringLiteral("floating")}) {
         win->setProperty("layoutOverride", layout);
         polishTree(win->contentItem());
         // After the flip: the window grows to the new layout's minimum size.
         const QRectF window(0, 0, win->width(), win->height());
         const QRectF image = sceneRect(canvas);
         const bool floating = layout == QLatin1String("floating");
+        const bool top = layout == QLatin1String("top");
+        const bool bottom = layout == QLatin1String("bottom");
         QList<QPair<const char *, QQuickItem *>> bars = {
             {"tools", rail}, {"actions", actions}, {"status", status}};
         if (!floating)
             bars.append({"inspector", inspector});
+        if (top)
+            bars.append({"options bar", optionsBar});
         for (const auto &[name, bar] : bars) {
-            const QRectF r = sceneRect(bar);
+            QRectF r = sceneRect(bar);
+            // Rows a narrow window wraps the top options into cover the canvas
+            // by design; the layout keeps the image clear of the first.
+            if (bar == optionsBar)
+                r.setHeight(qMin(r.height(), win->property("optionsRowHeight").toReal()));
             if (!bar->isVisible() || !inside(r, window))
                 fails << QStringLiteral("%1: %2 %3 outside the window %4")
                              .arg(layout, QLatin1String(name), rectText(r), rectText(window));
@@ -3575,13 +3585,16 @@ static QString editorLayoutCheck(QQuickWindow *win)
             fails << QStringLiteral("%1: text options hidden").arg(layout);
             continue;
         }
-        const QRectF bound = floating ? window : contentBound();
+        const QRectF bound = floating ? window : top ? sceneRect(optionsBar) : contentBound();
         const QString out = spill(options, bound);
         if (!inside(sceneRect(options), bound) || !out.isEmpty())
             fails << QStringLiteral("%1: options spill out (%2)")
                          .arg(layout, out.isEmpty() ? QStringLiteral("frame") : out);
         else if (floating && overlaps(sceneRect(options), sceneRect(status)))
             fails << QStringLiteral("floating: options under the zoom");
+        if (bottom && (overlaps(sceneRect(rail), sceneRect(inspector))
+                       || overlaps(sceneRect(rail), sceneRect(status))))
+            fails << QStringLiteral("bottom: tools under the inspector or the status line");
     }
 
     // Panels, every editor tool: its options stay inside the inspector's
@@ -3633,7 +3646,7 @@ static QString editorLayoutCheck(QQuickWindow *win)
     flick->setProperty("zoom", savedZoom);
     if (!fails.isEmpty())
         return QStringLiteral("FAIL (%1)").arg(fails.join(QStringLiteral("; ")));
-    return QStringLiteral("PASS (panels, floating: bars inside the window, image clear, text options fit; "
+    return QStringLiteral("PASS (panels, top, bottom, floating: bars inside the window, image clear, text options fit; "
                           "every tool's options inside the inspector padding)");
 }
 
@@ -3736,6 +3749,32 @@ static QString editorChromeCheck(QQuickWindow *win)
         fails << QStringLiteral("Fit after 1:1 left the view at %1,%2, not %3,%4")
                      .arg(pan.x()).arg(pan.y()).arg(fitPan.x()).arg(fitPan.y());
 
+    // The trash button on a row deletes that shape, selected or not. The
+    // selection rebuilt the list, so the rows are looked up again.
+    canvas->clearAnnotSelection();
+    settle();
+    QQuickItem *trash = nullptr;
+    QQuickItem *firstRow = nullptr;
+    for (QQuickItem *r : list->childItems())
+        if (!firstRow && r->isVisible() && r->height() > 0)
+            firstRow = r;
+    if (firstRow) {
+        QList<QQuickItem *> inRow;
+        walk(firstRow, inRow);
+        for (QQuickItem *c : std::as_const(inRow))
+            if (c->property("iconName").toString() == QLatin1String("line-trash"))
+                trash = c;
+    }
+    if (!trash || !shown(trash)) {
+        fails << QStringLiteral("no visible trash button on a shape row");
+    } else {
+        const int n = canvas->annotCount();
+        QMetaObject::invokeMethod(trash, "clicked");
+        settle();
+        if (canvas->annotCount() != n - 1)
+            fails << QStringLiteral("the trash button left %1 shapes of %2").arg(canvas->annotCount()).arg(n);
+    }
+
     win->setProperty("layoutOverride", QStringLiteral("floating"));
     settle();
     QList<QQuickItem *> all;
@@ -3759,7 +3798,7 @@ static QString editorChromeCheck(QQuickWindow *win)
     settle();
     if (!fails.isEmpty())
         return QStringLiteral("FAIL (%1)").arg(fails.join(QStringLiteral("; ")));
-    return QStringLiteral("PASS (shape list, Fit and 1:1; floating: 3 tool groups, back, whole-image pill)");
+    return QStringLiteral("PASS (shape list, a row's trash, Fit and 1:1; floating: 3 tool groups, back, whole-image pill)");
 }
 
 void AppContext::devTestEditorChrome()
@@ -4518,7 +4557,7 @@ static QString leaveFieldCheck(QQuickWindow *win)
         return QStringLiteral("FAIL (settings page not found)");
     }
     const QVariant tab0 = page->property("tab");
-    page->setProperty("tab", 4);
+    page->setProperty("tab", 5); // After capture, where the file name template lives
     QCoreApplication::processEvents();
     const auto restore = [&] { page->setProperty("tab", tab0); win->setProperty("currentPage", page0); };
     auto *field = win->findChild<QQuickItem *>(QStringLiteral("settingsTemplateField"));

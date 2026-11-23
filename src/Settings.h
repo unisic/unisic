@@ -174,6 +174,8 @@ class Settings : public QObject
     Q_PROPERTY(QString clipSessionDirectory READ clipSessionDirectory WRITE setClipSessionDirectory NOTIFY clipSessionDirectoryChanged)
     Q_PROPERTY(bool clipSystemAudio READ clipSystemAudio WRITE setClipSystemAudio NOTIFY clipSystemAudioChanged)
     Q_PROPERTY(bool clipMicrophone READ clipMicrophone WRITE setClipMicrophone NOTIFY clipMicrophoneChanged)
+    Q_PROPERTY(int clipSystemVolume READ clipSystemVolume WRITE setClipSystemVolume NOTIFY clipSystemVolumeChanged)
+    Q_PROPERTY(int clipMicrophoneVolume READ clipMicrophoneVolume WRITE setClipMicrophoneVolume NOTIFY clipMicrophoneVolumeChanged)
     Q_PROPERTY(bool clipKeystrokes READ clipKeystrokes WRITE setClipKeystrokes NOTIFY clipKeystrokesChanged)
     Q_PROPERTY(bool clipStatusDot READ clipStatusDot WRITE setClipStatusDot NOTIFY clipStatusDotChanged)
     Q_PROPERTY(QString clipStatusCorner READ clipStatusCorner WRITE setClipStatusCorner NOTIFY clipStatusCornerChanged)
@@ -713,6 +715,10 @@ public:
     // the microphone device stay shared (GifRecorder reads them for both).
     U_SETTING(bool, clipSystemAudio, setClipSystemAudio, "clips/systemAudio", true)
     U_SETTING(bool, clipMicrophone, setClipMicrophone, "clips/microphone", false)
+    // Their volumes in percent (0-200), applied by ffmpeg's volume filter
+    // when the replay ring starts.
+    U_SETTING(int, clipSystemVolume, setClipSystemVolume, "clips/systemVolume", 100)
+    U_SETTING(int, clipMicrophoneVolume, setClipMicrophoneVolume, "clips/microphoneVolume", 100)
     U_SETTING(bool, clipKeystrokes, setClipKeystrokes, "clips/keystrokes", false)
     U_SETTING(bool, clipStatusDot, setClipStatusDot, "clips/statusDot", false)
     U_SETTING(QString, clipStatusCorner, setClipStatusCorner, "clips/statusCorner", QStringLiteral("top-right"))
@@ -789,8 +795,10 @@ public:
     // bundled monochrome glyphs, "system" = freedesktop QIcon::fromTheme.
     U_SETTING(QString, editorIconStyle, setEditorIconStyle, "ui/editorIconStyle", QStringLiteral("custom"))
     // Editor window arrangement: "panels" = tool rail left, options in an
-    // inspector column right; "floating" = full-bleed canvas with the same
-    // controls in floating pills. Same controls either way, only placement.
+    // inspector column right; "top" = the same with the options in a bar
+    // across the top; "bottom" = the same with the tools in a pill over
+    // the bottom of the image instead of the rail; "floating" = full-bleed canvas with the same controls
+    // in floating pills. Same controls every way, only placement.
     U_SETTING(QString, editorLayout, setEditorLayout, "ui/editorLayout", QStringLiteral("panels"))
     // Optional per-tool freedesktop icon-name overrides, JSON {"toolId":"name"}.
     U_SETTING(QString, editorToolIcons, setEditorToolIcons, "ui/editorToolIcons", QString())
@@ -906,7 +914,7 @@ public:
         emit replayWatermarkTypeChanged(); emit replayWatermarkImagePathChanged(); emit replayWatermarkOpacityChanged(); emit replayWatermarkScaleChanged();
         emit clipOpenReplayChanged(); emit clipUploadChanged(); emit clipAspectChanged(); emit clipShortSideChanged();
         emit clipSaveDirectoryChanged(); emit clipIndicatorChanged(); emit hotkeyReplayToggleChanged();
-        emit clipIndicatorStyleChanged(); emit clipKeepSessionChanged(); emit clipSessionDirectoryChanged(); emit clipSystemAudioChanged(); emit clipMicrophoneChanged(); emit clipKeystrokesChanged(); emit clipStatusDotChanged(); emit clipStatusCornerChanged(); emit clipSourceChanged(); emit recentGamesChanged();
+        emit clipIndicatorStyleChanged(); emit clipKeepSessionChanged(); emit clipSessionDirectoryChanged(); emit clipSystemAudioChanged(); emit clipMicrophoneChanged(); emit clipSystemVolumeChanged(); emit clipMicrophoneVolumeChanged(); emit clipKeystrokesChanged(); emit clipStatusDotChanged(); emit clipStatusCornerChanged(); emit clipSourceChanged(); emit recentGamesChanged();
         emit showCapturePopupChanged(); emit capturePopupPositionChanged();
         emit capturePopupDurationSecChanged(); emit capturePopupStyleChanged(); emit capturePopupMarginChanged();
         emit hiddenNotifActionsChanged(); emit notificationActionOrderChanged();
@@ -1055,6 +1063,8 @@ signals:
     void clipSessionDirectoryChanged();
     void clipSystemAudioChanged();
     void clipMicrophoneChanged();
+    void clipSystemVolumeChanged();
+    void clipMicrophoneVolumeChanged();
     void clipKeystrokesChanged();
     void clipStatusDotChanged();
     void clipStatusCornerChanged();

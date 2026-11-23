@@ -803,6 +803,13 @@ QStringList AudioCapture::ffmpegInput() const
             QStringLiteral("-i"), d->url};
 }
 
+// The MSYS2 ffmpeg has no audio output device, so Settings disables the
+// monitor here.
+QStringList AudioCapture::monitorArgs(const QString &, double)
+{
+    return {};
+}
+
 bool AudioCapture::inputListAvailable()
 {
     return true;

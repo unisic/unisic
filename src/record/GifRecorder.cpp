@@ -2,6 +2,7 @@
 #include "ClickCapture.h"
 #include "KeyCapture.h"
 #include "InputPermission.h"
+#include <QHash>
 #include <QPainter>
 #include <QPainterPath>
 #include <ctime>
@@ -225,6 +226,9 @@ void GifRecorder::start(Output output, SourceType source, const QRect &cropPhysi
             (void)FfmpegUtil::encoders();
             (void)FfmpegUtil::supportsShortestBufDuration();
             (void)FfmpegUtil::inputThreadQueueSize(2);
+            // The replay ring asks this on the GUI thread (beginEncoding); a
+            // cold probe there would block it for up to 8 s.
+            (void)FfmpegUtil::hardwareEncoderWorks(QStringLiteral("nvenc"));
         }));
     }
     m_state = Starting;
@@ -944,18 +948,24 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
     // audioInputs everywhere below.
     QStringList audioLabels;
     QVector<int> audioInputs;
+    // ffmpeg input index -> volume, for the inputs not left at 100 %.
+    QHash<int, double> inputGain;
     if (m_output != Gif) {
         struct Wanted {
             AudioCapture::Source source;
             QString label;
+            int volume; // percent
         };
         QList<Wanted> wanted;
         // Instant replay has its own switches (Settings > Clips).
         const bool replay = m_output == Replay;
+        // Only clips have their own volumes (Settings > Clips).
         if (replay ? m_settings->clipSystemAudio() : m_settings->recordSystemAudio())
-            wanted.append({AudioCapture::Source::System, tr("System audio")});
+            wanted.append({AudioCapture::Source::System, tr("System audio"),
+                           replay ? m_settings->clipSystemVolume() : 100});
         if (replay ? m_settings->clipMicrophone() : m_settings->recordMicrophone())
-            wanted.append({AudioCapture::Source::Microphone, tr("Microphone")});
+            wanted.append({AudioCapture::Source::Microphone, tr("Microphone"),
+                           replay ? m_settings->clipMicrophoneVolume() : 100});
         for (const Wanted &w : wanted) {
             QString error;
             auto capture = AudioCapture::open(w.source, m_settings->microphoneSource(), &error);
@@ -964,6 +974,8 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
                 return;
             }
             args << capture->ffmpegInput();
+            if (w.volume != 100)
+                inputGain.insert(nextInput, qBound(0, w.volume, 200) / 100.0);
             audioInputs << nextInput++;
             audioLabels << w.label;
             m_audioCaptures.push_back(std::move(capture));
@@ -1042,8 +1054,37 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
     // 7 min) and its audio was lost. Throughput is unchanged (98 fps at
     // 2560x1440 both ways) and the frame timestamps pass through untouched.
     const QSet<QString> &encoders = FfmpegUtil::encoders();
+    // Applied to the video input before the encoder, through filter_complex.
+    QString videoFilter;
     if (m_output == Replay) {
-        if (encoders.contains(QStringLiteral("libx264")) || encoders.isEmpty()) {
+        // The ring encodes all the time it runs, so it goes to NVENC whenever
+        // the encoder setting allows it ("auto" only once the probe warmed in
+        // start() says it encodes). NVENC takes the BGRx frames as they are and
+        // converts them on the GPU: measured on 10 s of 2560x1440 at 45 fps,
+        // 3.1 s of CPU against libx264 ultrafast's 21.4 s, at the same size.
+        // Its conversion is BT.601 limited range (the same pixels swscale
+        // gives libx264), but the stream would be tagged full-range GBR from
+        // the input, so setparams tags what it really is. VAAPI is not wired:
+        // untested on real hardware here.
+        const QString choice = m_settings->videoEncoder();
+        const bool nvenc = choice == QLatin1String("nvenc")
+                ? FfmpegUtil::hardwareEncoderAvailable(QStringLiteral("nvenc"))
+                : choice == QLatin1String("auto") && FfmpegUtil::hardwareEncoderWorks(QStringLiteral("nvenc"));
+        if (nvenc) {
+            videoFilter = QStringLiteral("setparams=range=tv:colorspace=smpte170m");
+            args << QStringLiteral("-c:v") << QStringLiteral("h264_nvenc")
+                 << QStringLiteral("-preset") << QStringLiteral("p1")
+                 << QStringLiteral("-tune") << QStringLiteral("ll")
+                 // No reordering delay, for the same -shortest start deadlock
+                 // -tune zerolatency avoids for x264 below.
+                 << QStringLiteral("-zerolatency") << QStringLiteral("1")
+                 << QStringLiteral("-rc") << QStringLiteral("vbr")
+                 << QStringLiteral("-cq")
+                 << QString::number(UnisicVideo::crfFromPercent(m_settings->videoQualityPercent()))
+                 << QStringLiteral("-b:v") << QStringLiteral("0")
+                 // The segment muxer cuts on these; each segment must decode alone.
+                 << QStringLiteral("-forced-idr") << QStringLiteral("1");
+        } else if (encoders.contains(QStringLiteral("libx264")) || encoders.isEmpty()) {
             args << QStringLiteral("-c:v") << QStringLiteral("libx264")
                  << QStringLiteral("-preset") << QStringLiteral("ultrafast")
                  << QStringLiteral("-tune") << QStringLiteral("zerolatency")
@@ -1056,7 +1097,8 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
             args << QStringLiteral("-c:v") << QStringLiteral("mpeg4")
                  << QStringLiteral("-q:v") << QStringLiteral("3");
         }
-        args << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p");
+        if (!nvenc)
+            args << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p");
     } else if (encoders.contains(QStringLiteral("libx264rgb")) || encoders.isEmpty()) {
         args << QStringLiteral("-c:v") << QStringLiteral("libx264rgb")
              << QStringLiteral("-preset") << QStringLiteral("ultrafast")
@@ -1070,6 +1112,10 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
 
     QStringList filters;
     QString videoMap = QStringLiteral("0:v");
+    if (!videoFilter.isEmpty()) {
+        filters << QStringLiteral("[0:v]") + videoFilter + QStringLiteral("[vout]");
+        videoMap = QStringLiteral("[vout]");
+    }
 
     // Separate tracks keep each source as its own stream, so the microphone can
     // be moved in an editor without the system audio following it. Mixing (the
@@ -1080,6 +1126,9 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
     const bool separateTracks = m_settings->separateAudioTracks() && audioInputs.size() >= 2;
     QString audioMap;
     QStringList trackMaps;
+    const auto volumeFilter = [&](int input) {
+        return QStringLiteral("[%1:a]volume=%2").arg(input).arg(QString::number(inputGain.value(input), 'f', 2));
+    };
     if (separateTracks) {
         QString mixInputs;
         for (const int input : std::as_const(audioInputs)) {
@@ -1095,6 +1144,11 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
                 filters << QStringLiteral("[%1:a]apad,asplit=2[fifomix%1][fifostem%1]").arg(input);
                 mixInputs += QStringLiteral("[fifomix%1]").arg(input);
                 trackMaps << QStringLiteral("[fifostem%1]").arg(input);
+            } else if (inputGain.contains(input)) {
+                // A filter output feeds one consumer: split it for the mix and the stem.
+                filters << volumeFilter(input) + QStringLiteral(",asplit=2[gmix%1][gstem%1]").arg(input);
+                mixInputs += QStringLiteral("[gmix%1]").arg(input);
+                trackMaps << QStringLiteral("[gstem%1]").arg(input);
             } else {
                 mixInputs += QStringLiteral("[%1:a]").arg(input);
                 trackMaps << QStringLiteral("%1:a").arg(input);
@@ -1106,11 +1160,23 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
         trackMaps.prepend(QStringLiteral("[mix]"));
         audioLabels.prepend(tr("Mix"));
     } else if (audioInputs.size() == 1) {
-        audioMap = QStringLiteral("%1:a").arg(audioInputs.first());
+        const int input = audioInputs.first();
+        if (inputGain.contains(input)) {
+            filters << volumeFilter(input) + QStringLiteral("[aout]");
+            audioMap = QStringLiteral("[aout]");
+        } else {
+            audioMap = QStringLiteral("%1:a").arg(input);
+        }
     } else if (audioInputs.size() >= 2) {
         QString labels;
-        for (int index : std::as_const(audioInputs))
-            labels += QStringLiteral("[%1:a]").arg(index);
+        for (int index : std::as_const(audioInputs)) {
+            if (inputGain.contains(index)) {
+                filters << volumeFilter(index) + QStringLiteral("[g%1]").arg(index);
+                labels += QStringLiteral("[g%1]").arg(index);
+            } else {
+                labels += QStringLiteral("[%1:a]").arg(index);
+            }
+        }
         filters << labels + QStringLiteral("amix=inputs=%1:duration=longest:normalize=0[aout]")
                              .arg(audioInputs.size());
         audioMap = QStringLiteral("[aout]");

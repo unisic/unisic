@@ -313,7 +313,9 @@ Item {
 
         // The real order of AppContext::finishCapture: save, copy, start
         // the upload, then open the editor. Keep the list in that order,
-        // or the subtitle and the numbers stop being true.
+        // or the subtitle and the numbers stop being true. A row with
+        // `parent` is part of the step above it (it waits for that step),
+        // so it takes no number of its own.
         Column {
             id: afterSection
             x: 20
@@ -358,6 +360,7 @@ Item {
                     id: stepsCol
                     width: parent.width
                     Repeater {
+                        id: stepsRepeater
                         model: [
                             { label: qsTr("Save to disk automatically"), key: "autoSave",
                               sub: App.settings.saveDirectory },
@@ -367,6 +370,9 @@ Item {
                               //: %1 is the name of the active upload server.
                               sub: App.settings.activeDestination !== "" ? qsTr("To %1").arg(App.settings.activeDestination)
                                                                          : qsTr("No server yet") },
+                            // Same setting as Settings > After capture > After upload.
+                            { label: qsTr("Copy link to clipboard"), key: "afterUploadCopyLink",
+                              parent: "uploadAfterCapture", sub: qsTr("When the upload finishes") },
                             { label: qsTr("Open the editor"), key: "openEditor",
                               sub: qsTr("Annotate and share from there") },
                         ]
@@ -375,10 +381,30 @@ Item {
                             required property var modelData
                             required property int index
                             readonly property bool on: App.settings[modelData.key]
+                            readonly property bool sub: !!modelData.parent
+                            // Rows above that are steps, not parts of one: this row's number.
+                            readonly property int number: {
+                                var n = 0
+                                for (var i = 0; i <= index; ++i)
+                                    if (!stepsRepeater.model[i].parent) ++n
+                                return n
+                            }
+                            enabled: !sub || App.settings[modelData.parent]
+                            opacity: enabled ? 1 : 0.5
                             width: stepsCol.width
                             height: Math.max(24, stepText.height) + (page.compact ? 12 : 18)
 
                             Rectangle {
+                                visible: step.sub
+                                x: 7; width: 10; height: 10
+                                radius: 5
+                                anchors.verticalCenter: parent.verticalCenter
+                                color: step.on ? Theme.accent : Theme.surface
+                                border.width: step.on ? 0 : 1.5
+                                border.color: Theme.tertiary
+                            }
+                            Rectangle {
+                                visible: !step.sub
                                 width: 24; height: 24
                                 radius: 12
                                 anchors.verticalCenter: parent.verticalCenter
@@ -387,7 +413,7 @@ Item {
                                 border.color: Theme.tertiary
                                 Text {
                                     anchors.centerIn: parent
-                                    text: step.index + 1
+                                    text: step.number
                                     color: step.on ? Theme.textOnAccent : Theme.textSecondary
                                     font.pixelSize: 11
                                     font.weight: Font.DemiBold
@@ -427,7 +453,8 @@ Item {
                                 anchors.verticalCenter: parent.verticalCenter
                                 checked: step.on
                                 //: Spoken name of an after-capture switch: step number, label.
-                                accessibleName: qsTr("Step %1, %2").arg(step.index + 1).arg(step.modelData.label)
+                                accessibleName: step.sub ? step.modelData.label
+                                                        : qsTr("Step %1, %2").arg(step.number).arg(step.modelData.label)
                                 onToggled: (c) => App.settings[step.modelData.key] = c
                             }
                         }

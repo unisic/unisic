@@ -159,7 +159,7 @@ Item {
     Timer {
         id: latchTimer
         interval: 0
-        onTriggered: if (!page.searchActive) page.latchPane(page.tab)
+        onTriggered: if (!page.searchActive) { page.latchPane(page.tab); page.refreshSections() }
     }
     // Marks a pane as really visited, so it survives the next tab switch with
     // its scroll position instead of being torn down. jumpTo calls it directly
@@ -171,6 +171,68 @@ Item {
                 ld.touched = true
         }
     }
+    // ---- "On this page": the open pane's groups, and the one in view ----
+    // [{ title, item }] in pane order, rebuilt when the pane changes. Only the
+    // titles visible at that moment: a group that appears later (a gate that
+    // flips while the pane is open) shows up on the next visit.
+    property var sections: []
+    property Flickable sectionPane: null
+    property int sectionPick: -1      // the group just clicked, while it stays put
+    property real sectionPickY: -1
+    function collectSections(obj, out) {
+        if (!obj || obj.visible === false)
+            return
+        if (obj.isSectionTitle === true && obj.text !== "")
+            out.push({ title: obj.text, item: obj })
+        var kids = obj.children
+        for (var i = 0; kids && i < kids.length; ++i)
+            collectSections(kids[i], out)
+    }
+    function refreshSections() {
+        var pane = null
+        for (var i = 0; i < paneArea.children.length; ++i) {
+            var ld = paneArea.children[i]
+            if (ld && ld.tabIndex === page.tab && ld.item)
+                pane = ld.item
+        }
+        var out = []
+        if (pane)
+            collectSections(pane, out)
+        sectionPick = -1
+        sectionPane = pane
+        // One group is no list: there is nothing to jump between.
+        sections = out.length > 1 ? out : []
+    }
+    onTabChanged: Qt.callLater(refreshSections)
+    function sectionY(i) {
+        return sections[i].item.mapToItem(sectionPane.contentItem, 0, 0).y
+    }
+    // The last group whose title has scrolled past the top third; the bottom
+    // of the pane belongs to the last group, which can never reach the top.
+    readonly property int currentSection: {
+        var fl = sectionPane
+        if (!fl || sections.length === 0)
+            return -1
+        var y = fl.contentY
+        if (sectionPick >= 0 && Math.abs(y - sectionPickY) < 1)
+            return sectionPick
+        if (y >= fl.contentHeight - fl.height - 1 && y > 0)
+            return sections.length - 1
+        var cur = 0
+        for (var i = 0; i < sections.length; ++i)
+            if (sectionY(i) <= y + fl.height / 3) cur = i
+        return cur
+    }
+    function scrollToSection(i) {
+        searchQuery = ""
+        var fl = sectionPane
+        if (!fl || !sections[i])
+            return
+        fl.contentY = Math.max(0, Math.min(sectionY(i) - Theme.spacingS, fl.contentHeight - fl.height))
+        sectionPickY = fl.contentY
+        sectionPick = i
+    }
+
     function jumpTo(result) {
         highlightRow = result.row || null
         highlightTimer.restart()
@@ -299,14 +361,14 @@ Item {
     // The Developer category (index 9) only exists in a dev build.
     readonly property var tabNames: {
         var t = [qsTr("General"), qsTr("Capture"), qsTr("Recording"), qsTr("Clips"), qsTr("Editor"),
-                 qsTr("Saving & uploads"), qsTr("Notifications"), qsTr("Appearance"), qsTr("Hotkeys")]
+                 qsTr("After capture"), qsTr("Notifications"), qsTr("Appearance"), qsTr("Hotkeys")]
         if (App.devBuild)
             t.push(qsTr("Developer"))
         return t
     }
     readonly property var tabIcons: {
         var t = ["line-sliders", "line-camera", "line-record", "line-film", "line-pencil",
-                 "line-save", "line-bell", "line-palette", "line-keyboard"]
+                 "line-send", "line-bell", "line-palette", "line-keyboard"]
         if (App.devBuild)
             t.push("line-terminal")
         return t
@@ -409,6 +471,10 @@ Item {
         id: settingRow
         readonly property bool isSettingRow: true   // marker for the settings search
         property alias label: labelText.text
+        // A line icon (bundled "line-*" name) in a tinted tile left of the
+        // label, so a pane reads at a glance. Every row of a pane sets one or
+        // none, or the labels stop lining up.
+        property string icon: ""
         property string help: ""
         property string helpDetail: ""
         // Capability gating: unavailable options are greyed out (not hidden) with
@@ -483,9 +549,27 @@ Item {
                 height: stacked ? labelCol.implicitHeight + Theme.spacingS + slot.height
                                 : Math.max(44, labelCol.implicitHeight)
 
+                Rectangle {
+                    id: iconTile
+                    visible: settingRow.icon !== ""
+                    width: 32; height: 32
+                    radius: Theme.radiusS
+                    color: Theme.alpha(Theme.accent, 0.14)
+                    anchors.left: parent.left
+                    anchors.top: head.stacked ? parent.top : undefined
+                    anchors.verticalCenter: head.stacked ? undefined : parent.verticalCenter
+                    opacity: settingRow.available ? 1.0 : 0.5
+                    UIcon {
+                        anchors.centerIn: parent
+                        name: settingRow.icon
+                        size: 18
+                        color: Theme.accent
+                    }
+                }
                 Column {
                     id: labelCol
                     anchors.left: parent.left
+                    anchors.leftMargin: iconTile.visible ? iconTile.width + 12 : 0
                     anchors.right: head.stacked ? parent.right : slot.left
                     anchors.rightMargin: head.stacked ? 0 : Theme.spacingM
                     anchors.top: head.stacked ? parent.top : undefined
@@ -757,6 +841,7 @@ Item {
     // A group heading in the Capture page's language (SectionLabel). Kept as
     // its own name so the 34 headings below did not each need an edit.
     component SectionTitle: SectionLabel {
+        readonly property bool isSectionTitle: true   // marker for the "On this page" list
         Accessible.role: Accessible.Heading
         Accessible.name: text
         // Capture keeps 12 px between a label and its tiles; the section
@@ -838,23 +923,35 @@ Item {
         property string iconName: ""
         property string label: ""
         property bool active: false
+        // A group of the open category ("On this page"): no icon, its label
+        // under the category labels, the active one marked by an accent bar.
+        property bool section: false
         signal clicked()
         function _activate() { nav.clicked() }
         width: parent ? parent.width : 180
-        height: 36
+        height: section ? 30 : 36
         radius: Theme.radiusS
-        color: active ? Theme.secondary
+        color: (active && !section) ? Theme.secondary
              : navMouse.containsMouse ? Theme.surfaceTop
              : "transparent"
+        Rectangle {
+            visible: nav.section && nav.active
+            x: 28; width: 2; radius: 1
+            height: parent.height - 12
+            anchors.verticalCenter: parent.verticalCenter
+            color: Theme.accent
+        }
         Behavior on color { ColorAnimation { duration: Theme.animFast } }
         Row {
             anchors.left: parent.left
-            anchors.leftMargin: 12
+            // A section's label starts under the category labels (12 + 16 icon + 10).
+            anchors.leftMargin: nav.section ? 38 : 12
             anchors.verticalCenter: parent.verticalCenter
             spacing: 10
             UIcon {
                 name: nav.iconName
                 size: 16
+                visible: !nav.section
                 color: nav.active ? Theme.accent : Theme.textSecondary
                 anchors.verticalCenter: parent.verticalCenter
             }
@@ -867,8 +964,8 @@ Item {
                 width: Math.max(0, nav.width - 48)
                 elide: Text.ElideRight
                 text: nav.label
-                color: nav.active ? Theme.textPrimary : Theme.textSecondary
-                font.pixelSize: 13
+                color: nav.active ? (nav.section ? Theme.accent : Theme.textPrimary) : Theme.textSecondary
+                font.pixelSize: nav.section ? Theme.fontS : 13
                 // The kit SidebarItem's weights; the label has a fixed width,
                 // so the bolder active weight cannot move anything.
                 font.weight: nav.active ? Font.DemiBold : Font.Medium
@@ -1052,6 +1149,30 @@ Item {
                     active: page.tab === index && !page.searchActive
                     // Picking a category is a navigation intent — leave search.
                     onClicked: { page.searchQuery = ""; page.tab = index }
+                }
+            }
+            // The open category's groups, BELOW every category so a category
+            // never moves when another one is picked: a list expanding under
+            // the active category would slide the ones beneath it away from
+            // the pointer mid-click.
+            Item { width: 1; height: page.sections.length > 0 ? Theme.spacingM : 0 }
+            SectionLabel {
+                visible: page.sections.length > 0
+                leftPadding: 12
+                bottomPadding: 4
+                text: qsTr("On this page")
+                Accessible.role: Accessible.Heading
+                Accessible.name: text
+            }
+            Repeater {
+                model: page.sections
+                delegate: NavItem {
+                    required property int index
+                    required property var modelData
+                    section: true
+                    label: modelData.title
+                    active: page.currentSection === index && !page.searchActive
+                    onClicked: page.scrollToSection(index)
                 }
             }
         }
@@ -1265,6 +1386,7 @@ Item {
                     SectionTitle { text: qsTr("General") }
                     SettingRow {
                         label: qsTr("Language")
+                        icon: "line-globe"
                         help: qsTr("Language of the Unisic interface.")
                         helpDetail: qsTr("“System” follows your desktop locale. Changing the language applies immediately to the interface; a few system dialogs may only switch after a restart.")
                         UComboBox {
@@ -1279,12 +1401,14 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Closing the window minimizes to tray")
+                        icon: "line-tray"
                         help: qsTr("Close button hides to the tray instead of quitting.")
                         helpDetail: qsTr("The app keeps running in the background: global hotkeys, uploads and recordings stay active. Quit for real from the tray icon's menu.")
                         USwitch { checked: App.settings.minimizeToTrayOnClose; onToggled: (c) => App.settings.minimizeToTrayOnClose = c }
                     }
                     SettingRow {
                         label: qsTr("Start at login (minimized to tray)")
+                        icon: "line-power"
                         help: qsTr("Launches Unisic automatically when you log in.")
                         helpDetail: qsTr("Creates an XDG autostart entry that starts the app hidden in the tray, so hotkeys work right away without a visible window.")
                         USwitch { checked: App.autostartEnabled; onToggled: (c) => App.autostartEnabled = c }
@@ -1300,6 +1424,7 @@ Item {
                     SectionTitle { text: qsTr("Updates") }
                     SettingRow {
                         label: qsTr("Current version")
+                        icon: "line-tag"
                         help: qsTr("The Unisic version you are running. Click it to see what's new.")
                         Text {
                             id: settingsVersion
@@ -1349,6 +1474,7 @@ Item {
                               ? page.externalUpdateHint
                               : qsTr("Automatic checks are disabled in dev builds.")
                         label: qsTr("Automatic updates")
+                        icon: "line-refresh"
                         help: qsTr("Checks for a new release shortly after startup and once a day, then installs it in the background.")
                         helpDetail: qsTr("Only the latest release version is fetched from the GitHub API - nothing about you or your system is sent. AppImage installs are downloaded and swapped in place automatically; the new version starts on the next launch (or via the tray's Restart entry). Package installs are updated by the system package manager instead.")
                         USwitch {
@@ -1360,6 +1486,7 @@ Item {
                         available: App.buildNumber !== "dev" && !App.updater.updatesManagedExternally
                         hint: App.updater.updatesManagedExternally ? page.externalUpdateHint : ""
                         label: qsTr("Update channel")
+                        icon: "line-branch"
                         help: qsTr("Which releases to offer: stable only, or the newest including pre-releases.")
                         helpDetail: qsTr("Beta fetches the most recent GitHub release even when it is marked a pre-release, so you get new features earlier at the cost of stability.")
                         UComboBox {
@@ -1378,6 +1505,7 @@ Item {
                         available: !App.updater.updatesManagedExternally
                         hint: page.externalUpdateHint
                         label: qsTr("Check now")
+                        icon: "line-search"
                         help: qsTr("Ask GitHub for the latest release immediately.")
                         UButton {
                             compact: true
@@ -1473,6 +1601,7 @@ Item {
                     SectionTitle { text: qsTr("Statistics") }
                     SettingRow {
                         label: qsTr("Screenshots taken")
+                        icon: "line-chart"
                         help: statsGroup.stats.readable
                               ? qsTr("%1 today, %2 this month, %3 this year, %4 in all.")
                                     .arg(statsGroup.stats.today).arg(statsGroup.stats.month)
@@ -1506,6 +1635,7 @@ Item {
                     SectionTitle { text: qsTr("Diagnostics") }
                     SettingRow {
                         label: qsTr("System check")
+                        icon: "line-check-circle"
                         help: qsTr("Check that every packaged runtime tool is present.")
                         helpDetail: qsTr("Unisic packages include or require FFmpeg, wl-clipboard and the OCR data packs. If one is missing, the installation is incomplete; the check names what must be repaired.")
                         UButton {
@@ -1517,6 +1647,7 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Welcome screen")
+                        icon: "line-sparkle"
                         help: qsTr("Reopen the short setup card shown on the first launch.")
                         helpDetail: qsTr("Lists the shortcuts that are bound, where captures are saved and what happens after each one, and lets you change the theme, language and after-capture actions. Opening it from here never changes anything on its own - leave it with Skip and nothing is touched.")
                         UButton {
@@ -1528,6 +1659,7 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Diagnostics")
+                        icon: "line-pulse"
                         help: qsTr("Copy a text summary of your setup for a bug report.")
                         helpDetail: qsTr("Copies your Unisic and Qt versions, desktop and session, compiled-in features and detected tools to the clipboard. Nothing is sent anywhere - you paste it into an issue yourself.")
                         UButton {
@@ -1540,6 +1672,7 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Activity log")
+                        icon: "line-file-text"
                         help: qsTr("See, filter or copy what Unisic has been doing this run.")
                         helpDetail: qsTr("Unisic keeps the last few hundred log lines and writes them to a file, so a crash still leaves something to attach. Passwords, upload tokens and your home folder are removed before anything is stored, and nothing is ever sent anywhere - you paste it into an issue yourself. The file is kept for this run and the one before it.")
                         // Icons with their names as tooltips, as on the sound
@@ -1609,6 +1742,7 @@ Item {
                     SectionTitle { text: qsTr("Capture behavior") }
                     SettingRow {
                         label: qsTr("Capture delay")
+                        icon: "line-timer"
                         help: qsTr("Waits this long before taking the capture.")
                         helpDetail: qsTr("Gives you time to open menus or tooltips that would close when the capture UI appears. Applies to every capture mode, including hotkeys.")
                         UValueCombo {
@@ -1622,18 +1756,21 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Hide Unisic while capturing")
+                        icon: "line-eye-off"
                         help: qsTr("Takes the Unisic window off screen so it never lands in the shot.")
                         helpDetail: qsTr("Applies when the Unisic window is in front as a capture or recording starts, and the window comes back as soon as it ends. A window behind another app stays where it is, because showing it again would bring it to the front. Turn this off only when Unisic itself is the subject, for example when taking documentation screenshots.")
                         USwitch { checked: App.settings.hideWindowOnCapture; onToggled: (c) => App.settings.hideWindowOnCapture = c }
                     }
                     SettingRow {
                         label: qsTr("Include mouse cursor")
+                        icon: "line-cursor"
                         help: App.capScreenshotCursor ? qsTr("Draws the mouse pointer into the capture.") : qsTr("The plain Screenshot portal cannot include the cursor on this desktop.")
                         helpDetail: qsTr("KWin ScreenShot2, grim and recording ScreenCast streams support cursor embedding. The plain portal Screenshot API does not expose a cursor mode.")
                         USwitch { checked: App.settings.includeCursor; enabled: App.capScreenshotCursor || App.devBuild; onToggled: (c) => App.settings.includeCursor = c }
                     }
                     SettingRow {
                         label: qsTr("Do not disturb while capturing")
+                        icon: "line-moon"
                         help: App.capDoNotDisturb
                               ? qsTr("Temporarily pauses desktop notifications during captures and recordings.")
                               : qsTr("Available on KDE Plasma; this desktop does not expose the compatible notification inhibitor.")
@@ -1646,18 +1783,21 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Capture on release")
+                        icon: "line-click"
                         help: qsTr("Takes the screenshot the moment you release the selection.")
                         helpDetail: qsTr("Region screenshots only: releasing the mouse button after drawing the selection captures immediately - no Enter, double-click or toolbar button. This skips the on-overlay annotation stage (you can still annotate afterwards in the editor). Picking a GIF recording region is unaffected and keeps its Start button.")
                         USwitch { checked: App.settings.captureOnRelease; onToggled: (c) => App.settings.captureOnRelease = c }
                     }
                     SettingRow {
                         label: qsTr("Keep region between captures")
+                        icon: "line-rect"
                         help: qsTr("The selection overlay opens with your last region already selected.")
                         helpDetail: qsTr("Region screenshots only: the rectangle of your most recent region capture is pre-selected on its screen, so repeating a shot is just Enter (or a drag to adjust). The rectangle survives an app restart. The tray menu and `unisic --recapture` still repeat it without opening the overlay at all.")
                         USwitch { checked: App.settings.rememberRegion; onToggled: (c) => App.settings.rememberRegion = c }
                     }
                     SettingRow {
                         label: qsTr("Full screen captures")
+                        icon: "line-monitor"
                         help: qsTr("What the full-screen capture takes: every monitor, or the one under the cursor.")
                         helpDetail: qsTr("“All monitors” grabs the whole workspace stitched together. “Screen under cursor” grabs only the monitor the pointer is on - handy on multi-monitor setups. Applies to the hotkey, the tray entry and `unisic --fullscreen` alike; the tray's dedicated screen-under-cursor entry and `unisic --monitor` always take a single screen.")
                         UComboBox {
@@ -1670,6 +1810,7 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Measurement copy format")
+                        icon: "line-ruler"
                         help: qsTr("How the ruler's sizes are written when you press Ctrl+C.")
                         helpDetail: qsTr("The Measure tool copies its measurements as text. Readable: “842 × 317” / “412 px”. Plain: “842x317” / “412”. CSS: “width: 842px; height: 317px”.")
                         UComboBox {
@@ -1688,37 +1829,113 @@ Item {
                 Column {
                     width: parent.width
                     spacing: Theme.spacingS
-                    SectionTitle { text: qsTr("After capture") }
-                    Text {
+                    SectionTitle { text: qsTr("Capture overlay") }
+                    // The overlay can only be seen by starting a capture, over
+                    // whatever happens to be on screen and holding an exclusive
+                    // keyboard grab - so the options below were invisible until
+                    // you committed to a shot, and the toolbar drop-down and the
+                    // mode badge went unnoticed entirely (user-reported). The
+                    // mock draws them all instead, live. The mode picker drives
+                    // only the picture; it saves nothing.
+                    Column {
                         width: parent.width
-                        wrapMode: Text.WordWrap
-                        text: qsTr("Each enabled action runs immediately when the region is dropped. The editor opens alongside the others without blocking them.")
-                        color: Theme.textTertiary
-                        font.pixelSize: Theme.fontS
+                        spacing: Theme.spacingS
+                        UOverlayPreview {
+                            id: overlayPreview
+                            width: parent.width
+                            // The picked mode lives here, not in the combo:
+                            // UComboBox only EMITS activated and leaves
+                            // currentIndex to its consumer, so a plain
+                            // currentIndex binding never moves.
+                            property int modeIndex: 0
+                            purpose: overlayPreview.modes[modeIndex].id
+                        }
+                        Row {
+                            spacing: Theme.spacingS
+                            Text {
+                                text: qsTr("Preview mode")
+                                color: Theme.textSecondary
+                                font.pixelSize: Theme.fontM
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                            UComboBox {
+                                width: 200
+                                model: overlayPreview.modes.map((m) => m.label)
+                                currentIndex: overlayPreview.modeIndex
+                                onActivated: (i) => overlayPreview.modeIndex = i
+                                Accessible.name: qsTr("Preview mode")
+                            }
+                        }
+                        Text {
+                            width: parent.width
+                            wrapMode: Text.WordWrap
+                            text: qsTr("A mock screen, not a capture: every setting in this card is drawn here as you change it. Switch the mode to see what the overlay looks like when a hotkey starts a measurement or a recording instead of a screenshot.")
+                            color: Theme.textTertiary
+                            font.pixelSize: Theme.fontS
+                        }
                     }
                     SettingRow {
-                        label: qsTr("Copy image to clipboard")
-                        help: qsTr("Puts every capture on the clipboard automatically.")
-                        helpDetail: qsTr("On Wayland the copy is mirrored through wl-copy (when installed), which keeps the clipboard content alive reliably even when no Unisic window has focus.")
-                        USwitch { checked: App.settings.copyToClipboard; onToggled: (c) => App.settings.copyToClipboard = c }
+                        label: qsTr("Toolbar position")
+                        icon: "line-layout"
+                        help: qsTr("Where the annotation toolbar sits on the selection overlay.")
+                        helpDetail: qsTr("“Follow selection” keeps it glued to the selected region; the fixed positions pin it to a screen edge, which helps when it keeps covering what you select.")
+                        UComboBox {
+                            width: 200
+                            model: page.toolbarPosNames
+                            currentIndex: Math.max(0, page.toolbarPosIds.indexOf(App.settings.overlayToolbarPosition))
+                            onActivated: (i) => App.settings.overlayToolbarPosition = page.toolbarPosIds[i]
+                        }
                     }
                     SettingRow {
-                        label: qsTr("Save to disk automatically")
-                        help: qsTr("Saves every capture into your save folder without asking.")
-                        helpDetail: qsTr("Files are named from the filename template. When off, a capture exists only in the notification/editor until you save it explicitly.")
-                        USwitch { checked: App.settings.autoSave; onToggled: (c) => App.settings.autoSave = c }
+                        label: qsTr("Toolbar icon size")
+                        icon: "line-resize"
+                        help: qsTr("How big the tool icons on the selection overlay are.")
+                        helpDetail: qsTr("The icons are drawn for 24 px, where their lines are cleanest. At other sizes thin diagonal lines can look a little softer or jagged.")
+                        UValueCombo {
+                            width: 110
+                            values: [16, 18, 20, 22, 24, 26]
+                            from: 16; to: 26
+                            suffix: " px"
+                            value: ToolCatalog.overlayIconSize
+                            accessibleName: qsTr("Toolbar icon size")
+                            // A typed odd size is stored as the even one it draws at.
+                            onChanged: (v) => App.settings.overlayIconSize = Math.round(v / 2) * 2
+                        }
                     }
                     SettingRow {
-                        label: qsTr("Upload to the server")
-                        help: qsTr("Uploads every capture immediately after taking it.")
-                        helpDetail: qsTr("Uses the server selected on the Servers page. What happens with the link afterwards is set under After upload.")
-                        USwitch { checked: App.settings.uploadAfterCapture; onToggled: (c) => App.settings.uploadAfterCapture = c }
+                        label: qsTr("Show which capture mode is running")
+                        icon: "line-info"
+                        help: qsTr("A mode indicator and a colored screen frame on the selection overlay.")
+                        helpDetail: qsTr("The overlay looks the same whether you are taking a screenshot, measuring, reading text or starting a recording, so a mis-fired hotkey only shows itself once the shot is taken - or the recording has already started. With this on, the mode is drawn on the overlay (as a badge or a faded icon, whichever style is picked below), the screen edge and the selection handles take that mode's color, and the overlay's own colors come from the theme (a custom theme can set modeShot, modeMeasure, modeOcr, modeGif and modeVideo). The confirm button and the hint always name the right action, with this on or off.")
+                        USwitch { checked: App.settings.overlayModeBadge; onToggled: (c) => App.settings.overlayModeBadge = c }
                     }
                     SettingRow {
-                        label: qsTr("Open the editor")
-                        help: qsTr("Opens every capture in the annotation editor.")
-                        helpDetail: qsTr("The editor never blocks other after-capture actions: saving, copying and uploading run independently at the same time.")
-                        USwitch { checked: App.settings.openEditor; onToggled: (c) => App.settings.openEditor = c }
+                        label: qsTr("Mode indicator style")
+                        icon: "line-sliders"
+                        available: App.settings.overlayModeBadge
+                        help: qsTr("Name the mode in a badge at the top, or draw its icon faded in the middle.")
+                        helpDetail: qsTr("“Badge at the top” names the mode in a pill above the screen, which is unmissable but is a strip of chrome over the desktop you are about to capture. “Icon in the middle” draws that mode's icon large and faded in the center of the screen instead, with your selection cut out of it: the part you are framing over is not drawn, and the rest keeps naming the capture. The colored screen frame and selection handles stay in both.")
+                        UComboBox {
+                            width: 200
+                            model: [qsTr("Badge at the top"), qsTr("Icon in the middle")]
+                            readonly property var ids: ["badge", "icon"]
+                            currentIndex: Math.max(0, ids.indexOf(App.settings.overlayModeStyle))
+                            onActivated: (i) => App.settings.overlayModeStyle = ids[i]
+                        }
+                    }
+                    SettingRow {
+                        label: qsTr("Show alignment guides while selecting")
+                        icon: "line-guides"
+                        help: qsTr("Crosshair lines from the cursor to the screen edges.")
+                        helpDetail: qsTr("Shown while picking a region (screenshots and recordings alike) to help align the selection with on-screen elements. Purely visual and never captured into the image.")
+                        USwitch { checked: App.settings.selectionGuides; onToggled: (c) => App.settings.selectionGuides = c }
+                    }
+                    SettingRow {
+                        label: qsTr("Show a pixel loupe while selecting")
+                        icon: "line-magnify"
+                        help: qsTr("A magnifier by the cursor shows the exact pixel you are on.")
+                        helpDetail: qsTr("A zoomed pixel grid follows the cursor with the hovered pixel highlighted, plus its position and color - so a selection edge lands on exactly the pixel you mean. Scroll on the overlay to zoom it in and out; scroll all the way out to hide the loupe. Purely visual and never captured into the image.")
+                        USwitch { checked: App.settings.pixelLoupe; onToggled: (c) => App.settings.pixelLoupe = c }
                     }
                 }
             }
@@ -1738,6 +1955,7 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Stamp screenshots")
+                        icon: "line-stamp"
                         help: qsTr("Applies the selected stamp to every new screenshot.")
                         helpDetail: qsTr("The stamp is baked into the final capture once, before the independent save, clipboard, upload, history and editor actions. It does not alter existing files. Recordings have their own watermark, under Recording.")
                         USwitch { checked: App.settings.watermarkEnabled; onToggled: (c) => App.settings.watermarkEnabled = c }
@@ -1756,6 +1974,7 @@ Item {
                     SettingRow {
                         available: App.settings.watermarkEnabled
                         label: qsTr("Stamp")
+                        icon: "line-sliders"
                         UComboBox {
                             width: 180
                             model: [qsTr("Text"), qsTr("Logo image")]
@@ -1769,6 +1988,7 @@ Item {
                         readonly property bool logo: App.settings.watermarkType === "image"
                         available: App.settings.watermarkEnabled
                         label: logo ? qsTr("Logo image") : qsTr("Text")
+                        icon: logo ? "line-image" : "line-text"
                         help: logo ? (App.settings.watermarkImagePath.length > 0
                                       ? App.settings.watermarkImagePath
                                       : qsTr("Choose a PNG, SVG, JPEG or WebP image."))
@@ -1795,6 +2015,7 @@ Item {
                     SettingRow {
                         available: App.settings.watermarkEnabled
                         label: qsTr("Pattern")
+                        icon: "line-pencil"
                         help: qsTr("One stamp, or a ready-made layout that covers the whole capture.")
                         helpDetail: qsTr("One stamp sits where Position says. Tiled and Diagonal repeat a small stamp across the picture, staggered row by row, which is what makes a screenshot awkward to crop the mark out of. Four corners puts one in each corner. Diagonal band is a single large stamp running across the middle. Everything except One stamp covers the whole capture and ignores Position.")
                         UComboBox {
@@ -1814,6 +2035,7 @@ Item {
                         available: App.settings.watermarkEnabled
                                    && App.settings.watermarkPattern === "single"
                         label: qsTr("Position")
+                        icon: "line-position"
                         help: qsTr("Corner, center edge, or middle of the image for the watermark.")
                         UComboBox {
                             width: 180
@@ -1825,6 +2047,7 @@ Item {
                     SettingRow {
                         available: App.settings.watermarkEnabled
                         label: qsTr("Size")
+                        icon: "line-resize"
                         help: qsTr("How big the stamp is, against the size the pattern picks itself.")
                         helpDetail: qsTr("100% is the pattern's own size, which is a fraction of the capture's shorter side - so one setting looks the same on a 720p window and a 4K screen. Below 100% the stamp shrinks and a tiled pattern packs tighter; above it the stamp grows and the tiles spread out. A logo is scaled from the file you chose, so pushing a small logo far past 100% will look soft.")
                         UValueCombo {
@@ -1841,6 +2064,7 @@ Item {
                     SettingRow {
                         available: App.settings.watermarkEnabled
                         label: qsTr("Opacity: %1%").arg(App.settings.watermarkOpacity)
+                        icon: "line-opacity"
                         help: qsTr("How strongly the watermark appears over the capture.")
                         USlider {
                             width: 200
@@ -1870,6 +2094,7 @@ Item {
                         readonly property bool win: App.ocrEngines.indexOf("windows") >= 0
                         readonly property var ids: App.ocrEngines
                         label: qsTr("OCR engine")
+                        icon: "line-text-scan"
                         // Only the text changes when the answer lands, so the
                         // row keeps its place; the combo shows the engine that
                         // actually runs (OcrEngines::effective()).
@@ -1895,6 +2120,7 @@ Item {
                     SettingRow {
                         available: App.ocrEffectiveEngine === "tesseract"
                         label: qsTr("Detect languages automatically")
+                        icon: "line-globe"
                         help: qsTr("Detects the script and recognizes with the matching language pack.")
                         helpDetail: qsTr("No need to know Tesseract language codes. With the OSD data installed (the “osd” Tesseract pack), Unisic detects the script of each capture - Latin, Arabic, Hebrew, Chinese/Japanese/Korean, Devanagari, and so on - and recognizes with just that script's installed packs, which is faster and more accurate than loading them all. Without the OSD pack it falls back to loading every installed pack. Install the packs for the scripts you use.")
                         USwitch { checked: App.settings.ocrAutoLanguage; onToggled: (c) => App.settings.ocrAutoLanguage = c }
@@ -1902,6 +2128,7 @@ Item {
                     SettingRow {
                         available: App.ocrEffectiveEngine === "tesseract" && !App.settings.ocrAutoLanguage
                         label: qsTr("OCR languages")
+                        icon: "line-text"
                         help: qsTr("Tesseract language spec used when recognizing text.")
                         helpDetail: qsTr("Combine languages with “+”, e.g. “pol+eng”; each needs its Tesseract langpack installed. OCR also scans QR and bar codes: a code found in the region copies its content instead of the surrounding text.")
                         UTextField {
@@ -1921,61 +2148,6 @@ Item {
                         text: qsTr("No Tesseract language pack is installed, so OCR can't recognize anything yet. Install one, e.g. “tesseract-langpack-eng”.")
                         color: Theme.danger
                         font.pixelSize: Theme.fontS
-                    }
-                }
-            }
-
-            SettingsGroup {
-                width: page.cardWidth
-                Column {
-                    width: parent.width
-                    spacing: Theme.spacingS
-                    SectionTitle { text: qsTr("External action") }
-                    Text {
-                        width: parent.width
-                        wrapMode: Text.WordWrap
-                        text: qsTr("Run one program after each capture. Use $input for the capture file and $output for an optional result file. Commands are launched directly, without a shell.")
-                        color: Theme.textTertiary
-                        font.pixelSize: Theme.fontS
-                    }
-                    SettingRow {
-                        label: qsTr("Command")
-                        help: qsTr("Example: oxipng -o 4 $input --out $output")
-                        helpDetail: qsTr("If the program is missing or exits with an error, the other save/copy/upload/editor actions still continue.")
-                        UTextField {
-                            // Caps at 420 on wide windows but shrinks with the card
-                            // so the label + field never overflow the narrow (min
-                            // window) card and clip the label off-screen.
-                            width: Math.min(420, page.cardWidth - 140)
-                            text: App.settings.externalActionCommand
-                            placeholder: qsTr("program $input $output")
-                            onEdited: (t) => App.settings.externalActionCommand = t
-                        }
-                    }
-                    SettingRow {
-                        label: qsTr("Give up after")
-                        help: qsTr("How long the program may run before Unisic stops it.")
-                        helpDetail: qsTr("A program that never finishes would otherwise hold the capture's temporary file for the rest of the session. Raise this if your command does real work, such as uploading a large file.")
-                        UValueCombo {
-                            width: 130
-                            // Bounds come from ExternalActionRunner via Settings,
-                            // so the field can never offer a value the capture
-                            // path would clamp behind it.
-                            values: [30, 60, 120, 300, 600, 1800]
-                            from: App.settings.externalActionTimeoutMinSec
-                            to: App.settings.externalActionTimeoutMaxSec
-                            suffix: " s"
-                            value: App.settings.externalActionTimeoutSec
-                            onChanged: (v) => App.settings.externalActionTimeoutSec = v
-                        }
-                    }
-                    SettingRow {
-                        label: qsTr("Run after capture")
-                        USwitch {
-                            checked: App.settings.externalActionEnabled
-                            enabled: App.settings.externalActionCommand.trim() !== ""
-                            onToggled: (c) => App.settings.externalActionEnabled = c
-                        }
                     }
                 }
             }
@@ -2016,6 +2188,7 @@ Item {
                     SectionTitle { text: qsTr("Recording") }
                     SettingRow {
                         label: qsTr("Countdown before recording")
+                        icon: "line-timer"
                         help: qsTr("Waits this many seconds before recording starts, showing a 3-2-1 cue.")
                         helpDetail: qsTr("Gives you a moment to switch windows or get ready. 0 starts immediately. Applies to GIF and video, region and full screen.")
                         UValueCombo {
@@ -2040,12 +2213,14 @@ Item {
                     SectionTitle { text: qsTr("Video") }
                     SettingRow {
                         label: qsTr("Video frame rate")
+                        icon: "line-film"
                         help: qsTr("Frames per second for video recordings.")
                         helpDetail: qsTr("30 fps suits most screen content; 60 fps doubles smoothness and file size.")
                         UComboBox { width: 130; model: ["15 FPS", "30 FPS", "45 FPS", "60 FPS"]; readonly property var opts: [15,30,45,60]; currentIndex: page.nearestFps(App.settings.videoFps); onActivated: (i) => App.settings.videoFps = opts[i] }
                     }
                     SettingRow {
                         label: qsTr("Video quality")
+                        icon: "line-gauge"
                         help: qsTr("How much detail the encoder keeps, from 0% to 100%.")
                         helpDetail: qsTr("100% is mathematically lossless and very large, 50% is the balanced default, and below 25% small text starts to smear. The percent is turned into an encoder CRF, so the same number means the same picture on every codec here.")
                         UValueCombo {
@@ -2059,6 +2234,7 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("MP4 encoder")
+                        icon: "line-cpu"
                         help: qsTr("Automatic picks a working hardware encoder; it is much faster than software.")
                         helpDetail: qsTr("Automatic uses VAAPI or NVENC when they actually encode on this machine, and falls back to software otherwise - a hardware encoder that is merely listed but broken is skipped. Hardware encoding accelerates MP4 (H.264); WebM uses AV1 on NVIDIA GPUs with an AV1 encoder (RTX 40 series and newer) and software VP9 everywhere else.")
                         UComboBox {
@@ -2079,6 +2255,7 @@ Item {
                     SettingRow {
                         visible: App.settings.videoFormat === "webm"
                         label: qsTr("WebM is slow to save")
+                        icon: "line-info"
                         help: qsTr("VP9 (WebM) has no hardware encoder here and takes several times longer than MP4. Switch the format to MP4 above for fast, hardware-accelerated saves.")
                     }
                 }
@@ -2092,12 +2269,14 @@ Item {
                     SectionTitle { text: qsTr("GIF") }
                     SettingRow {
                         label: qsTr("GIF frame rate")
+                        icon: "line-film"
                         help: qsTr("Frames per second sampled into the GIF.")
                         helpDetail: qsTr("Higher is smoother but grows the file quickly. 10-15 fps is usually plenty for UI demos.")
                         UComboBox { width: 130; model: ["15 FPS", "30 FPS", "45 FPS", "60 FPS"]; readonly property var opts: [15,30,45,60]; currentIndex: page.nearestFps(App.settings.gifFps); onActivated: (i) => App.settings.gifFps = opts[i] }
                     }
                     SettingRow {
                         label: qsTr("GIF max duration")
+                        icon: "line-timer"
                         help: qsTr("Auto-stops GIF recording after this many seconds. 0 = unlimited.")
                         helpDetail: qsTr("A safety cap, since GIFs get huge fast. 0 disables the cap and recording runs until you stop it.")
                         UValueCombo {
@@ -2112,6 +2291,7 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("GIF quality")
+                        icon: "line-gauge"
                         help: qsTr("Color fidelity of the generated GIF.")
                         helpDetail: qsTr("Higher quality uses a richer palette (two-pass palettegen) at the cost of file size and conversion time.")
                         UComboBox {
@@ -2135,6 +2315,7 @@ Item {
                     SectionTitle { text: qsTr("Audio") }
                     SettingRow {
                         label: qsTr("Record system audio")
+                        icon: "line-volume"
                         help: qsTr("Captures what you hear (system output) into video recordings.")
                         helpDetail: App.audioBackend === "wasapi"
                                     ? qsTr("Taken from the default playback device through Windows loopback capture. Mixed with the microphone when both are enabled. GIFs have no audio.")
@@ -2143,12 +2324,14 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Record microphone")
+                        icon: "line-mic"
                         help: qsTr("Captures your microphone into video recordings.")
                         helpDetail: qsTr("Uses the input device selected below. Mixed with system audio when both are enabled. GIFs have no audio.")
                         USwitch { checked: App.settings.recordMicrophone; onToggled: (c) => App.settings.recordMicrophone = c }
                     }
                     SettingRow {
                         label: qsTr("Microphone input")
+                        icon: "line-mic"
                         help: App.audioInputListAvailable
                               ? qsTr("Which input device the microphone track records from.")
                               : qsTr("Requires the pw-dump helper to list input devices.")
@@ -2169,6 +2352,7 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Application audio only")
+                        icon: "line-window"
                         help: App.perAppAudioAvailable
                               ? qsTr("Record only the applications you tick, one or several.")
                               : App.audioBackend === "wasapi"
@@ -2179,6 +2363,7 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Separate audio tracks")
+                        icon: "line-layers"
                         help: qsTr("Writes every source as its own named track instead of mixing them together.")
                         helpDetail: qsTr("For editing: the microphone stays separate from system audio, so you can duck one against the other later. Needs at least two sources - with one there is nothing to separate and the recording keeps its single track. The first track is a ready-made mix of everything, so the file still plays with full sound everywhere; the separate source tracks follow it.")
                         USwitch { checked: App.settings.separateAudioTracks; onToggled: (c) => App.settings.separateAudioTracks = c }
@@ -2204,6 +2389,7 @@ Item {
                     SectionTitle { text: qsTr("Overlays in recordings") }
                     SettingRow {
                         label: qsTr("Highlight the cursor")
+                        icon: "line-cursor"
                         help: App.capCursorMetadata
                               ? qsTr("Unisic draws the pointer itself, so it can be styled, enlarged and highlighted.")
                               : qsTr("This desktop's screen-cast portal cannot deliver the cursor separately, which this needs.")
@@ -2217,6 +2403,7 @@ Item {
                     SettingRow {
                         visible: App.settings.cursorHighlight
                         label: qsTr("Halo")
+                        icon: "line-spotlight"
                         help: qsTr("The glow drawn under the pointer. Turn it off to keep only the pointer and clicks.")
                         USwitch {
                             checked: App.settings.cursorHighlightHalo
@@ -2226,6 +2413,7 @@ Item {
                     SettingRow {
                         visible: App.settings.cursorHighlight && App.settings.cursorHighlightHalo
                         label: qsTr("Halo color")
+                        icon: "line-palette"
                         help: qsTr("Color of the glow drawn under the pointer.")
                         Row {
                             spacing: 6
@@ -2254,6 +2442,7 @@ Item {
                         id: rippleRow
                         visible: App.settings.cursorHighlight
                         label: qsTr("Show a ripple on click")
+                        icon: "line-click"
                         // The reason is computed once per shown row rather than bound:
                         // probing libinput opens a udev context, too heavy for a binding.
                         readonly property string blocked: App.clickCaptureBlockedReason()
@@ -2277,6 +2466,7 @@ Item {
                     SettingRow {
                         id: keysRow
                         label: qsTr("Show pressed keys")
+                        icon: "line-keyboard"
                         // Same one-shot probe and same `available` rule as the ripple
                         // row above.
                         readonly property string blocked: App.keystrokeCaptureBlockedReason()
@@ -2308,6 +2498,7 @@ Item {
                     SectionTitle { text: qsTr("Watermark") }
                     SettingRow {
                         label: qsTr("Stamp recordings")
+                        icon: "line-stamp"
                         help: qsTr("Puts your text or logo on every recording, GIF and instant replay clip.")
                         helpDetail: qsTr("Separate from the screenshot watermark. A change shows up in a recording that is already running.")
                         USwitch { checked: App.settings.replayWatermarkEnabled; onToggled: (c) => App.settings.replayWatermarkEnabled = c }
@@ -2321,6 +2512,7 @@ Item {
                     SettingRow {
                         available: App.settings.replayWatermarkEnabled
                         label: qsTr("Stamp")
+                        icon: "line-sliders"
                         UComboBox {
                             width: 180
                             model: [qsTr("Text"), qsTr("Logo image")]
@@ -2334,6 +2526,7 @@ Item {
                         readonly property bool logo: App.settings.replayWatermarkType === "image"
                         available: App.settings.replayWatermarkEnabled
                         label: logo ? qsTr("Logo image") : qsTr("Text")
+                        icon: logo ? "line-image" : "line-text"
                         help: logo ? (App.settings.replayWatermarkImagePath.length > 0
                                       ? App.settings.replayWatermarkImagePath
                                       : qsTr("Choose a PNG, SVG, JPEG or WebP image."))
@@ -2361,6 +2554,7 @@ Item {
                     SettingRow {
                         available: App.settings.replayWatermarkEnabled
                         label: qsTr("Position")
+                        icon: "line-position"
                         UComboBox {
                             width: 180
                             model: page.watermarkPosNames
@@ -2371,6 +2565,7 @@ Item {
                     SettingRow {
                         available: App.settings.replayWatermarkEnabled
                         label: qsTr("Size")
+                        icon: "line-resize"
                         UValueCombo {
                             width: 120
                             values: [50, 75, 100, 125, 150, 200, 300]
@@ -2383,6 +2578,7 @@ Item {
                     SettingRow {
                         available: App.settings.replayWatermarkEnabled
                         label: qsTr("Opacity: %1%").arg(App.settings.replayWatermarkOpacity)
+                        icon: "line-opacity"
                         USlider {
                             width: 200
                             from: 10; to: 100
@@ -2428,6 +2624,7 @@ Item {
                     SectionTitle { text: qsTr("Instant replay") }
                     SettingRow {
                         label: qsTr("Instant replay status")
+                        icon: "line-record"
                         help: App.instantReplayActive ? qsTr("Running: the last moments are kept, ready to save as a clip.")
                                                       : qsTr("Off: nothing is being kept.")
                         available: App.recordingAvailable
@@ -2452,6 +2649,7 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Start automatically")
+                        icon: "line-bolt"
                         help: qsTr("Keeps recording the screen in the background, ready to save the last moments.")
                         helpDetail: qsTr("When Unisic starts: from launch until you stop it. While a game is running: games started by Steam, and on Linux also Proton games from Heroic, Lutris or Bottles, games using GameMode, and cloud gaming in the GeForce NOW, Steam Link, Moonlight, Boosteroid or Greenlight app, or in a browser app window; it stops when the game closes. It keeps running while you record.")
                         UComboBox {
@@ -2464,12 +2662,14 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Replay length")
+                        icon: "line-timer"
                         help: qsTr("How far back Save clip reaches.")
                         helpDetail: qsTr("The ring uses fixed-count two-second segments in the disk cache, not raw frames in RAM, and drops the oldest as it goes. Saving snapshots completed segments without stopping the ring. Long replays take gigabytes of disk space, and saving one copies it first.")
                         UValueCombo { width: 130; values: [10,15,30,60,120,300,600,1800,3600]; from: 10; to: 3600; suffix: " s"; value: App.settings.instantReplaySeconds; onChanged: (v) => App.settings.instantReplaySeconds = v }
                     }
                     SettingRow {
                         label: qsTr("What to record")
+                        icon: "line-monitor"
                         help: qsTr("Whole screen: the monitor under the pointer. Game window: only the game, even when something covers it.")
                         helpDetail: qsTr("Game window finds the running game's window, or takes the window in front when no game is detected. On KDE Plasma the recording follows that window; on Windows its area is recorded; elsewhere the whole screen is. A change applies the next time instant replay starts.")
                         UComboBox {
@@ -2483,6 +2683,7 @@ Item {
                     HotkeyRow {
                         visible: App.hotkeysAvailable || App.desktopShortcutsAuto
                         label: qsTr("Save clip")
+                        icon: "line-save"
                         help: qsTr("Hotkey: save the last moments as a clip. Starts instant replay when it is off.")
                         actionId: "instant-replay"
                         shortcuts: App.settings.hotkeyInstantReplay
@@ -2491,6 +2692,7 @@ Item {
                     HotkeyRow {
                         visible: App.hotkeysAvailable || App.desktopShortcutsAuto
                         label: qsTr("Instant replay on/off")
+                        icon: "line-power"
                         help: qsTr("Hotkey: start instant replay, or stop it.")
                         actionId: "replay-toggle"
                         shortcuts: App.settings.hotkeyReplayToggle
@@ -2513,17 +2715,20 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Record system audio")
+                        icon: "line-volume"
                         help: qsTr("The game's sound, and everything else you hear.")
                         USwitch { checked: App.settings.clipSystemAudio; onToggled: (c) => App.settings.clipSystemAudio = c }
                     }
                     SettingRow {
                         label: qsTr("Record microphone")
+                        icon: "line-mic"
                         help: qsTr("Your voice.")
                         USwitch { checked: App.settings.clipMicrophone; onToggled: (c) => App.settings.clipMicrophone = c }
                     }
                     SettingRow {
                         id: clipKeysRow
                         label: qsTr("Show pressed keys")
+                        icon: "line-keyboard"
                         help: qsTr("The key badge, as in recordings. Off by default: a game clip rarely needs it.")
                         readonly property string blocked: App.keystrokeCaptureBlockedReason()
                         available: blocked === "" || App.devBuild
@@ -2570,12 +2775,14 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Upload clips right away")
+                        icon: "line-upload"
                         help: qsTr("Sends every saved clip to your upload server, even when uploading after capture is off.")
                         helpDetail: qsTr("Uses the server chosen on the Servers page, and the link is handled like any other upload. Session recordings are never uploaded on their own.")
                         USwitch { checked: App.settings.clipUpload; onToggled: (c) => App.settings.clipUpload = c }
                     }
                     SettingRow {
                         label: qsTr("Keep the whole session")
+                        icon: "line-history"
                         help: qsTr("Stopping instant replay saves everything it recorded as one session recording, to cut clips from later on the Clips page.")
                         helpDetail: qsTr("Up to the last 4 hours of a session, written into the session recordings folder while it runs: about 2 to 15 GB per hour, depending on the screen and the quality. Save clip still saves only the replay length. A change applies the next time instant replay starts.")
                         USwitch { checked: App.settings.clipKeepSession; onToggled: (c) => App.settings.clipKeepSession = c }
@@ -2631,6 +2838,7 @@ Item {
                     SectionTitle { text: qsTr("On screen") }
                     SettingRow {
                         label: qsTr("On-screen indicator")
+                        icon: "line-bell"
                         help: qsTr("A small sign at the top of the screen when instant replay starts or stops, and when a clip is saving or saved.")
                         helpDetail: qsTr("Shown over fullscreen games too, and never takes a click. Instant replay records the screen, so a clip that covers the moment the sign was up shows it.")
                         USwitch { checked: App.settings.clipIndicator; onToggled: (c) => App.settings.clipIndicator = c }
@@ -2638,6 +2846,7 @@ Item {
                     SettingRow {
                         visible: App.settings.clipIndicator
                         label: qsTr("Indicator style")
+                        icon: "line-palette"
                         help: qsTr("Pill: icon, title and the file name. Compact: icon and title. Dot: the icon alone. Tinted: the pill with its edge and title in the colour of what happened.")
                         UComboBox {
                             width: 220
@@ -2649,6 +2858,7 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Recording dot")
+                        icon: "line-record"
                         help: qsTr("A small red dot stays in a corner of the screen for as long as instant replay records.")
                         helpDetail: qsTr("It never takes a click. Instant replay records what is on the screen, so with Whole screen the dot is in your clips too; Game window on KDE Plasma leaves it out.")
                         USwitch { checked: App.settings.clipStatusDot; onToggled: (c) => App.settings.clipStatusDot = c }
@@ -2656,6 +2866,7 @@ Item {
                     SettingRow {
                         visible: App.settings.clipStatusDot
                         label: qsTr("Dot corner")
+                        icon: "line-position"
                         UComboBox {
                             width: 220
                             readonly property var ids: ["top-left", "top-right", "bottom-left", "bottom-right"]
@@ -2680,11 +2891,13 @@ Item {
                     SectionTitle { text: qsTr("Clip editor") }
                     SettingRow {
                         label: qsTr("Open saved replays in the clip editor")
+                        icon: "line-cut"
                         help: qsTr("A saved instant replay opens in the trim window, ready to cut and share.")
                         USwitch { checked: App.settings.clipOpenReplay; onToggled: (c) => App.settings.clipOpenReplay = c }
                     }
                     SettingRow {
                         label: qsTr("Default frame")
+                        icon: "line-crop"
                         help: qsTr("The frame the trim window starts with. Vertical fits TikTok, Shorts and Reels.")
                         UComboBox {
                             width: 200
@@ -2696,6 +2909,7 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Default clip size")
+                        icon: "line-resize"
                         help: qsTr("Scales a saved clip so its shorter side has this many pixels. Never enlarges.")
                         UComboBox {
                             width: 200
@@ -2742,6 +2956,7 @@ Item {
                     SectionTitle { text: qsTr("Editor defaults") }
                     SettingRow {
                         label: qsTr("Layout")
+                        icon: "line-layout"
                         help: qsTr("How the editor arranges its tools around the image.")
                         helpDetail: qsTr("“Panels” puts the tools in a rail on the left and the active tool's options in a column on the right. “Floating” gives the image the whole window, with the same controls in pills over its edges. Open editors switch at once.")
                         UComboBox {
@@ -2753,6 +2968,7 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Stroke color")
+                        icon: "line-palette"
                         help: qsTr("Default color for new annotations.")
                         helpDetail: qsTr("Used by pen, shapes, arrows and text until you pick another color in the editor. Recent colors are remembered.")
                         Row {
@@ -2770,6 +2986,7 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Stroke width")
+                        icon: "line-pen"
                         help: qsTr("Default line thickness for annotations.")
                         helpDetail: qsTr("Also scales arrow heads and the pixelate block size. Adjustable per-annotation in the editor toolbar.")
                         UValueCombo {
@@ -2783,6 +3000,7 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Text size")
+                        icon: "line-text"
                         help: qsTr("Default font size for the text tool.")
                         helpDetail: qsTr("Measured in image pixels, so it stays consistent regardless of display scaling.")
                         UValueCombo {
@@ -2796,12 +3014,14 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Always start with the default colors")
+                        icon: "line-repeat"
                         help: qsTr("Color picks made while annotating last for that session only.")
                         helpDetail: qsTr("With this on, changing the stroke, fill, text outline or text background color in the editor or on the capture overlay does not overwrite your saved defaults - the next session starts again from the colors configured in Settings → Editor.")
                         USwitch { checked: App.settings.editorResetColors; onToggled: (c) => App.settings.editorResetColors = c }
                     }
                     SettingRow {
                         label: qsTr("Always start with the default tool options")
+                        icon: "line-repeat"
                         help: qsTr("Stroke width, text style and fill toggles last for that session only.")
                         helpDetail: qsTr("Covers everything except colors: stroke width, font family and size, bold/italic/underline, the text outline and background toggles, and shape fill. With this on the next session starts again from the defaults configured in Settings → Editor.")
                         USwitch { checked: App.settings.editorResetTools; onToggled: (c) => App.settings.editorResetTools = c }
@@ -2940,6 +3160,7 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Icon style")
+                        icon: "line-pencil"
                         help: qsTr("Icon set used by the editor toolbars.")
                         helpDetail: qsTr("“System” takes icons from your desktop icon theme (with Breeze as fallback); “custom” uses the bundled monochrome set that follows the app theme.")
                         UComboBox {
@@ -3037,6 +3258,167 @@ Item {
                 Column {
                     width: parent.width
                     spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Each capture") }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Each enabled action runs immediately when the region is dropped. The editor opens alongside the others without blocking them.")
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
+                    }
+                    SettingRow {
+                        label: qsTr("Save to disk automatically")
+                        icon: "line-save"
+                        help: qsTr("Saves every capture into your save folder without asking.")
+                        helpDetail: qsTr("Files are named from the filename template. When off, a capture exists only in the notification/editor until you save it explicitly.")
+                        USwitch { checked: App.settings.autoSave; onToggled: (c) => App.settings.autoSave = c }
+                    }
+                    SettingRow {
+                        label: qsTr("Copy image to clipboard")
+                        icon: "line-clipboard"
+                        help: qsTr("Puts every capture on the clipboard automatically.")
+                        helpDetail: qsTr("On Wayland the copy is mirrored through wl-copy (when installed), which keeps the clipboard content alive reliably even when no Unisic window has focus.")
+                        USwitch { checked: App.settings.copyToClipboard; onToggled: (c) => App.settings.copyToClipboard = c }
+                    }
+                    SettingRow {
+                        label: qsTr("Upload to the server")
+                        icon: "line-upload"
+                        help: qsTr("Uploads every capture immediately after taking it.")
+                        helpDetail: qsTr("Uses the server selected on the Servers page. What happens with the link afterwards is set under After upload below.")
+                        USwitch { checked: App.settings.uploadAfterCapture; onToggled: (c) => App.settings.uploadAfterCapture = c }
+                    }
+                    SettingRow {
+                        label: qsTr("Open the editor")
+                        icon: "line-pencil"
+                        help: qsTr("Opens every capture in the annotation editor.")
+                        helpDetail: qsTr("The editor never blocks other after-capture actions: saving, copying and uploading run independently at the same time.")
+                        USwitch { checked: App.settings.openEditor; onToggled: (c) => App.settings.openEditor = c }
+                    }
+                }
+            }
+
+            SettingsGroup {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Run a program") }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Run one program after each capture. Use $input for the capture file and $output for an optional result file. Commands are launched directly, without a shell.")
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
+                    }
+                    SettingRow {
+                        label: qsTr("Command")
+                        icon: "line-terminal"
+                        help: qsTr("Example: oxipng -o 4 $input --out $output")
+                        helpDetail: qsTr("If the program is missing or exits with an error, the other save/copy/upload/editor actions still continue.")
+                        UTextField {
+                            // Caps at 420 on wide windows but shrinks with the card
+                            // so the label + field never overflow the narrow (min
+                            // window) card and clip the label off-screen.
+                            width: Math.min(420, page.cardWidth - 140)
+                            text: App.settings.externalActionCommand
+                            placeholder: qsTr("program $input $output")
+                            onEdited: (t) => App.settings.externalActionCommand = t
+                        }
+                    }
+                    SettingRow {
+                        label: qsTr("Give up after")
+                        icon: "line-timer"
+                        help: qsTr("How long the program may run before Unisic stops it.")
+                        helpDetail: qsTr("A program that never finishes would otherwise hold the capture's temporary file for the rest of the session. Raise this if your command does real work, such as uploading a large file.")
+                        UValueCombo {
+                            width: 130
+                            // Bounds come from ExternalActionRunner via Settings,
+                            // so the field can never offer a value the capture
+                            // path would clamp behind it.
+                            values: [30, 60, 120, 300, 600, 1800]
+                            from: App.settings.externalActionTimeoutMinSec
+                            to: App.settings.externalActionTimeoutMaxSec
+                            suffix: " s"
+                            value: App.settings.externalActionTimeoutSec
+                            onChanged: (v) => App.settings.externalActionTimeoutSec = v
+                        }
+                    }
+                    SettingRow {
+                        label: qsTr("Run after capture")
+                        icon: "line-bolt"
+                        USwitch {
+                            checked: App.settings.externalActionEnabled
+                            enabled: App.settings.externalActionCommand.trim() !== ""
+                            onToggled: (c) => App.settings.externalActionEnabled = c
+                        }
+                    }
+                }
+            }
+
+            SettingsGroup {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("After upload") }
+                    // Uploading and copying the link are two decisions: the link
+                    // stays in the toast, the notification and History either way.
+                    SettingRow {
+                        label: qsTr("Copy link to clipboard")
+                        icon: "line-link"
+                        help: qsTr("Copies the upload URL once the upload finishes.")
+                        helpDetail: qsTr("Separate from uploading: when off, the link is still shown after the upload and kept in History, and your clipboard keeps what it had.")
+                        USwitch { checked: App.settings.afterUploadCopyLink; onToggled: (c) => App.settings.afterUploadCopyLink = c }
+                    }
+                    SettingRow {
+                        label: qsTr("Open link in browser")
+                        icon: "line-globe"
+                        help: qsTr("Opens the uploaded file's URL in your browser.")
+                        helpDetail: qsTr("Runs after every successful upload, using the system default browser.")
+                        USwitch { checked: App.settings.afterUploadOpenInBrowser; onToggled: (c) => App.settings.afterUploadOpenInBrowser = c }
+                    }
+                    SettingRow {
+                        label: qsTr("Shorten the link")
+                        icon: "line-cut"
+                        help: qsTr("Swaps the link for a short one before it is copied or opened.")
+                        helpDetail: qsTr("Off by default because the shortener, a free public service, gets every link you upload. When it fails or takes longer than 15 seconds, the full link is used.")
+                        USwitch { checked: App.settings.afterUploadShortenUrl; onToggled: (c) => App.settings.afterUploadShortenUrl = c }
+                    }
+                    SettingRow {
+                        label: qsTr("Shortener")
+                        icon: "line-sliders"
+                        // Tried live: is.gd refused files.catbox.moe and
+                        // litter.catbox.moe links and took Imgur, Uguu,
+                        // tmpfiles and buzzheavier ones; TinyURL took Catbox.
+                        help: App.settings.linkShortener === "tinyurl"
+                              ? qsTr("TinyURL also shortens Catbox links.")
+                              : qsTr("is.gd refuses links to catbox.moe, so Catbox and Litterbox links stay long.")
+                        helpDetail: qsTr("is.gd also refuses links to other shorteners and to addresses on its blacklist. A refused link is used in full, and a message says why.")
+                        UComboBox {
+                            width: 200
+                            // Disabled, not hidden, so the rows below stay put.
+                            enabled: App.settings.afterUploadShortenUrl
+                            model: ["is.gd", "TinyURL"]
+                            readonly property var ids: ["isgd", "tinyurl"]
+                            currentIndex: Math.max(0, ids.indexOf(App.settings.linkShortener))
+                            onActivated: (i) => App.settings.linkShortener = ids[i]
+                        }
+                    }
+                    SettingRow {
+                        label: qsTr("Move the file to the trash")
+                        icon: "line-trash"
+                        help: qsTr("After a capture or recording uploads on its own, its local file goes to the trash.")
+                        helpDetail: qsTr("History keeps the entry and its link. Uploads you start by hand keep their file, and so does every capture while an after-capture program is set, because that program may still be reading it.")
+                        USwitch { checked: App.settings.afterUploadTrashFile; onToggled: (c) => App.settings.afterUploadTrashFile = c }
+                    }
+                }
+            }
+
+            SettingsGroup {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
                     SectionTitle { text: qsTr("Storage & file naming") }
                     // These two folder rows are captions with a field AND a
                     // button under them, so they are the "several controls"
@@ -3091,6 +3473,7 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Image format")
+                        icon: "line-image"
                         help: qsTr("File format for saved captures: PNG, JPEG, WebP or GIF.")
                         helpDetail: qsTr("PNG is lossless and largest; JPEG and WebP are smaller with adjustable quality. GIF makes every capture a single-frame GIF, needs ffmpeg, and is limited to 256 colors - pick it for a site that takes nothing else. The format also applies to uploads and to the clipboard-encoded image where relevant.")
                         UComboBox {
@@ -3102,6 +3485,7 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Quality (JPEG/WebP/GIF): %1").arg(App.settings.imageQuality)
+                        icon: "line-gauge"
                         help: qsTr("Compression quality for lossy formats.")
                         helpDetail: qsTr("Higher means better fidelity and larger files. PNG ignores this setting because it is always lossless. For GIF it buys palette entries instead: 64 colors below 40, 128 below 75, the full 256 above.")
                         USlider {
@@ -3178,88 +3562,31 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Open file after saving")
+                        icon: "line-folder"
                         help: qsTr("Opens each capture in your image viewer after saving.")
                         helpDetail: qsTr("Uses the system default application for the file type. Independent from the editor; this only opens the saved file.")
                         USwitch { objectName: "settingsOpenAfterSaveSwitch"; checked: App.settings.openAfterSave; onToggled: (c) => App.settings.openAfterSave = c }
                     }
                     SettingRow {
                         label: qsTr("Ask where to save")
+                        icon: "line-folder"
                         help: qsTr("Prompts for a location for each capture instead of saving straight to the folder.")
                         helpDetail: qsTr("Requires saving to be enabled. Canceling the dialog skips the save - the capture still lands in history and on the clipboard. The screenshots folder above is the starting location.")
                         USwitch { checked: App.settings.askWhereToSave; onToggled: (c) => App.settings.askWhereToSave = c }
                     }
                     SettingRow {
                         label: qsTr("Date subfolders")
+                        icon: "line-calendar"
                         help: qsTr("Organizes saved screenshots and recordings into per-month subfolders (yyyy-MM).")
                         helpDetail: qsTr("Keeps busy capture folders tidy. The subfolder is created under both the screenshots and the recordings folder above.")
                         USwitch { checked: App.settings.dateSubfolders; onToggled: (c) => App.settings.dateSubfolders = c }
                     }
                     SettingRow {
                         label: qsTr("Strip image metadata")
+                        icon: "line-shield"
                         help: qsTr("Removes text, DPI and description metadata from saved files.")
                         helpDetail: qsTr("Captures normally carry no metadata; this guarantees a clean PNG/JPEG/WebP even when the editor or a loaded source added some.")
                         USwitch { checked: App.settings.stripMetadata; onToggled: (c) => App.settings.stripMetadata = c }
-                    }
-                }
-            }
-
-            SettingsGroup {
-                width: page.cardWidth
-                Column {
-                    width: parent.width
-                    spacing: Theme.spacingS
-                    SectionTitle { text: qsTr("After upload") }
-                    SettingRow {
-                        label: qsTr("Open link in browser")
-                        help: qsTr("Opens the uploaded file's URL in your browser.")
-                        helpDetail: qsTr("Runs after every successful upload, using the system default browser.")
-                        USwitch { checked: App.settings.afterUploadOpenInBrowser; onToggled: (c) => App.settings.afterUploadOpenInBrowser = c }
-                    }
-                    SettingRow {
-                        label: qsTr("Shorten the link")
-                        help: qsTr("Swaps the link for a short one before it is copied or opened.")
-                        helpDetail: qsTr("Off by default because the shortener, a free public service, gets every link you upload. When it fails or takes longer than 15 seconds, the full link is used.")
-                        USwitch { checked: App.settings.afterUploadShortenUrl; onToggled: (c) => App.settings.afterUploadShortenUrl = c }
-                    }
-                    SettingRow {
-                        visible: App.settings.afterUploadShortenUrl
-                        label: qsTr("Shortener")
-                        // Tried live: is.gd refused files.catbox.moe and
-                        // litter.catbox.moe links and took Imgur, Uguu,
-                        // tmpfiles and buzzheavier ones; TinyURL took Catbox.
-                        help: App.settings.linkShortener === "tinyurl"
-                              ? qsTr("TinyURL also shortens Catbox links.")
-                              : qsTr("is.gd refuses links to catbox.moe, so Catbox and Litterbox links stay long.")
-                        helpDetail: qsTr("is.gd also refuses links to other shorteners and to addresses on its blacklist. A refused link is used in full, and a message says why.")
-                        UComboBox {
-                            width: 200
-                            model: ["is.gd", "TinyURL"]
-                            readonly property var ids: ["isgd", "tinyurl"]
-                            currentIndex: Math.max(0, ids.indexOf(App.settings.linkShortener))
-                            onActivated: (i) => App.settings.linkShortener = ids[i]
-                        }
-                    }
-                    SettingRow {
-                        label: qsTr("Move the file to the trash")
-                        help: qsTr("After a capture or recording uploads on its own, its local file goes to the trash.")
-                        helpDetail: qsTr("History keeps the entry and its link. Uploads you start by hand keep their file, and so does every capture while an after-capture program is set, because that program may still be reading it.")
-                        USwitch { checked: App.settings.afterUploadTrashFile; onToggled: (c) => App.settings.afterUploadTrashFile = c }
-                    }
-                    // Uploading and copying the link are two decisions: the link
-                    // stays in the toast, the notification and History either way.
-                    DisclosureRow {
-                        id: advancedUpload
-                        label: expanded ? qsTr("Hide advanced options")
-                                        : qsTr("Show advanced options")
-                        summary: qsTr("Copy link to clipboard")
-                    }
-                    SettingRow {
-                        visible: advancedUpload.expanded || page.searchActive
-                        discloser: advancedUpload
-                        label: qsTr("Copy link to clipboard")
-                        help: qsTr("Copies the upload URL once the upload finishes.")
-                        helpDetail: qsTr("Separate from uploading: when off, the link is still shown after the upload and kept in History, and your clipboard keeps what it had.")
-                        USwitch { checked: App.settings.afterUploadCopyLink; onToggled: (c) => App.settings.afterUploadCopyLink = c }
                     }
                 }
             }
@@ -3273,6 +3600,7 @@ Item {
                     SettingRow {
                         id: watchFolderRow
                         label: qsTr("Watched folder")
+                        icon: "line-folder"
                         help: qsTr("Uploads every new file that lands in this folder. Empty is off.")
                         helpDetail: qsTr("Each file goes to the active server once it has stopped changing for a second, then the after-upload actions run. Files already in the folder, hidden files and partial downloads are left alone, and captures Unisic saves there follow \"Upload to the active server\" instead.")
                         UTextField {
@@ -3312,12 +3640,14 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Convert files I bring in")
+                        icon: "line-image"
                         help: qsTr("A picture dropped, pasted or opened here is saved in the format above instead of the one it arrived in.")
                         helpDetail: qsTr("The converted picture is a new file beside the original, which stays untouched: an in-place rewrite would leave the name disagreeing with the bytes, and a lossy re-encode over someone's only copy is not something a Save button should do quietly. Files already in the chosen format are saved normally.")
                         USwitch { checked: App.settings.convertIncoming; onToggled: (c) => App.settings.convertIncoming = c }
                     }
                     SettingRow {
                         label: qsTr("Convert files over a size")
+                        icon: "line-resize"
                         help: qsTr("A saved capture larger than the limit below is re-encoded into a lighter format.")
                         helpDetail: qsTr("Runs right after the save, so history, the notification and the clipboard all point at the converted file. If the re-encode does not actually come out smaller, the original is kept and nothing is said - the rule can never make a file worse. It leaves manual choices alone: Save as GIF and the history Convert to entries are never overridden.")
                         USwitch { checked: App.settings.autoConvertLarge; onToggled: (c) => App.settings.autoConvertLarge = c }
@@ -3325,6 +3655,7 @@ Item {
                     SettingRow {
                         available: App.settings.autoConvertLarge
                         label: qsTr("Convert over: %1 MB").arg(App.settings.autoConvertOverMb)
+                        icon: "line-resize"
                         help: qsTr("Size at which a saved capture is converted.")
                         USlider {
                             width: 200
@@ -3336,6 +3667,7 @@ Item {
                     SettingRow {
                         available: App.settings.autoConvertLarge
                         label: qsTr("Convert into")
+                        icon: "line-image"
                         help: qsTr("Format for the over-size conversion.")
                         helpDetail: qsTr("WebP is the usual answer: it keeps transparency and is far smaller than PNG. JPEG is smaller still but drops transparency, so a capture with any goes to PNG instead and says so.")
                         UComboBox {
@@ -3347,6 +3679,7 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Upload format")
+                        icon: "line-upload"
                         help: qsTr("Format for uploaded pictures, independent of what lands on disk.")
                         helpDetail: qsTr("Lets you keep lossless PNG files locally while sending something lighter, or the other way round. The file on disk and the one in history are never touched - the conversion happens on the bytes being sent. Recordings and animated GIFs upload as they are.")
                         UComboBox {
@@ -3423,6 +3756,7 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Show notifications")
+                        icon: "line-bell"
                         // No notification backend at all → the switch would do
                         // nothing; grey it out with the reason instead.
                         available: App.capNativeNotification || App.capCustomNotification
@@ -3434,6 +3768,7 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Show Unisic's own card")
+                        icon: "line-card"
                         // The stylized card needs layer-shell; without it the
                         // native desktop notification is used regardless.
                         available: App.capCustomNotification
@@ -3453,6 +3788,7 @@ Item {
                         hint: App.capCustomNotification ? ""
                               : qsTr("The style only applies to the card Unisic draws itself; a native notification is drawn by the system server.")
                         label: qsTr("Notification style")
+                        icon: "line-palette"
                         help: qsTr("How the capture card looks, from full card to tiny pill.")
                         helpDetail: qsTr("Casual: the full card with a large thumbnail, title and a row of action buttons.\nCompact: a tighter card with a medium thumbnail, filename and the same actions.\nSmall: one slim row with tiny inline action icons.\nMinimal: a pill with just the filename; clicking it opens the floating preview.\nThumbnail: image-first, the capture fills the card and actions stay visible over it.\n\nApplies to the next capture.")
                         UComboBox {
@@ -3473,6 +3809,7 @@ Item {
                         hint: App.capCustomNotification ? ""
                               : qsTr("The system notification server decides the position here, because this compositor has no card for Unisic to place.")
                         label: qsTr("Notification position")
+                        icon: "line-position"
                         help: qsTr("Screen corner where the capture card appears.")
                         helpDetail: qsTr("Applies to the card Unisic draws itself (the layer-shell card or the GNOME XWayland card). Native desktop notifications are placed by the system notification server and ignore this.")
                         UComboBox {
@@ -3486,6 +3823,7 @@ Item {
                     SettingRow {
                         visible: App.settings.showCapturePopup
                         label: qsTr("Distance from the screen edge")
+                        icon: "line-ruler"
                         help: qsTr("Gap between the capture card and the edge of the screen.")
                         helpDetail: qsTr("Unisic already keeps the card clear of panels that reserve space for themselves. Raise this when a dock or panel still sits in the way - Wayland gives an app no way to see where those are, so this is the manual knob.")
                         UValueCombo {
@@ -3501,6 +3839,7 @@ Item {
                     SettingRow {
                         visible: App.settings.showCapturePopup
                         label: qsTr("Hide after")
+                        icon: "line-timer"
                         help: qsTr("How long the capture card stays on screen. 0 keeps it open.")
                         helpDetail: qsTr("After this many seconds the card disappears on its own. Set 0 to keep it open until you dismiss it manually.")
                         UValueCombo {
@@ -3516,6 +3855,7 @@ Item {
                     SettingRow {
                         visible: App.settings.showCapturePopup
                         label: qsTr("Hide during fullscreen and Do Not Disturb")
+                        icon: "line-moon"
                         help: qsTr("Mutes capture cards while a fullscreen app or DND is active.")
                         helpDetail: qsTr("Uses the notification server's inhibition state (fullscreen application, Do Not Disturb, screen sharing). Inhibitors that were already stuck when Unisic started are ignored, so a misbehaving third-party app can't silence your capture feedback forever.")
                         USwitch { checked: App.settings.muteOnFullscreen; onToggled: (c) => App.settings.muteOnFullscreen = c }
@@ -3531,6 +3871,7 @@ Item {
                     SectionTitle { text: qsTr("Sounds") }
                     SettingRow {
                         label: qsTr("Capture sound")
+                        icon: "line-music"
                         help: qsTr("Plays a short sound when a screenshot is taken.")
                         helpDetail: qsTr("A fullscreen capture has no on-screen feedback, so it can be hard to tell it happened. Pick a bundled cue - Shutter, Click, Beep, Ding or Pop - a custom sound, or Off. Custom sounds are .wav/.ogg files in ~/.config/unisic/sounds (add them there or with the + button). The sound plays through the system audio (pw-play/paplay/aplay).")
                         Row {
@@ -3583,6 +3924,7 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Recording sound")
+                        icon: "line-music"
                         help: qsTr("Plays a short sound when a recording or GIF is finished.")
                         helpDetail: qsTr("Encoding can take a while after you stop a recording, so this cue tells you the file is actually ready. It is separate from the screenshot sound: pick a bundled cue - Shutter, Click, Beep, Ding or Pop - a custom sound, or Off. Custom sounds are .wav/.ogg files in ~/.config/unisic/sounds (shared with the capture sound).")
                         Row {
@@ -3622,6 +3964,7 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Recording start sound")
+                        icon: "line-music"
                         help: qsTr("Plays a short sound the moment recording begins (after the countdown).")
                         helpDetail: qsTr("Separate from the finished-recording cue: this fires when capture actually starts. Pick a bundled cue - Shutter, Click, Beep, Ding or Pop - a custom sound, or Off.")
                         Row {
@@ -3662,6 +4005,7 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Sound volume: %1 %").arg(App.settings.soundVolume)
+                        icon: "line-volume"
                         help: qsTr("Playback volume for the capture and recording sound cues.")
                         helpDetail: qsTr("0 is muted. Applied via the player (pw-play/paplay); aplay has no volume flag and plays at the sample level.")
                         USlider {
@@ -3709,6 +4053,7 @@ Item {
                     SectionTitle { text: qsTr("Appearance") }
                     SettingRow {
                         label: qsTr("Theme")
+                        icon: "line-palette"
                         help: qsTr("Color theme for the whole app.")
                         helpDetail: qsTr("“System” follows your desktop's light/dark scheme live; the other entries are fixed palettes. Windows, cards and the editor all re-theme instantly.")
                         UComboBox {
@@ -3727,6 +4072,7 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Custom themes")
+                        icon: "line-folder"
                         help: qsTr("Drop .json theme files into the themes folder - they appear in the list above and reload live while you edit them.")
                         helpDetail: qsTr("Opening the folder for the first time creates a commented example theme (8 colors are enough; everything else is derived, and any derived color can be overridden). Share the file to share the theme. A broken file is skipped and its reason is listed here.")
                         Row {
@@ -3751,119 +4097,10 @@ Item {
                 Column {
                     width: parent.width
                     spacing: Theme.spacingS
-                    SectionTitle { text: qsTr("Capture overlay") }
-                    // The overlay can only be seen by starting a capture, over
-                    // whatever happens to be on screen and holding an exclusive
-                    // keyboard grab - so the options below were invisible until
-                    // you committed to a shot, and the toolbar drop-down and the
-                    // mode badge went unnoticed entirely (user-reported). The
-                    // mock draws them all instead, live. The mode picker drives
-                    // only the picture; it saves nothing.
-                    Column {
-                        width: parent.width
-                        spacing: Theme.spacingS
-                        UOverlayPreview {
-                            id: overlayPreview
-                            width: parent.width
-                            // The picked mode lives here, not in the combo:
-                            // UComboBox only EMITS activated and leaves
-                            // currentIndex to its consumer, so a plain
-                            // currentIndex binding never moves.
-                            property int modeIndex: 0
-                            purpose: overlayPreview.modes[modeIndex].id
-                        }
-                        Row {
-                            spacing: Theme.spacingS
-                            Text {
-                                text: qsTr("Preview mode")
-                                color: Theme.textSecondary
-                                font.pixelSize: Theme.fontM
-                                anchors.verticalCenter: parent.verticalCenter
-                            }
-                            UComboBox {
-                                width: 200
-                                model: overlayPreview.modes.map((m) => m.label)
-                                currentIndex: overlayPreview.modeIndex
-                                onActivated: (i) => overlayPreview.modeIndex = i
-                                Accessible.name: qsTr("Preview mode")
-                            }
-                        }
-                        Text {
-                            width: parent.width
-                            wrapMode: Text.WordWrap
-                            text: qsTr("A mock screen, not a capture: every setting in this card is drawn here as you change it. Switch the mode to see what the overlay looks like when a hotkey starts a measurement or a recording instead of a screenshot.")
-                            color: Theme.textTertiary
-                            font.pixelSize: Theme.fontS
-                        }
-                    }
-                    SettingRow {
-                        label: qsTr("Toolbar position")
-                        help: qsTr("Where the annotation toolbar sits on the selection overlay.")
-                        helpDetail: qsTr("“Follow selection” keeps it glued to the selected region; the fixed positions pin it to a screen edge, which helps when it keeps covering what you select.")
-                        UComboBox {
-                            width: 200
-                            model: page.toolbarPosNames
-                            currentIndex: Math.max(0, page.toolbarPosIds.indexOf(App.settings.overlayToolbarPosition))
-                            onActivated: (i) => App.settings.overlayToolbarPosition = page.toolbarPosIds[i]
-                        }
-                    }
-                    SettingRow {
-                        label: qsTr("Toolbar icon size")
-                        help: qsTr("How big the tool icons on the selection overlay are.")
-                        helpDetail: qsTr("The icons are drawn for 24 px, where their lines are cleanest. At other sizes thin diagonal lines can look a little softer or jagged.")
-                        UValueCombo {
-                            width: 110
-                            values: [16, 18, 20, 22, 24, 26]
-                            from: 16; to: 26
-                            suffix: " px"
-                            value: ToolCatalog.overlayIconSize
-                            accessibleName: qsTr("Toolbar icon size")
-                            // A typed odd size is stored as the even one it draws at.
-                            onChanged: (v) => App.settings.overlayIconSize = Math.round(v / 2) * 2
-                        }
-                    }
-                    SettingRow {
-                        label: qsTr("Show which capture mode is running")
-                        help: qsTr("A mode indicator and a colored screen frame on the selection overlay.")
-                        helpDetail: qsTr("The overlay looks the same whether you are taking a screenshot, measuring, reading text or starting a recording, so a mis-fired hotkey only shows itself once the shot is taken - or the recording has already started. With this on, the mode is drawn on the overlay (as a badge or a faded icon, whichever style is picked below), the screen edge and the selection handles take that mode's color, and the overlay's own colors come from the theme (a custom theme can set modeShot, modeMeasure, modeOcr, modeGif and modeVideo). The confirm button and the hint always name the right action, with this on or off.")
-                        USwitch { checked: App.settings.overlayModeBadge; onToggled: (c) => App.settings.overlayModeBadge = c }
-                    }
-                    SettingRow {
-                        label: qsTr("Mode indicator style")
-                        available: App.settings.overlayModeBadge
-                        help: qsTr("Name the mode in a badge at the top, or draw its icon faded in the middle.")
-                        helpDetail: qsTr("“Badge at the top” names the mode in a pill above the screen, which is unmissable but is a strip of chrome over the desktop you are about to capture. “Icon in the middle” draws that mode's icon large and faded in the center of the screen instead, with your selection cut out of it: the part you are framing over is not drawn, and the rest keeps naming the capture. The colored screen frame and selection handles stay in both.")
-                        UComboBox {
-                            width: 200
-                            model: [qsTr("Badge at the top"), qsTr("Icon in the middle")]
-                            readonly property var ids: ["badge", "icon"]
-                            currentIndex: Math.max(0, ids.indexOf(App.settings.overlayModeStyle))
-                            onActivated: (i) => App.settings.overlayModeStyle = ids[i]
-                        }
-                    }
-                    SettingRow {
-                        label: qsTr("Show alignment guides while selecting")
-                        help: qsTr("Crosshair lines from the cursor to the screen edges.")
-                        helpDetail: qsTr("Shown while picking a region (screenshots and recordings alike) to help align the selection with on-screen elements. Purely visual and never captured into the image.")
-                        USwitch { checked: App.settings.selectionGuides; onToggled: (c) => App.settings.selectionGuides = c }
-                    }
-                    SettingRow {
-                        label: qsTr("Show a pixel loupe while selecting")
-                        help: qsTr("A magnifier by the cursor shows the exact pixel you are on.")
-                        helpDetail: qsTr("A zoomed pixel grid follows the cursor with the hovered pixel highlighted, plus its position and color - so a selection edge lands on exactly the pixel you mean. Scroll on the overlay to zoom it in and out; scroll all the way out to hide the loupe. Purely visual and never captured into the image.")
-                        USwitch { checked: App.settings.pixelLoupe; onToggled: (c) => App.settings.pixelLoupe = c }
-                    }
-                }
-            }
-
-            SettingsGroup {
-                width: page.cardWidth
-                Column {
-                    width: parent.width
-                    spacing: Theme.spacingS
                     SectionTitle { text: qsTr("Window decoration") }
                     SettingRow {
                         label: qsTr("Use system window decoration")
+                        icon: "line-window"
                         help: qsTr("Uses the desktop's normal title bar and borders.")
                         helpDetail: qsTr("When off, Unisic draws its own frameless chrome. Turn this on if window dragging/snapping misbehaves on your compositor.")
                         USwitch { checked: App.settings.useSystemDecoration; onToggled: (c) => App.settings.useSystemDecoration = c }
@@ -4289,6 +4526,7 @@ Item {
                     SectionTitle { text: qsTr("Screenshots") }
                     HotkeyRow {
                         label: qsTr("Full screen")
+                        icon: "line-monitor"
                         help: qsTr("Hotkey: capture all monitors at once.")
                         helpDetail: qsTr("Grabs the entire workspace silently (KWin path) or via the portal elsewhere, then runs the normal after-capture pipeline. The “Full screen captures” preference in Capture can narrow it to the screen under the cursor.")
                         actionId: "capture-fullscreen"
@@ -4297,6 +4535,7 @@ Item {
                     }
                     HotkeyRow {
                         label: qsTr("Region")
+                        icon: "line-rect"
                         help: qsTr("Hotkey: capture a selected region.")
                         helpDetail: qsTr("Opens the selection overlay with annotation tools, so you can draw on the frozen screen before the capture is finalized.")
                         actionId: "capture-region"
@@ -4305,6 +4544,7 @@ Item {
                     }
                     HotkeyRow {
                         label: qsTr("Scrolling region")
+                        icon: "line-scroll"
                         help: qsTr("Hotkey: capture a scrolling region (long screenshot).")
                         helpDetail: qsTr("Select a region, then scroll content in the window beneath it. Unisic continuously stitches the frames together.")
                         actionId: "capture-scroll"
@@ -4313,6 +4553,7 @@ Item {
                     }
                     HotkeyRow {
                         label: qsTr("Window")
+                        icon: "line-window"
                         help: qsTr("Hotkey: capture a single window.")
                         helpDetail: qsTr("Uses the desktop's window picker where available, so you get exactly one window without manual cropping.")
                         actionId: "capture-window"
@@ -4321,6 +4562,7 @@ Item {
                     }
                     HotkeyRow {
                         label: qsTr("OCR region (copy text)")
+                        icon: "line-text-scan"
                         help: qsTr("Hotkey: select a region, its text lands in the clipboard.")
                         helpDetail: qsTr("Opens the region selector and runs OCR on the crop. Nothing is saved and no notification is shown; the recognized text is simply copied. QR and bar codes are read too: a code in the region copies its content instead.")
                         actionId: "ocr-region"
@@ -4329,6 +4571,7 @@ Item {
                     }
                     HotkeyRow {
                         label: qsTr("Copy last capture")
+                        icon: "line-copy"
                         help: qsTr("Hotkey: puts the most recent screenshot back on the clipboard.")
                         helpDetail: qsTr("Copies the last screenshot taken in this session, whenever you press it. A dedicated shortcut never collides with the normal Ctrl+C - this replaces the old 2-second Ctrl+C grab, which could steal an ordinary copy right after a capture.")
                         actionId: "copy-last"
@@ -4337,6 +4580,7 @@ Item {
                     }
                     HotkeyRow {
                         label: qsTr("Measure")
+                        icon: "line-ruler"
                         help: qsTr("Hotkey: select a region and measure distances and angles in it.")
                         actionId: "measure"
                         shortcuts: App.settings.hotkeyMeasure
@@ -4353,6 +4597,7 @@ Item {
                     SectionTitle { text: qsTr("Recording") }
                     HotkeyRow {
                         label: qsTr("Video start/stop")
+                        icon: "line-record"
                         help: qsTr("Hotkey: toggle video recording.")
                         helpDetail: App.hotkeyBackend === "win32"
                                     ? qsTr("First press opens the recording setup for a region; pressing again while recording stops and finalizes the file. Ctrl+Alt+Esc is the always-on emergency stop (Windows keeps Ctrl+Esc for the Start menu).")
@@ -4363,6 +4608,7 @@ Item {
                     }
                     HotkeyRow {
                         label: qsTr("GIF start/stop")
+                        icon: "line-film"
                         help: qsTr("Hotkey: toggle GIF recording.")
                         helpDetail: qsTr("Same flow as video recording, but the result is converted into an optimized GIF (two-pass palette) when you stop.")
                         actionId: "record-gif"
@@ -4371,6 +4617,7 @@ Item {
                     }
                     HotkeyRow {
                         label: qsTr("Video of the full screen")
+                        icon: "line-monitor"
                         help: qsTr("Hotkey: start or stop a video of the whole screen.")
                         actionId: "record-screen"
                         shortcuts: App.settings.hotkeyRecordScreen
@@ -4378,6 +4625,7 @@ Item {
                     }
                     HotkeyRow {
                         label: qsTr("GIF of the full screen")
+                        icon: "line-monitor"
                         help: qsTr("Hotkey: start or stop a GIF of the whole screen.")
                         actionId: "gif-screen"
                         shortcuts: App.settings.hotkeyGifScreen
@@ -4385,6 +4633,7 @@ Item {
                     }
                     HotkeyRow {
                         label: qsTr("Video of a window")
+                        icon: "line-window"
                         help: qsTr("Hotkey: start or stop a video of one window you pick.")
                         available: App.capRecordWindowSource
                         hint: qsTr("Recording one window needs the desktop's window picker, which this session does not have.")
@@ -4394,6 +4643,7 @@ Item {
                     }
                     HotkeyRow {
                         label: qsTr("Pause or resume recording")
+                        icon: "line-pause"
                         help: qsTr("Hotkey: pause the running recording, or resume it.")
                         actionId: "pause-recording"
                         shortcuts: App.settings.hotkeyPauseRecording
@@ -4410,6 +4660,7 @@ Item {
                     SectionTitle { text: qsTr("Clips") }
                     HotkeyRow {
                         label: qsTr("Save clip")
+                        icon: "line-save"
                         help: qsTr("Hotkey: save the last moments as a clip. Starts instant replay when it is off.")
                         helpDetail: qsTr("The first press opens the screen-sharing portal and starts the bounded encoded ring. While it is active, each press saves the latest configured duration without stopping capture.")
                         actionId: "instant-replay"
@@ -4418,6 +4669,7 @@ Item {
                     }
                     HotkeyRow {
                         label: qsTr("Instant replay on/off")
+                        icon: "line-power"
                         help: qsTr("Hotkey: start instant replay, or stop it.")
                         actionId: "replay-toggle"
                         shortcuts: App.settings.hotkeyReplayToggle
@@ -4425,6 +4677,7 @@ Item {
                     }
                     HotkeyRow {
                         label: qsTr("Open in the clip editor")
+                        icon: "line-cut"
                         help: qsTr("Hotkey: pick a recording and cut it in the clip editor.")
                         actionId: "trim-video"
                         shortcuts: App.settings.hotkeyTrimVideo
@@ -4441,6 +4694,7 @@ Item {
                     SectionTitle { text: qsTr("Files and sharing") }
                     HotkeyRow {
                         label: qsTr("Edit an image")
+                        icon: "line-pencil"
                         help: qsTr("Hotkey: pick an image file and open it in the editor.")
                         actionId: "edit-image"
                         shortcuts: App.settings.hotkeyEditImage
@@ -4448,6 +4702,7 @@ Item {
                     }
                     HotkeyRow {
                         label: qsTr("Upload a file")
+                        icon: "line-upload"
                         help: qsTr("Hotkey: pick any file and upload it.")
                         actionId: "upload-file"
                         shortcuts: App.settings.hotkeyUploadFile
@@ -4455,6 +4710,7 @@ Item {
                     }
                     HotkeyRow {
                         label: qsTr("Upload clipboard")
+                        icon: "line-clipboard"
                         help: qsTr("Hotkey: upload the copied file, image or text.")
                         actionId: "upload-clipboard"
                         shortcuts: App.settings.hotkeyUploadClipboard
@@ -4462,6 +4718,7 @@ Item {
                     }
                     HotkeyRow {
                         label: qsTr("QR code of copied text")
+                        icon: "line-qr"
                         help: qsTr("Hotkey: show the copied text as a QR code.")
                         actionId: "qr-clipboard"
                         shortcuts: App.settings.hotkeyQrClipboard
@@ -4494,6 +4751,7 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Full screen hotkey")
+                        icon: "line-monitor"
                         Row {
                             spacing: Theme.spacingS
                             UComboBox {
@@ -4519,6 +4777,7 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Region hotkey")
+                        icon: "line-rect"
                         Row {
                             spacing: Theme.spacingS
                             UComboBox {
@@ -4537,6 +4796,7 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Window hotkey")
+                        icon: "line-window"
                         Row {
                             spacing: Theme.spacingS
                             UComboBox {

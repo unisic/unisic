@@ -206,12 +206,20 @@ AppContext::AppContext(QObject *parent)
     // download-progress chunk and would rebuild the tray continuously.
     connect(m_updater, &UpdateChecker::availabilityChanged, this, &AppContext::setupTray);
     connect(m_updater, &UpdateChecker::updateFound, this, [this](const QString &v) {
-        // Windows: also a system notification, once per version like the rest
-        // of this handler. Never while recording: the direct grab would film it.
-        if (UpdateChecker::notifiesFromTray() && m_tray && m_settings->showNotifications()
-            && !recording() && !instantReplayActive())
+        // Also a system notification, once per version like the rest of this
+        // handler: the in-app toast needs the window open, and the app spends
+        // its day in the tray. Never while recording: the grab would film it.
+        // shortcut: needs a tray (QSystemTrayIcon sends it through the
+        // desktop's notification service); GNOME without the AppIndicator
+        // extension gets the toast only. Upgrade to a direct
+        // org.freedesktop.Notifications call if that matters.
+        if (m_tray && m_settings->showNotifications() && !recording() && !instantReplayActive())
             m_tray->showMessage(tr("Unisic %1 is available").arg(v),
-                                tr("It installs itself in the background. Click to open Unisic."));
+                                m_updater->canSelfUpdate()
+                                    ? tr("It installs itself in the background. Click to open Unisic.")
+                                    : m_updater->canInstallViaScript()
+                                          ? tr("Click to open Unisic and install it.")
+                                          : tr("Update it the way you installed Unisic. Click to open it."));
         // Native package install: no silent self-update path, but we CAN offer to
         // run install.sh in a terminal. Ask instead of toasting - QML opens the
         // "Install now?" prompt (once per version, gated by updateFound itself).

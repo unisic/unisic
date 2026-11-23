@@ -59,7 +59,7 @@ Rectangle {
         var t = [qsTr("General", "Settings category"), qsTr("Capture", "Settings category"),
                  qsTr("Recording", "Settings category"), qsTr("Clips", "Settings category"),
                  qsTr("Editor", "Settings category"),
-                 qsTr("Saving", "Settings category"), qsTr("Notifications", "Settings category"),
+                 qsTr("After capture", "Settings category"), qsTr("Notifications", "Settings category"),
                  qsTr("Appearance", "Settings category"), qsTr("Hotkeys", "Settings category")]
         if (App.devBuild)
             t.push(qsTr("Developer", "Settings category"))
@@ -67,7 +67,7 @@ Rectangle {
     }
     // Same order and glyphs as SettingsPage.tabIcons; change both together.
     readonly property var settingsTabIcons: ["line-sliders", "line-camera", "line-record", "line-film", "line-pencil",
-                                             "line-save", "line-bell", "line-palette", "line-keyboard",
+                                             "line-send", "line-bell", "line-palette", "line-keyboard",
                                              "line-terminal"]
 
     // At most six actions and every matching Settings category, then one row

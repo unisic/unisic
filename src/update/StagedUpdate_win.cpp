@@ -214,13 +214,6 @@ QString UpdateChecker::noInstallAssetStatus()
     return tr("This release has no Windows build - it can't be installed in place");
 }
 
-bool UpdateChecker::notifiesFromTray()
-{
-    // The update stages and starts on its own once the app is idle, so with
-    // the window closed nothing else would ever say a new version arrived.
-    return true;
-}
-
 void UpdateChecker::setUnpackCommand(QProcess *proc, const QString &pkg)
 {
     // An empty program (no system directory) fails to start, which the

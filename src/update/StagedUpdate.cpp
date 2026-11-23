@@ -86,12 +86,6 @@ QString UpdateChecker::noInstallAssetStatus()
     return tr("This release has no AppImage - it can't be installed in place");
 }
 
-bool UpdateChecker::notifiesFromTray()
-{
-    // Linux keeps the in-app toast and the tray menu entry alone.
-    return false;
-}
-
 void UpdateChecker::setUnpackCommand(QProcess *proc, const QString &pkg)
 {
     // --appimage-extract works without FUSE (a package install can't assume

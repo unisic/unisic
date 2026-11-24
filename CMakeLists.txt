@@ -4,7 +4,7 @@ project(unisic VERSION 0.8.10 LANGUAGES CXX)
 # pre-release suffixes live here (a letter suffix like "0.3b" -> the
 # workflow marks the GitHub release pre-release); this string
 # drives the binary footer, package versions and the GitHub release tag.
-set(UNISIC_VERSION_STRING "0.8.10-test4")
+set(UNISIC_VERSION_STRING "0.8.10-test5")
 
 include(GNUInstallDirs)
 

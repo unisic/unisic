@@ -6,6 +6,7 @@
 #include <QSize>
 #include "ScrollStitcher.h"
 
+class QProcess;
 class QQmlEngine;
 class QQuickWindow;
 class QScreen;
@@ -86,6 +87,8 @@ private:
     void openX11Session();
     void wireGrabber(IScreenGrabber *grabber);
     void createOverlayWindow();
+    void startHelper();
+    void pushHelperState();
     void closeOverlayWindow();
     void setStatus(bool lostTrack, bool full);
     void setControlsShown(bool shown);
@@ -127,4 +130,7 @@ private:
     KWinScreencastStream *m_kwinStream = nullptr;
 
     QPointer<QQuickWindow> m_window;
+    // GNOME and X11: the frame and controls drawn by the XWayland helper.
+    QPointer<QProcess> m_helper;
+    QByteArray m_helperSent; // last state written, so a frame only writes on change
 };

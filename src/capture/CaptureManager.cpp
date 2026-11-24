@@ -167,6 +167,17 @@ bool CaptureManager::preferGrim() const
            && GrimScreenshot::isAvailable();
 }
 
+QString CaptureManager::backendName() const
+{
+    if (!m_kwinDenied && KWinScreenShot2::isAvailable())
+        return KWinScreenShot2::backendName();
+    if (preferGrim())
+        return QStringLiteral("grim");
+    if (preferGnome())
+        return QStringLiteral("GNOME Shell");
+    return QStringLiteral("xdg-desktop-portal");
+}
+
 bool CaptureManager::preferGnome() const
 {
     // Only on niri, where the portal is the broken path and niri leaves

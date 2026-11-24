@@ -16,9 +16,16 @@ class EditorSession : public QObject
     QML_UNCREATABLE("Created by AppContext")
 
     Q_PROPERTY(QString statusText READ statusText NOTIFY statusTextChanged)
+    // False for a status that reports an edit rather than an export, so it
+    // does not count as exported for the discard prompt.
+    Q_PROPERTY(bool statusExported READ statusExported NOTIFY statusTextChanged)
     // True when editing an existing capture from history: save() OVERWRITES that
     // file instead of creating a new one. The UI shows an overwrite confirmation.
     Q_PROPERTY(bool overwriteMode READ overwriteMode CONSTANT)
+    // The file this picture is (or was last saved as), for the editor header;
+    // empty while it exists nowhere on disk. Every save sets a status, so it
+    // shares that signal.
+    Q_PROPERTY(QString fileName READ fileName NOTIFY statusTextChanged)
 
 public:
     explicit EditorSession(AppContext *app, const QImage &image,
@@ -26,7 +33,9 @@ public:
                            QObject *parent = nullptr);
 
     QString statusText() const { return m_status; }
+    bool statusExported() const { return m_statusExported; }
     bool overwriteMode() const { return !m_overwritePath.isEmpty(); }
+    QString fileName() const;
 
     Q_INVOKABLE void bindCanvas(AnnotationCanvas *canvas);
     Q_INVOKABLE QString save();               // returns saved path ("" on failure)
@@ -38,23 +47,38 @@ public:
     Q_INVOKABLE QString saveAsDialog();
     Q_INVOKABLE void copyToClipboard();
     Q_INVOKABLE void upload();
+    Q_INVOKABLE void print();                 // the image as edited, through the print dialog
     Q_INVOKABLE void ocrCopyText();           // OCR the composited image, copy text
+    // Native file picker, then the picture goes onto the canvas centred on the
+    // given image point (a toast when it does not decode).
+    Q_INVOKABLE void insertImageFile(qreal imgX, qreal imgY);
     // Enter the canvas's OCR text-pick mode: recognize words asynchronously and
     // hand them to the canvas so the user can select + copy a subset.
     Q_INVOKABLE void startOcrPick();
     Q_INVOKABLE void copyOcrSelection();      // copy the canvas's selected words
     Q_INVOKABLE void highlightOcrSelection(); // make the selected text permanent
     Q_INVOKABLE void redactOcrSelection();    // black out the selected text permanently
-    // Black out every recognized run matching `pattern` — no selection needed.
-    Q_INVOKABLE void redactTextMatching(const QString &pattern);
-    // Remove the background from the whole image (U-2-Net) → transparent PNG.
+    // Auto-redact's scan: recognizes the text when the canvas has no words yet
+    // and reports what AnnotationCanvas::sensitiveCounts() finds, covering
+    // nothing; the user then picks the kinds to cover. A scan that had to
+    // enter OCR mode leaves it as soon as the words arrive, keeping them, so
+    // the editor takes clicks and Ctrl+A as usual while the review stays
+    // open. endSensitiveScan() calls off a recognition still running.
+    Q_INVOKABLE void scanSensitive();
+    Q_INVOKABLE void endSensitiveScan();
+    // Cut the subject out (BackgroundRemover) as one undo step, annotations
+    // baked in. Dropped with a status line if the picture changed meanwhile.
+    Q_INVOKABLE void removeBackground();
 
 signals:
     void statusTextChanged();
 
 private:
     QImage composited() const;
-    void setStatus(const QString &s);
+    // exported: a finished save, copy or upload, which lifts the close guard.
+    // Progress, failures and edits (OCR, redaction) must not.
+    void setStatus(const QString &s, bool exported = false);
+    void reportSensitive(const QString &ocrError);
 
     AppContext *m_app;
     QImage m_image;
@@ -65,4 +89,8 @@ private:
     quint64 m_historyId = 0;
     AnnotationCanvas *m_canvas = nullptr;
     QString m_status;
+    bool m_statusExported = true;
+    bool m_scanPending = false;     // report once startOcrPick's words land
+    bool m_scanLeavesOcr = false;   // ...and leave the OCR mode it entered
+    quint64 m_edits = 0;           // canvas history changes, a staleness guard
 };

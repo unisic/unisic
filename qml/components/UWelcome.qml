@@ -345,7 +345,7 @@ Item {
                     }
                     Text {
                         width: parent.width
-                        text: qsTr("Write your own as a small .json file - Settings › Interface opens the folder.")
+                        text: qsTr("Write your own as a small .json file - Settings › Appearance opens the folder.")
                         color: Theme.textTertiary
                         font.pixelSize: Theme.fontS
                         wrapMode: Text.WordWrap
@@ -363,10 +363,10 @@ Item {
                     }
                     UComboBox {
                         width: parent.width
-                        readonly property var ids: ["system", "en", "pl", "es", "it", "fr", "ru", "de"]
+                        readonly property var ids: ["system", "en", "pl", "es", "it", "fr", "ru", "de", "zh_CN"]
                         // Native names on purpose — every user recognises their
                         // own language regardless of the current UI.
-                        model: [qsTr("System"), "English", "Polski", "Español", "Italiano", "Français", "Русский", "Deutsch"]
+                        model: [qsTr("System"), "English", "Polski", "Español", "Italiano", "Français", "Русский", "Deutsch", "简体中文"]
                         currentIndex: Math.max(0, ids.indexOf(App.settings.uiLanguage))
                         onActivated: (i) => App.settings.uiLanguage = ids[i]
                         accessibleName: langLabel.text

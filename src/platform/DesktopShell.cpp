@@ -8,10 +8,12 @@
 
 #include <QCoreApplication>
 #include <QDBusConnection>
+#include <QDBusArgument>
 #include <QDBusConnectionInterface>
 #include <QDBusMessage>
 #include <QDBusPendingCallWatcher>
 #include <QDBusReply>
+#include <QDBusUnixFileDescriptor>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -19,7 +21,10 @@
 #include <QProcess>
 #include <QStandardPaths>
 #include <QTemporaryDir>
+#include <QTemporaryFile>
 #include <QUrl>
+
+#include <memory>
 
 void AppContext::showInFileManager(const QString &path)
 {
@@ -254,6 +259,63 @@ void AppContext::requestPortalAutostart(bool on)
             showToast(tr("Autostart was not granted"), true);
         emit autostartEnabledChanged();
     }, this, 0); // a portal that asks the user must be allowed to wait for them
+}
+
+// The Print portal both ways round: PreparePrint shows the system dialog and
+// hands back the chosen paper and a token, Print then takes a PDF laid out on
+// that paper. The same path in and out of a sandbox, and no print dialog of our
+// own to keep in step with the desktop's.
+void AppContext::printImage(const QImage &img, const QString &title)
+{
+    if (img.isNull())
+        return;
+    const QString portal = QStringLiteral("org.freedesktop.portal.Desktop");
+    const QString path = QStringLiteral("/org/freedesktop/portal/desktop");
+    const QString iface = QStringLiteral("org.freedesktop.portal.Print");
+    const QString token = PortalRequest::nextToken();
+    QDBusMessage msg = QDBusMessage::createMethodCall(portal, path, iface, QStringLiteral("PreparePrint"));
+    QVariantMap pageSetup; // a hint only: the dialog opens turned the image's way
+    if (img.width() > img.height())
+        pageSetup.insert(QStringLiteral("Orientation"), QStringLiteral("landscape"));
+    msg << QString() << title << QVariantMap() << pageSetup
+        << QVariantMap{{QStringLiteral("handle_token"), token}, {QStringLiteral("modal"), true}};
+
+    PortalRequest::send(msg, token, [this, img, title, portal, path, iface](uint code, const QVariantMap &results) {
+        if (code == 1)
+            return;
+        if (code != 0) {
+            showToast(tr("Printing is not available: %1")
+                          .arg(results.value(QStringLiteral("error")).toString()), true);
+            return;
+        }
+        // Nested a{sv} arrives still marshalled.
+        const QVariant setupArg = results.value(QStringLiteral("page-setup"));
+        const QVariantMap setup = setupArg.canConvert<QDBusArgument>()
+            ? qdbus_cast<QVariantMap>(setupArg.value<QDBusArgument>()) : setupArg.toMap();
+        // Kept until the portal answers: it reads the file after Print returns.
+        auto pdf = std::make_shared<QTemporaryFile>(QDir::tempPath() + QStringLiteral("/unisic-print-XXXXXX.pdf"));
+        if (!pdf->open() || pdf->write(printPdf(img, setup)) < 0 || !pdf->flush()) {
+            showToast(tr("Could not prepare the page for printing"), true);
+            return;
+        }
+        // A fresh read-only descriptor at offset 0, not the write handle.
+        QFile in(pdf->fileName());
+        if (!in.open(QIODevice::ReadOnly)) {
+            showToast(tr("Could not prepare the page for printing"), true);
+            return;
+        }
+        const QString printToken = PortalRequest::nextToken();
+        QDBusMessage print = QDBusMessage::createMethodCall(portal, path, iface, QStringLiteral("Print"));
+        print << QString() << title << QVariant::fromValue(QDBusUnixFileDescriptor(in.handle()))
+              << QVariantMap{{QStringLiteral("handle_token"), printToken},
+                             {QStringLiteral("modal"), true},
+                             {QStringLiteral("token"), results.value(QStringLiteral("token")).toUInt()}};
+        PortalRequest::send(print, printToken, [this, pdf](uint code, const QVariantMap &results) {
+            if (code == 2)
+                showToast(tr("Printing failed: %1").arg(results.value(QStringLiteral("error")).toString()),
+                          true);
+        }, this, 0);
+    }, this, 0); // the dialog waits on the user
 }
 
 void AppContext::setAutostartEnabled(bool on)

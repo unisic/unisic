@@ -5,6 +5,7 @@
 #include "capture/KWinScreenShot2.h"
 #include "capture/ScrollCaptureController.h"
 #include "capture/KWinForceBlur.h"
+#include "capture/KWinWindowGeometry.h"
 #include "overlay/OverlayController.h"
 #include "upload/UploadManager.h"
 #include "actions/ExternalActionRunner.h"
@@ -26,6 +27,7 @@
 #include "hotkeys/PortalGlobalShortcuts.h"
 #include "hotkeys/X11Hotkeys.h"
 #include "record/X11ShmGrabber.h"
+#include "record/GameDetector.h"
 #include <QThread>
 #include "record/AudioCapture.h"
 #include "record/GifRecorder.h"
@@ -40,6 +42,7 @@
 #include <QCursor>
 #include "record/RecordBorderController.h"
 #include "record/TrimController.h"
+#include "record/ClipGraph.h"
 #include "editor/EditorSession.h"
 #include "editor/ImageEffects.h"
 #include "PreviewController.h"
@@ -48,6 +51,7 @@
 #include "notify/DesktopNotifier.h"
 #include "notify/NotificationInhibitor.h"
 #include "notify/LayerShellNotifier.h"
+#include "notify/ClipOsd.h"
 #include <LayerShellQt/window.h>
 #include <QMargins>
 #include "theme/ThemeController.h"
@@ -58,6 +62,7 @@
 #include "ImageEncode.h"
 #include <QSaveFile>
 #include "ocr/OcrEngine.h"
+#include "ocr/OcrEngines.h"
 // zxing-cpp 3 removed MultiFormatWriter/BitMatrix in favour of CreateBarcode.
 #if __has_include(<ZXing/MultiFormatWriter.h>)
 #include <ZXing/BitMatrix.h>
@@ -104,6 +109,8 @@
 #include <QElapsedTimer>
 #include <QDir>
 #include <QBuffer>
+#include <QPageSize>
+#include <QPdfWriter>
 #include <QTimer>
 #include <QProcess>
 #include <QPainter>
@@ -144,21 +151,28 @@ AppContext::AppContext(QObject *parent)
     , m_history(new HistoryStore(this))
     , m_hotkeys(new GlobalHotkeys(this))
     , m_recorder(new GifRecorder(m_settings, this))
+    , m_replay(new GifRecorder(m_settings, this))
 {
     m_notifier = new DesktopNotifier(this, this);
     m_dnd = new NotificationInhibitor(this);
     m_actionRunner = new ExternalActionRunner(this);
+    // Created up front, not on first use: over data-control it learns the
+    // current selection one roundtrip after it exists, so a lazy first read
+    // (Upload clipboard, QR of copied text) found the clipboard empty.
+    KSystemClipboard::instance();
     // Keystroke-badge colors follow the active theme (incl. custom themes).
     // Resolved lazily at key-capture start - m_engine is null here.
-    m_recorder->setKeystrokeThemeProvider([this]() -> QPair<QColor, QColor> {
+    const auto keystrokeTheme = [this]() -> QPair<QColor, QColor> {
         if (m_engine) {
             if (QObject *theme = m_engine->singletonInstance<QObject *>(
-                    QStringLiteral("Unisic"), QStringLiteral("Theme")))
+                    QStringLiteral("Unisic.Kit"), QStringLiteral("Theme")))
                 return {theme->property("keystrokeBg").value<QColor>(),
                         theme->property("keystrokeText").value<QColor>()};
         }
         return {QColor(), QColor()};
-    });
+    };
+    m_recorder->setKeystrokeThemeProvider(keystrokeTheme);
+    m_replay->setKeystrokeThemeProvider(keystrokeTheme);
     refreshWatermarkImage();
     connect(m_settings, &Settings::watermarkImagePathChanged,
             this, &AppContext::refreshWatermarkImage);
@@ -174,12 +188,38 @@ AppContext::AppContext(QObject *parent)
             ++m_watermarkPreviewRev;
             emit watermarkPreviewChanged();
         });
+    for (auto sig : { &Settings::replayWatermarkEnabledChanged, &Settings::replayWatermarkTextChanged,
+                      &Settings::replayWatermarkOpacityChanged, &Settings::replayWatermarkPositionChanged,
+                      &Settings::replayWatermarkTypeChanged, &Settings::replayWatermarkImagePathChanged,
+                      &Settings::replayWatermarkScaleChanged })
+        connect(m_settings, sig, this, [this] {
+            ++m_replayWatermarkPreviewRev;
+            emit replayWatermarkPreviewChanged();
+            // A running recording picks the change up on its next frame.
+            m_recorder->buildReplayStamp();
+            m_replay->buildReplayStamp();
+        });
 
     m_updater = new UpdateChecker(m_settings, this);
+    m_bgRemover = new BackgroundRemover(this);
     // Tray entry follows availability flips only - stateChanged also fires per
     // download-progress chunk and would rebuild the tray continuously.
     connect(m_updater, &UpdateChecker::availabilityChanged, this, &AppContext::setupTray);
     connect(m_updater, &UpdateChecker::updateFound, this, [this](const QString &v) {
+        // Also a system notification, once per version like the rest of this
+        // handler: the in-app toast needs the window open, and the app spends
+        // its day in the tray. Never while recording: the grab would film it.
+        // shortcut: needs a tray (QSystemTrayIcon sends it through the
+        // desktop's notification service); GNOME without the AppIndicator
+        // extension gets the toast only. Upgrade to a direct
+        // org.freedesktop.Notifications call if that matters.
+        if (m_tray && m_settings->showNotifications() && !recording() && !instantReplayActive())
+            m_tray->showMessage(tr("Unisic %1 is available").arg(v),
+                                m_updater->canSelfUpdate()
+                                    ? tr("It installs itself in the background. Click to open Unisic.")
+                                    : m_updater->canInstallViaScript()
+                                          ? tr("Click to open Unisic and install it.")
+                                          : tr("Update it the way you installed Unisic. Click to open it."));
         // Native package install: no silent self-update path, but we CAN offer to
         // run install.sh in a terminal. Ask instead of toasting - QML opens the
         // "Install now?" prompt (once per version, gated by updateFound itself).
@@ -221,14 +261,19 @@ AppContext::AppContext(QObject *parent)
     // Live two-way sync: a KCM edit updates the app's stored/displayed key.
     connect(m_hotkeys, &GlobalHotkeys::shortcutChanged, this,
             &AppContext::syncHotkeyFromDaemon);
+    // The new key may be free (drop the row's conflict mark) or held elsewhere.
+    connect(m_hotkeys, &GlobalHotkeys::shortcutChanged, this,
+            [this](const QString &actionId, const QString &portable) {
+                recheckHotkeyConflict(actionId, GlobalHotkeys::keysFor(portable), false, true);
+            });
 
     connect(m_recorder, &GifRecorder::started, this, &AppContext::recordingChanged);
     connect(m_recorder, &GifRecorder::pausedChanged, this, &AppContext::recordingChanged);
     // Portal approved + stream live, but encoding is HELD: run the countdown /
     // start cue, then commit. The start sound is played here (before commit), not
     // on started(), so it is never captured in the recording.
-    connect(m_recorder, &GifRecorder::armed, this, [this] {
-        if (!m_recordHoldActive)
+    const auto onArmed = [this](GifRecorder *from) {
+        if (!m_recordHoldActive || from != m_countdownTarget)
             return;
         const int secs = m_pendingCountdownSecs;
         m_pendingCountdownSecs = 0;
@@ -236,9 +281,12 @@ AppContext::AppContext(QObject *parent)
             runRecordCountdownVisuals(secs); // ends in commitRecordingAfterCue()
         else
             commitRecordingAfterCue();       // start-sound pre-roll only
-    });
+    };
+    connect(m_recorder, &GifRecorder::armed, this, [this, onArmed] { onArmed(m_recorder); });
+    connect(m_replay, &GifRecorder::armed, this, [this, onArmed] { onArmed(m_replay); });
     // Badge/unbadge the tray icon as recording starts and stops.
     connect(this, &AppContext::recordingChanged, this, &AppContext::applyTrayIcon);
+    connect(this, &AppContext::recordingChanged, this, &AppContext::updateGameDetector);
     connect(m_recorder, &GifRecorder::started, this, [this] {
         // Region recordings carry a pending rect. Gate on the LIVE recording
         // actually being a Region one: a stale pending rect (set by a region
@@ -252,11 +300,26 @@ AppContext::AppContext(QObject *parent)
         // Here rather than at the trigger because the countdown renders as a
         // toast INSIDE that window; endCaptureIsolation() puts it back, and the
         // converting/failed signals that call it cover every way a recording can
-        // end. Never for the instant-replay ring: that rolls for as long as the
-        // user leaves it armed, and taking the window away for an open-ended
-        // period is not "for the duration of a capture", it is losing the window.
-        if (!m_recorder->instantReplayActive())
-            hideOwnWindowForCapture();
+        // end.
+        hideOwnWindowForCapture();
+    });
+    // Never hides the window for the instant-replay ring: that rolls for as
+    // long as the user leaves it armed, and taking the window away for an
+    // open-ended period is not "for the duration of a capture", it is losing
+    // the window.
+    connect(m_replay, &GifRecorder::started, this, [this] {
+        emit recordingChanged();
+        const int secs = m_settings->instantReplaySeconds();
+        const QString length = secs < 60 ? tr("%1 s").arg(secs) : tr("%1 min").arg(secs / 60);
+        const QString keys = m_settings->hotkeyInstantReplay().section(QLatin1Char(','), 0, 0).trimmed();
+        showClipIndicator(tr("Instant replay on"),
+                          keys.isEmpty()
+                              ? tr("Keeping the last %1").arg(length)
+                              : tr("%1 saves the last %2")
+                                    .arg(QKeySequence::fromString(keys, QKeySequence::PortableText)
+                                             .toString(QKeySequence::NativeText),
+                                         length),
+                          QStringLiteral("rec"));
     });
     connect(m_recorder, &GifRecorder::elapsedChanged, this, &AppContext::recordSecondsChanged);
     connect(m_recorder, &GifRecorder::converting, this, [this] {
@@ -266,21 +329,71 @@ AppContext::AppContext(QObject *parent)
         emit recordingChanged();
         showToast(tr("Encoding…"));
     });
-    connect(m_recorder, &GifRecorder::finished, this, &AppContext::onRecordingFinished);
-    connect(m_recorder, &GifRecorder::replayExportFailed, this, [this](const QString &error) {
-        showToast(tr("Instant replay failed: %1").arg(error), true);
+    connect(m_replay, &GifRecorder::converting, this, [this] {
+        m_replayStopping = true; // stopping the ring encodes nothing
+        emit recordingChanged();
+        showClipIndicator(tr("Instant replay off"), QString(), QStringLiteral("rec"), 1800);
     });
-    connect(m_recorder, &GifRecorder::failed, this, [this](const QString &e) {
+    connect(m_recorder, &GifRecorder::finished, this, [this](const QString &path, const QString &origin) {
         m_converting = false;
-        endCaptureIsolation();
-        // A failure can land before arming (portal denied): clear the pending
-        // hold so a later recording can't inherit it.
+        qInfo() << "Recording finished:" << (path.isEmpty() ? QStringLiteral("no file") : path);
+        onRecordingFinished(path, origin);
+    });
+    connect(m_replay, &GifRecorder::finished, this, [this](const QString &path, const QString &origin) {
+        // A clip leaves the ring running; an empty origin is the ring stopping.
+        if (origin.isEmpty())
+            m_replayStopping = false;
+        if (path.isEmpty())
+            qInfo() << "Instant replay stopped";
+        else
+            qInfo() << "Saved" << origin << path;
+        onRecordingFinished(path, origin);
+    });
+    for (GifRecorder *r : {m_recorder, m_replay}) {
+        connect(r, &GifRecorder::started, this, [r, this] {
+            qInfo() << (r == m_replay ? "Instant replay started" : "Recording started");
+        });
+        connect(r, &GifRecorder::saveProgress, this, &AppContext::setSaveProgress);
+        connect(r, &GifRecorder::replayExportFailed, this, [this] { setSaveProgress(-1); });
+        connect(r, &GifRecorder::failed, this, [this] { setSaveProgress(-1); });
+    }
+    connect(m_settings, &Settings::instantReplayAutoChanged, this, &AppContext::applyInstantReplayAuto);
+    // Queued: the recorder signals before it is fully idle, and the ring must
+    // read as stopped by then or the dot comes back after a stop.
+    connect(this, &AppContext::recordingChanged, this, &AppContext::updateReplayDot, Qt::QueuedConnection);
+    connect(m_replay, &GifRecorder::failed, this, &AppContext::updateReplayDot, Qt::QueuedConnection);
+    connect(m_settings, &Settings::clipStatusDotChanged, this, &AppContext::updateReplayDot);
+    connect(m_settings, &Settings::clipStatusCornerChanged, this, &AppContext::updateReplayDot);
+    // After startup settles (portal probe, tray), not on the startup path.
+    QTimer::singleShot(3000, this, &AppContext::applyInstantReplayAuto);
+    connect(m_replay, &GifRecorder::replayExportFailed, this, [this](const QString &error) {
+        showToast(tr("Instant replay failed: %1").arg(error), true);
+        showClipIndicator(tr("Clip not saved"), error, QStringLiteral("error"), 4000);
+    });
+    // A failure can land before arming (portal denied): clear the pending
+    // hold so a later recording can't inherit it.
+    const auto dropHold = [this](GifRecorder *from) {
+        if (m_countdownTarget != from)
+            return;
         m_pendingCountdownSecs = 0;
         m_recordHoldActive = false;
+        m_countdownTarget = nullptr;
+    };
+    connect(m_recorder, &GifRecorder::failed, this, [this, dropHold](const QString &e) {
+        m_converting = false;
+        endCaptureIsolation();
+        dropHold(m_recorder);
         hideRecordBorder();
         emit recordingChanged();
         if (e != QLatin1String("cancelled"))
             showToast(tr("Recording failed: %1").arg(e), true);
+    });
+    connect(m_replay, &GifRecorder::failed, this, [this, dropHold](const QString &e) {
+        m_replayStopping = false;
+        dropHold(m_replay);
+        emit recordingChanged();
+        if (e != QLatin1String("cancelled"))
+            showToast(tr("Instant replay failed: %1").arg(e), true);
     });
 
     // A history file that could not be trashed still gets its entry removed;
@@ -311,6 +424,18 @@ AppContext::AppContext(QObject *parent)
     }
 
     m_ocr = new OcrEngine(this);
+    m_ocr->setEngine(ocrEffectiveEngine());
+    m_ocr->setPaddleSetup([this] { return m_bgRemover->ocrSetup(); });
+    connect(m_settings, &Settings::ocrEngineChanged, m_ocr, [this] {
+        m_ocr->setEngine(ocrEffectiveEngine());
+        emit ocrEngineStateChanged();
+    });
+    // The first OCR run, or Settings, looks for ONNX Runtime; without one
+    // Settings shows Tesseract as the engine that runs.
+    connect(m_bgRemover, &BackgroundRemover::stateChanged, this, [this] {
+        m_ocr->setEngine(ocrEffectiveEngine());
+        emit ocrEngineStateChanged();
+    });
 }
 
 AppContext::~AppContext()
@@ -374,6 +499,8 @@ void AppContext::initialize(QQmlEngine *engine)
         // now re-validates to the bundled default - refresh the live tray too.
         applyTrayIcon();
     });
+    startWatchFolder();
+
     // Deferred to the first event-loop pass so the asynchronous registration
     // burst starts after the QML engine has loaded the window, and late enough
     // that startup toasts (e.g. a Ctrl+Esc conflict) have a UI to appear in.
@@ -434,6 +561,8 @@ void AppContext::dispatchHotkey(const QString &action)
     if (action == QLatin1String("stop-recording")) {
         if (recording())
             stopRecording();
+        else if (instantReplayActive())
+            stopInstantReplay();
         return;
     }
     if (m_shortcutRecording)
@@ -471,8 +600,31 @@ void AppContext::dispatchHotkey(const QString &action)
         else startVideoRegion();
     } else if (action == QLatin1String("instant-replay")) {
         if (instantReplayActive()) saveInstantReplay();
-        else if (!recording()) startInstantReplay();
-    } else if (action == QLatin1String("smoke-test")) {
+        else startInstantReplay();
+    } else if (action == QLatin1String("replay-toggle")) {
+        if (instantReplayActive()) stopInstantReplay();
+        else startInstantReplay();
+    } else if (action == QLatin1String("record-screen")) {
+        if (recording()) stopRecording();
+        else startVideoScreen();
+    } else if (action == QLatin1String("gif-screen")) {
+        if (recording()) stopRecording();
+        else startGifFullScreen();
+    } else if (action == QLatin1String("record-window")) {
+        if (recording()) stopRecording();
+        else startVideoWindow();
+    } else if (action == QLatin1String("pause-recording")) {
+        if (recordingCanPause()) togglePauseRecording();
+    } else if (action == QLatin1String("measure")) {
+        if (m_captureInFlight || m_overlay->active()) return;
+        captureMeasure();
+    }
+    else if (action == QLatin1String("edit-image")) openFileForEditing(QStringLiteral("image"));
+    else if (action == QLatin1String("trim-video")) openFileForEditing(QStringLiteral("video"));
+    else if (action == QLatin1String("upload-file")) uploadAnyFile();
+    else if (action == QLatin1String("upload-clipboard")) uploadClipboard();
+    else if (action == QLatin1String("qr-clipboard")) qrFromClipboard();
+    else if (action == QLatin1String("smoke-test")) {
         if (devBuild()) runSmokeTest();
     }
 }
@@ -529,7 +681,8 @@ bool AppContext::capRecordWindowSource() const
     // Window recording is resolved by the portal's window picker (or KWin's).
     // The X11 backend records a monitor rect and has no window source, so an
     // X11-only desktop can record screen and region but not a single window.
-    return m_screenCastPortalPresent;
+    // Windows records the target window's area instead (startVideoWindow).
+    return m_screenCastPortalPresent || QGuiApplication::platformName() == QLatin1String("windows");
 }
 
 bool AppContext::capScreenCastPortal() const
@@ -537,6 +690,42 @@ bool AppContext::capScreenCastPortal() const
     // Probed on the session bus at startup: a dev-tab "-" here means the
     // desktop ships no ScreenCast portal backend at all.
     return m_screenCastPortalPresent;
+}
+
+QStringList AppContext::ocrEngines() const
+{
+    return OcrEngines::available();
+}
+
+QString AppContext::ocrEffectiveEngine() const
+{
+    return OcrEngines::effective(m_settings->ocrEngine(), m_windowsOcrUsable, m_bgRemover->ocrUsable());
+}
+
+void AppContext::checkOcrEngines()
+{
+    if (m_ocrEnginesChecked)
+        return;
+    m_ocrEnginesChecked = true;
+    if (!WindowsOcr::built()) {
+        m_windowsOcrUsable = false;
+        // Looks for ONNX Runtime now (one dlopen, when the OCR settings open),
+        // so Settings names the engine that will really run.
+        m_bgRemover->ocrSetup();
+        m_ocr->setEngine(ocrEffectiveEngine());
+        emit ocrEngineStateChanged();
+        return;
+    }
+    // WinRT activation can take a moment and joins an apartment, so it runs on
+    // a pool thread; the watcher is ours and dies with us if the answer is late.
+    auto *probe = new QFutureWatcher<bool>(this);
+    connect(probe, &QFutureWatcher<bool>::finished, this, [this, probe] {
+        m_windowsOcrUsable = probe->result();
+        probe->deleteLater();
+        m_ocr->setEngine(ocrEffectiveEngine());
+        emit ocrEngineStateChanged();
+    });
+    probe->setFuture(QtConcurrent::run(WindowsOcr::usable));
 }
 
 bool AppContext::ocrHasLanguages() const
@@ -620,7 +809,7 @@ void AppContext::requestAudioInputDevices()
 QImage qrPreviewImage(const QString &url)
 {
     const QByteArray utf8 = url.toUtf8();
-    if (utf8.isEmpty() || utf8.size() > 2048)
+    if (utf8.isEmpty() || utf8.size() > kQrMaxBytes)
         return {};
     try {
 #if __has_include(<ZXing/MultiFormatWriter.h>)
@@ -789,22 +978,37 @@ void AppContext::ocrBoxes(const QImage &img,
 
 // ---------------------------------------------------------------- language
 
-void AppContext::applyLanguage()
+// The one list of UI languages. `zh_CN`, not a bare `zh`, keeps the catalog
+// name aligned with Qt's own qtbase_zh_CN.qm and QLocale("zh_CN"); a
+// Traditional Chinese desktop falls back to English until a zh_TW catalog
+// exists, rather than silently getting Simplified. Shared by applyLanguage()
+// and the notification helper subprocess, which used to carry a second copy.
+static QString resolveUiLanguage(const QString &pref)
 {
-    const QString pref = m_settings->uiLanguage();
     // Every language (incl. English) has its own .qm, so English text is
     // editable in i18n/unisic_en.ts without touching source strings.
-    static const QStringList supported = {QStringLiteral("en"), QStringLiteral("pl"),
-                                          QStringLiteral("es"), QStringLiteral("it"),
-                                          QStringLiteral("fr"), QStringLiteral("ru"),
-                                          QStringLiteral("de")};
-    QString code;
-    if (supported.contains(pref)) {
-        code = pref;
-    } else { // "system"
-        const QString sys = QLocale::system().name().left(2); // e.g. "pl_PL" → "pl"
-        code = supported.contains(sys) ? sys : QStringLiteral("en");
-    }
+    static const QStringList supported = {
+        QStringLiteral("en"), QStringLiteral("pl"), QStringLiteral("es"),
+        QStringLiteral("it"), QStringLiteral("fr"), QStringLiteral("ru"),
+        QStringLiteral("de"), QStringLiteral("zh_CN")};
+    if (supported.contains(pref))
+        return pref;
+    const QString sys = QLocale::system().name(); // e.g. "pl_PL", "zh_CN"
+    if (supported.contains(sys))
+        return sys;
+    if (sys.startsWith(QLatin1String("zh")))
+        return (sys.startsWith(QLatin1String("zh_TW"))
+                || sys.startsWith(QLatin1String("zh_HK"))
+                || sys.startsWith(QLatin1String("zh_MO")))
+                   ? QStringLiteral("en")
+                   : QStringLiteral("zh_CN");
+    const QString two = sys.left(2);
+    return supported.contains(two) ? two : QStringLiteral("en");
+}
+
+void AppContext::applyLanguage()
+{
+    const QString code = resolveUiLanguage(m_settings->uiLanguage());
     m_uiLanguage = code;
     if (m_engine)
         m_engine->setUiLanguage(code);
@@ -854,6 +1058,10 @@ void AppContext::quitApp(const QString &reason)
 
 void AppContext::showToast(const QString &text, bool important)
 {
+    // An important toast is a problem the user was shown; the activity log
+    // keeps it, or a report pasted later has no trace of it.
+    if (important)
+        qWarning().noquote() << "Toast:" << text;
     if (!important && !m_settings->showNotifications())
         return;
     m_toast = text;
@@ -873,6 +1081,16 @@ void AppContext::setShortcutRecording(bool recording)
         return;
     m_shortcutRecording = recording;
     emit shortcutRecordingChanged();
+    m_printKeyRelay.setActive(recording);
+    // Our own native grabs take a bound chord before any window sees it:
+    // RegisterHotKey turns the key into a WM_HOTKEY for the sink window and
+    // XGrabKey (owner_events False) reports it to the root grab, so the
+    // focused recorder never got a key one of our actions already owned. The
+    // press went to dispatchHotkey, which drops it while recording, and the
+    // field sat on "Press shortcut..." for good. bindX11Hotkeys() keeps only
+    // the emergency stop while a recorder listens.
+    if (m_hotkeyBackend == QLatin1String(UNISIC_HOTKEY_NATIVE_BACKEND))
+        bindX11Hotkeys();
 }
 
 void AppContext::setNextCaptureDelayMs(int delayMs)
@@ -906,9 +1124,10 @@ void AppContext::clearCliCapture(const QString &error)
     if (stdoutPending && !error.isEmpty())
         emit cliCaptureReady({}, error);
     // Nothing will arrive for a `--output PATH` run that was cancelled - say so,
-    // or the process that asked for it waits for a capture that is not coming.
+    // and why, or the process that asked for it waits for a capture that is
+    // not coming and then exits 1 without a word.
     if (filePending)
-        emit cliCaptureFinished(false, {});
+        emit cliCaptureFinished(false, error);
 }
 
 void AppContext::withDelay(std::function<void()> fn)
@@ -984,9 +1203,12 @@ bool AppContext::capDoNotDisturb() const
     return NotificationInhibitor::supportedDesktop();
 }
 
+// The direct grabbers (X11 session, Windows) always deliver the cursor as data;
+// only the portal has to be asked.
 bool AppContext::capCursorMetadata() const
 {
-    return (ScreenCastSession::availableCursorModes()
+    return X11ShmGrabber::isAvailable()
+        || (ScreenCastSession::availableCursorModes()
             & uint(ScreenCastSession::CursorMode::Metadata)) != 0;
 }
 
@@ -1044,6 +1266,11 @@ QString AppContext::inputAccessFixCommand() const
 
 bool AppContext::capScreenshotCursor() const
 {
+    // Windows captures through GDI (KWinScreenShot2_win.cpp), which draws the
+    // pointer in only when asked. Without this the switch sat greyed out with
+    // the Linux portal explanation, so screenshots could not follow it.
+    if (QGuiApplication::platformName() == QLatin1String("windows"))
+        return true;
     const QString desktop = qEnvironmentVariable("XDG_CURRENT_DESKTOP");
     if (desktop.contains(QLatin1String("KDE"), Qt::CaseInsensitive))
         return true;
@@ -1063,10 +1290,16 @@ void AppContext::beginCaptureIsolation()
     if (!m_hiddenForCapture) {
         // focusWindow() is only ever one of our own windows. The editor, the
         // preview and the trim window have no transient parent; popups and
-        // dialogs of the main window do, and count as the main window.
+        // dialogs of the main window do, and count as the main window. No focus
+        // at all means another application is in front: a main window hidden
+        // then comes back through show(), which KWin maps ON TOP of that app,
+        // so every hotkey capture pulled Unisic up over what the user was doing.
+        // The tray menu takes the focus from our window too, but whoever opens
+        // it from there is looking at Unisic, so a tray trigger counts as ours.
         const QWindow *focus = QGuiApplication::focusWindow();
         const QQuickWindow *main = mainWindow();
-        m_otherWindowFocused = focus && focus != main && focus->transientParent() != main;
+        m_otherWindowFocused = focus ? focus != main && focus->transientParent() != main
+                                     : !m_trayTrigger;
     }
     if (m_settings->doNotDisturbWhileCapturing() && capDoNotDisturb())
         m_dnd->acquire();
@@ -1094,9 +1327,9 @@ bool AppContext::hideOwnWindowForCapture()
         return false;
     if (m_hiddenForCapture)
         return true; // already down for this capture - do not stack restores
-    // The user is in the editor (or another Unisic window of ours): the main
-    // window is not what they are looking at, and show() afterwards would map it
-    // on top of the window they are working in. Leave it exactly where it is.
+    // The user is in the editor, another Unisic window or another application:
+    // the main window is not what they are looking at, and show() afterwards
+    // would map it on top of the window they are working in. Leave it be.
     if (m_otherWindowFocused)
         return false;
     QQuickWindow *win = mainWindow();
@@ -1241,7 +1474,7 @@ void AppContext::onScrollRegionPicked(const QRect &physRegion, QScreen *screen, 
     endCaptureIsolation();
     if (!picked) {
         m_nextCaptureTask = {};
-        clearCliCapture(tr("Capture cancelled"));
+        clearCliCapture(tr("Capture canceled"));
     }
 }
 
@@ -1272,7 +1505,7 @@ void AppContext::startScrollCapture(const QRect &physRegion, QScreen *screen, qr
         connect(m_scrollCapture, &ScrollCaptureController::cancelled, this, [this] {
             endScrollIsolation();
             m_nextCaptureTask = {};
-            clearCliCapture(tr("Capture cancelled"));
+            clearCliCapture(tr("Capture canceled"));
         });
     }
     // The session is a capture for as long as it runs: our window stays out of
@@ -1336,7 +1569,7 @@ void AppContext::captureRegionWithTool(int initialTool)
             else
             {
                 m_nextCaptureTask = {};
-                clearCliCapture(tr("Capture cancelled"));
+                clearCliCapture(tr("Capture canceled"));
             }
         }, initialTool == AnnotationCanvas::Measure ? OverlayController::Purpose::Measure
                                                   : OverlayController::Purpose::Shot,
@@ -1346,6 +1579,16 @@ void AppContext::captureRegionWithTool(int initialTool)
 
 void AppContext::captureScreenUnderCursor()
 {
+    captureOneScreen({});
+}
+
+void AppContext::captureScreenNamed(const QString &name)
+{
+    captureOneScreen(name);
+}
+
+void AppContext::captureOneScreen(const QString &name)
+{
     if (m_captureInFlight || m_overlay->active()) { // see captureFullScreen
         m_nextCaptureTask = {};
         clearCliCapture(tr("Another capture is already active"));
@@ -1354,7 +1597,7 @@ void AppContext::captureScreenUnderCursor()
     const bool inhibited = nowInhibited();
     m_captureInFlight = true;
     beginCaptureIsolation();
-    withCaptureDelay([this, inhibited] {
+    withCaptureDelay([this, inhibited, name] {
         if (m_overlay->active()) { // re-check after the capture delay
             m_captureInFlight = false;
             endCaptureIsolation();
@@ -1362,13 +1605,7 @@ void AppContext::captureScreenUnderCursor()
             clearCliCapture(tr("Another capture is already active"));
             return;
         }
-        // Hint only: on KWin the compositor resolves the pointer's screen
-        // itself (CaptureActiveScreen); QCursor::pos() is exact on Wayland only
-        // while the pointer is over one of our windows (e.g. the tray menu).
-        QScreen *screen = QGuiApplication::screenAt(QCursor::pos());
-        if (!screen)
-            screen = QGuiApplication::primaryScreen();
-        m_capture->captureActiveScreen(screen, [this, inhibited](const QImage &img, const QString &err) {
+        auto done = [this, inhibited](const QImage &img, const QString &err) {
             m_captureInFlight = false;
             endCaptureIsolation();
             if (!err.isEmpty() || img.isNull()) {
@@ -1379,7 +1616,30 @@ void AppContext::captureScreenUnderCursor()
                 return;
             }
             finishCapture(img, inhibited);
-        });
+        };
+        if (name.isEmpty()) {
+            // Hint only: on KWin the compositor resolves the pointer's screen
+            // itself (CaptureActiveScreen); QCursor::pos() is exact on Wayland only
+            // while the pointer is over one of our windows (e.g. the tray menu).
+            QScreen *screen = QGuiApplication::screenAt(QCursor::pos());
+            if (!screen)
+                screen = QGuiApplication::primaryScreen();
+            m_capture->captureActiveScreen(screen, done);
+            return;
+        }
+        // Looked up after the delay: a monitor unplugged meanwhile is an error
+        // here, not a dangling QScreen in the capture backend.
+        const QList<QScreen *> screens = QGuiApplication::screens();
+        const auto it = std::find_if(screens.cbegin(), screens.cend(),
+                                     [&name](const QScreen *s) { return s->name() == name; });
+        if (it == screens.cend()) {
+            QStringList names;
+            for (const QScreen *s : screens)
+                names.append(s->name());
+            done({}, tr("No monitor named %1. Connected: %2").arg(name, names.join(QLatin1String(", "))));
+            return;
+        }
+        m_capture->captureScreen(*it, done);
     });
 }
 
@@ -1581,10 +1841,63 @@ void AppContext::startVideoWindow()
                      "does not provide - record the screen or a region instead."), true);
         return;
     }
+    if (QGuiApplication::platformName() == QLatin1String("windows")) {
+        startVideoWindowArea();
+        return;
+    }
     m_pendingRecordRegion = QRect();
     m_pendingRecordScreen = nullptr; // stale target would misplace the countdown
     startRecorderCountdown([this](bool hold) {
         m_recorder->start(videoOutput(), GifRecorder::Window, {}, nullptr, hold);
+    });
+}
+
+// Windows has no window picker and the direct grab records a monitor rect, so
+// "a window" is the area of the window the active-window screenshot and the
+// overlay's W key aim at, recorded as a region (what ShareX does). Asked here,
+// at the trigger, before the countdown can take the foreground.
+// shortcut: the area is fixed at the start, so moving the window or covering
+// it shows in the recording; Windows.Graphics.Capture would follow the window.
+// A window's logical rect as the region recorder wants it: physical pixels
+// relative to the screen holding its centre, clipped to that screen. Empty
+// when it is on no screen or too small to record.
+static QRect windowCrop(const QRect &logical, QScreen **screenOut, qreal *dprOut)
+{
+    QScreen *screen = logical.isEmpty() ? nullptr : QGuiApplication::screenAt(logical.center());
+    *screenOut = screen;
+    if (!screen)
+        return {};
+    const QRect g = screen->geometry();
+    const qreal dpr = screen->devicePixelRatio();
+    *dprOut = dpr;
+    const QRect phys = QRect(qRound((logical.x() - g.x()) * dpr), qRound((logical.y() - g.y()) * dpr),
+                             qRound(logical.width() * dpr), qRound(logical.height() * dpr))
+                           .intersected(QRect(0, 0, qRound(g.width() * dpr), qRound(g.height() * dpr)));
+    return phys.width() < 2 || phys.height() < 2 ? QRect() : phys;
+}
+
+void AppContext::startVideoWindowArea()
+{
+    KWinWindowGeometry geom;
+    QRect logical;
+    QString error;
+    // The Windows implementation answers inside the call.
+    geom.queryActiveWindow([&](const QRect &r, const QString &e) {
+        logical = r;
+        error = e;
+    });
+    QScreen *screen = nullptr;
+    qreal dpr = 1;
+    const QRect phys = windowCrop(logical, &screen, &dpr);
+    if (phys.isEmpty()) {
+        qWarning() << "Window recording: no target window:" << error;
+        showToast(tr("No window to record. Click the window first, then start the recording."), true);
+        return;
+    }
+    m_pendingRecordRegion = phys;
+    m_pendingRecordScreen = screen;
+    startRecorderCountdown([this, phys, screen, dpr](bool hold) {
+        m_recorder->start(videoOutput(), GifRecorder::Region, phys, screen, hold, dpr);
     });
 }
 
@@ -1606,12 +1919,22 @@ void AppContext::togglePauseRecording()
 
 void AppContext::startInstantReplay()
 {
-    if (recording()) return;
+    if (instantReplayActive() || m_replayStarting) return;
+    m_replayAuto = false;
+    // Beside a running recording: no start cue, which would play into that
+    // recording's sound.
+    if (recording()) {
+        startReplayRing(false);
+        return;
+    }
     m_pendingRecordRegion = {};
     m_pendingRecordScreen = nullptr;
-    startRecorderCountdown([this](bool hold) {
-        m_recorder->start(GifRecorder::Replay, GifRecorder::Screen, {}, nullptr, hold);
-    });
+    startRecorderCountdown([this](bool hold) { startReplayRing(hold); }, m_replay);
+}
+
+void AppContext::stopInstantReplay()
+{
+    m_replay->stop();
 }
 
 void AppContext::saveInstantReplay()
@@ -1620,25 +1943,199 @@ void AppContext::saveInstantReplay()
         showToast(tr("Start instant replay first"), true);
         return;
     }
-    m_recorder->saveInstantReplay();
+    // Before the save: a refusal inside it (no segment yet) replaces the pill.
+    // Held until "Clip saved" or "Clip not saved"; the 2-minute cap only
+    // matters if neither arrives.
+    showClipIndicator(tr("Saving clip…"), QString(), QStringLiteral("busy"), 120000);
+    m_replay->saveInstantReplay();
     showToast(tr("Saving instant replay…"));
 }
 
-void AppContext::startRecorderCountdown(std::function<void(bool)> begin)
+void AppContext::updateReplayDot()
 {
-    const int secs = qBound(0, m_settings->recordCountdownSec(), 10);
+    const bool on = m_settings->clipStatusDot() && instantReplayActive() && !m_replayStopping
+                    && !QCoreApplication::closingDown();
+    if (!on && !m_clipOsd)
+        return;
+    if (!m_clipOsd)
+        m_clipOsd = new ClipOsd(this, m_layerShellAvailable, this);
+    m_clipOsd->setStatusDot(on, m_settings->clipStatusCorner());
+}
+
+void AppContext::showClipIndicator(const QString &title, const QString &detail,
+                                   const QString &tone, int ms)
+{
+    if (!m_settings->clipIndicator() || QCoreApplication::closingDown())
+        return;
+    if (!m_clipOsd)
+        m_clipOsd = new ClipOsd(this, m_layerShellAvailable, this);
+    m_clipOsd->show(title, detail, tone, ms);
+}
+
+void AppContext::setSaveProgress(qreal p)
+{
+    if (qFuzzyCompare(m_saveProgress + 2, p + 2))
+        return;
+    m_saveProgress = p;
+    emit saveProgressChanged();
+}
+
+// Settings::instantReplayAuto: "launch" keeps the ring running from startup,
+// "game" while GameDetector sees a game. Started without the countdown, the
+// start cue or hiding the window: nobody pressed anything. A ring the user
+// stopped stays stopped until the mode changes or the next game starts.
+// Cost while on: the replay encode itself (one ffmpeg, the ring on disk in
+// the cache dir, up to an hour of video), plus GameDetector's 5 s poll.
+void AppContext::updateGameDetector()
+{
+    const bool need = m_settings->instantReplayAuto() == QLatin1String("game") || instantReplayActive();
+    if (need == bool(m_gameDetector))
+        return;
+    if (need) {
+        m_gameDetector = new GameDetector(this);
+        connect(m_gameDetector, &GameDetector::runningChanged, this, &AppContext::applyInstantReplayAuto);
+        connect(m_gameDetector, &GameDetector::gameChanged, this, &AppContext::onGameChanged);
+    } else {
+        m_gameDetector->deleteLater();
+        m_gameDetector = nullptr;
+    }
+    onGameChanged(currentGame());
+}
+
+QString AppContext::currentGame() const
+{
+    return m_gameDetector ? m_gameDetector->game() : QString();
+}
+
+// Names the files the ring writes, and puts the game on top of "Recently
+// played" (Settings::recentGames, at most 12, one entry per name).
+void AppContext::onGameChanged(const QString &name)
+{
+    m_recorder->setReplayGame(name);
+    m_replay->setReplayGame(name);
+    emit currentGameChanged();
+    if (m_settings->replayWatermarkText().contains(QLatin1String("%game%"))) {
+        ++m_replayWatermarkPreviewRev;
+        emit replayWatermarkPreviewChanged();
+    }
+    if (name.isEmpty())
+        return;
+    // "<epoch>\t<name>[\t<cover path>]"; an older cover is kept when this
+    // detector found none (a game seen through Steam once, by GameMode now).
+    QStringList games = m_settings->recentGames();
+    QString cover = m_gameDetector ? m_gameDetector->cover() : QString();
+    games.removeIf([&name, &cover](const QString &entry) {
+        if (entry.section(QLatin1Char('\t'), 1, 1) != name)
+            return false;
+        if (cover.isEmpty())
+            cover = entry.section(QLatin1Char('\t'), 2, 2);
+        return true;
+    });
+    QString entry = QString::number(QDateTime::currentSecsSinceEpoch()) + QLatin1Char('\t') + name;
+    if (!cover.isEmpty())
+        entry += QLatin1Char('\t') + cover;
+    games.prepend(entry);
+    m_settings->setRecentGames(games.mid(0, 12));
+}
+
+void AppContext::applyInstantReplayAuto()
+{
+    const QString mode = m_settings->instantReplayAuto();
+    updateGameDetector();
+    const bool want = mode == QLatin1String("launch") || (m_gameDetector && m_gameDetector->running());
+    if (!want) {
+        if (autoReplayActive())
+            stopInstantReplay();
+        return;
+    }
+    if (instantReplayActive() || m_replayStarting || (m_recordHoldActive && m_countdownTarget == m_replay)
+        || !recordingAvailable())
+        return;
+    m_pendingRecordRegion = {};
+    m_pendingRecordScreen = nullptr;
+    m_replayAuto = true;
+    startReplayRing(false);
+}
+
+// Settings::clipSource "window": the game's window when GameDetector knows
+// the game's processes, else the window in front. On KDE a KWin window
+// stream follows that window wherever it moves and whatever covers it; on
+// Windows its area is recorded as a region; with no way to find a window
+// (no KWin, a sandbox) the screen is. An automatic start waits up to 30 s
+// for a game still loading to open its window, then records the screen.
+// Cost: one throwaway KWin script per start (KWinWindowGeometry).
+void AppContext::startReplayRing(bool hold)
+{
+    if (m_settings->clipSource() != QLatin1String("window") || !KWinWindowGeometry::isAvailable()) {
+        m_replay->start(GifRecorder::Replay, GifRecorder::Screen, {}, nullptr, hold);
+        return;
+    }
+    const QList<qint64> pids = m_gameDetector && m_gameDetector->running() ? m_gameDetector->gamePids()
+                                                                            : QList<qint64>();
+    // No game and Unisic itself in front (Start pressed in this window): the
+    // "window in front" would be Unisic, so the screen is recorded instead.
+    if (pids.isEmpty() && QGuiApplication::focusWindow()) {
+        showToast(tr("No game window found: recording the whole screen"));
+        m_replay->start(GifRecorder::Replay, GifRecorder::Screen, {}, nullptr, hold);
+        return;
+    }
+    m_replayStarting = true;
+    auto *geom = new KWinWindowGeometry(this);
+    geom->queryWindow(pids, [this, geom, hold, pids](const QRect &logical, const QString &uuid,
+                                                     const QString &error) {
+        geom->deleteLater();
+        m_replayStarting = false;
+        if (instantReplayActive())
+            return; // started another way while KWin answered
+        if (!uuid.isEmpty() && m_replay->canStreamWindow()) {
+            m_replayWindowTries = 0;
+            m_replay->setWindowUuid(uuid);
+            m_replay->start(GifRecorder::Replay, GifRecorder::Window, {}, nullptr, hold);
+            return;
+        }
+        QScreen *screen = nullptr;
+        qreal dpr = 1;
+        const QRect phys = windowCrop(logical, &screen, &dpr);
+        if (!phys.isEmpty()) {
+            m_replayWindowTries = 0;
+            m_replay->start(GifRecorder::Replay, GifRecorder::Region, phys, screen, hold, dpr);
+            return;
+        }
+        if (m_replayAuto && !pids.isEmpty() && m_replayWindowTries < 10) {
+            ++m_replayWindowTries;
+            QTimer::singleShot(3000, this, &AppContext::applyInstantReplayAuto);
+            return;
+        }
+        m_replayWindowTries = 0;
+        qWarning() << "Instant replay: no window to record, recording the screen:" << error;
+        m_replay->start(GifRecorder::Replay, GifRecorder::Screen, {}, nullptr, hold);
+    });
+}
+
+void AppContext::startRecorderCountdown(std::function<void(bool)> begin, GifRecorder *target)
+{
+    if (!target)
+        target = m_recorder;
+    // The replay ring rolls open-ended: no do-not-disturb for all of it.
+    const bool isolate = target == m_recorder;
+    // No countdown for the ring either: it keeps what already happened, so
+    // there is no first frame to get ready for. Its start cue stays.
+    const int secs = isolate ? qBound(0, m_settings->recordCountdownSec(), 10) : 0;
     const bool hasStartCue = m_settings->recordStartSound() != QLatin1String("off")
                              && m_settings->soundVolume() > 0;
     // No countdown AND no start cue: nothing to sequence - record immediately.
     if (secs <= 0 && !hasStartCue) {
-        beginCaptureIsolation();
+        if (isolate)
+            beginCaptureIsolation();
         begin(false);
         return;
     }
     if (m_recordHoldActive)
         return; // a second trigger while a hold is pending must not stack
     m_recordHoldActive = true;
-    beginCaptureIsolation();
+    m_countdownTarget = target;
+    if (isolate)
+        beginCaptureIsolation();
     m_pendingCountdownSecs = secs;
     // Portal negotiates FIRST (its share dialog). The recorder holds encoding
     // until commit(); armed() drives the countdown/cue below, then commits.
@@ -1679,8 +2176,8 @@ void AppContext::runRecordCountdownVisuals(int secs)
             // window's POSITION is not knowable on Wayland, so the disc stays
             // centered on the screen; only its size tracks the target.
             QSize cdRef;
-            if (m_recorder->sourceType() == GifRecorder::Window) {
-                const QSize ss = m_recorder->armedStreamSize();
+            if (m_countdownTarget && m_countdownTarget->sourceType() == GifRecorder::Window) {
+                const QSize ss = m_countdownTarget->armedStreamSize();
                 if (!ss.isEmpty())
                     cdRef = QSize(qRound(ss.width() / dpr), qRound(ss.height() / dpr));
             }
@@ -1739,11 +2236,14 @@ void AppContext::commitRecordingAfterCue()
     } else {
         tail = inFrame ? 150 : 0;
     }
+    GifRecorder *target = std::exchange(m_countdownTarget, nullptr);
+    if (!target)
+        return; // its recorder failed meanwhile
     if (tail <= 0) {
-        m_recorder->commit();
+        target->commit();
         return;
     }
-    QTimer::singleShot(tail, this, [this]() { m_recorder->commit(); });
+    QTimer::singleShot(tail, target, [target]() { target->commit(); });
 }
 
 void AppContext::setRecordBorderCountdown(int n)
@@ -1988,6 +2488,11 @@ QVariantList AppContext::dependencyReport() const
     return out;
 }
 
+QString AppContext::screenshotBackend() const
+{
+    return m_capture->backendName();
+}
+
 bool AppContext::hasDependencyWarnings() const
 {
     const QVariantList rep = dependencyReport();
@@ -2082,10 +2587,26 @@ QImage ocrBoxTestImage()
     return t;
 }
 
+QImage autoRedactTestImage()
+{
+    QImage t(900, 240, QImage::Format_ARGB32);
+    t.fill(Qt::white);
+    QPainter p(&t);
+    p.setPen(Qt::black);
+    QFont f;
+    f.setPixelSize(34);
+    p.setFont(f);
+    p.drawText(QPoint(30, 60), QStringLiteral("server 192.168.10.20"));
+    p.drawText(QPoint(30, 130), QStringLiteral("mail jan@example.com"));
+    p.drawText(QPoint(30, 200), QStringLiteral("Settings"));
+    p.drawText(QPoint(760, 200), QStringLiteral("copy"));
+    return t;
+}
+
 QString AppContext::autoRestartBlockers() const
 {
     QStringList b;
-    if (recording() || m_converting)
+    if (recording() || m_converting || (instantReplayActive() && !m_replayAuto))
         b << tr("recording");
     if (m_captureInFlight)
         b << tr("capture in progress");
@@ -2258,6 +2779,66 @@ AppContext::CheckWindowCollector::~CheckWindowCollector()
     ctx->m_checkWindows.clear();
 }
 
+void AppContext::setHotkeyConflict(const QString &actionId, const QString &keys,
+                                   const QString &owner, bool refused, bool keepRefused)
+{
+    if ((owner.isEmpty() && !refused) || keys.isEmpty()) {
+        if (keepRefused && m_hotkeyConflicts.value(actionId).toMap().value(QStringLiteral("refused")).toBool())
+            return;
+        if (m_hotkeyConflicts.remove(actionId))
+            emit hotkeyConflictsChanged();
+        return;
+    }
+    // The two builds register separate components (GlobalHotkeys::COMPONENT),
+    // so each sees the other as a foreign owner of a shared default key.
+    QString kind = QStringLiteral("app");
+    if (owner.isEmpty())
+        kind = QStringLiteral("unknown");
+    else if (owner.startsWith(QLatin1String("unisic/")))
+        kind = QStringLiteral("release");
+    else if (owner.startsWith(QLatin1String("unisic_dev/")))
+        kind = QStringLiteral("dev");
+    const QVariantMap entry{{QStringLiteral("keys"), keys},
+                            {QStringLiteral("owner"), owner},
+                            {QStringLiteral("kind"), kind},
+                            {QStringLiteral("refused"), refused}};
+    if (m_hotkeyConflicts.value(actionId).toMap() == entry)
+        return;
+    m_hotkeyConflicts.insert(actionId, entry);
+    emit hotkeyConflictsChanged();
+}
+
+void AppContext::recheckHotkeyConflict(const QString &actionId, const QList<int> &keys,
+                                       bool refused, bool keepRefused)
+{
+    if (keys.isEmpty()) {
+        setHotkeyConflict(actionId, QString(), QString(), false, keepRefused);
+        return;
+    }
+    auto remaining = std::make_shared<int>(keys.size());
+    auto found = std::make_shared<std::pair<int, QString>>(0, QString());
+    for (int key : keys) {
+        m_hotkeys->keyOwnerAsync(
+            key, this,
+            [this, actionId, keys, refused, keepRefused, key, remaining, found](const QString &owner) {
+                if (!found->first && !owner.isEmpty()
+                    && !owner.startsWith(GlobalHotkeys::componentPrefix()))
+                    *found = {key, owner};
+                if (--*remaining != 0)
+                    return;
+                // Refused with no foreign owner found: still taken, owner unknown.
+                const int shown = found->first ? found->first : (refused ? keys.first() : 0);
+                if (shown)
+                    qWarning().noquote() << QStringLiteral("Hotkey conflict: %1 %2 held by %3")
+                                                .arg(actionId, QKeySequence(shown).toString(),
+                                                     found->second.isEmpty() ? QStringLiteral("(unknown)")
+                                                                             : found->second);
+                setHotkeyConflict(actionId, shown ? QKeySequence(shown).toString() : QString(),
+                                  found->second, refused, keepRefused);
+            });
+    }
+}
+
 QStringList AppContext::hotkeyBindStatus(int *unbound, bool heal, QStringList *conflicts)
 {
     QStringList lines;
@@ -2271,15 +2852,21 @@ QStringList AppContext::hotkeyBindStatus(int *unbound, bool heal, QStringList *c
         // list while resolving the actual press to another component (a KWin
         // script, another app) - the action looks bound but never fires.
         if (conflicts && ok) {
+            bool marked = false;
             for (int k : raw) {
                 const QString owner = m_hotkeys->keyOwner(k);
                 if (!owner.isEmpty() && !owner.startsWith(GlobalHotkeys::componentPrefix())) {
+                    if (!marked)
+                        setHotkeyConflict(a.id, QKeySequence(k).toString(), owner);
+                    marked = true;
                     const QString line = QKeySequence(k).toString() + QStringLiteral(" (")
                                          + a.name + QStringLiteral(") → ") + owner;
                     conflicts->append(line);
                     lines << a.id + QStringLiteral(": CONFLICT ") + line;
                 }
             }
+            if (!marked)
+                setHotkeyConflict(a.id, QString(), QString());
         }
         if (!ok) {
             lines << a.id + QStringLiteral(": query failed");
@@ -2362,8 +2949,15 @@ void AppContext::hotkeyBindStatusAsync(
             action.id, this,
             [this, state, action](bool ok, const QList<int> &raw) {
                 const QString actual = GlobalHotkeys::portableFromKeys(raw);
+                // First key of this action another component holds (0: none).
+                auto found = std::make_shared<std::pair<int, QString>>(0, QString());
 
-                const auto process = [this, state, action, ok, raw, actual] {
+                const auto process = [this, state, action, ok, raw, actual, found] {
+                    if (ok)
+                        setHotkeyConflict(action.id,
+                                          found->first ? QKeySequence(found->first).toString()
+                                                       : QString(),
+                                          found->second);
                     if (!ok) {
                         state->lines << action.id + QStringLiteral(": query failed");
                         ++state->bad;
@@ -2380,7 +2974,11 @@ void AppContext::hotkeyBindStatusAsync(
                         }
                         m_hotkeys->setShortcutAsync(
                             action.id, action.name, action.keys, this,
-                            [state, action](bool accepted) {
+                            [this, state, action](bool accepted) {
+                                // First launch beside a holder (e.g. Spectacle's
+                                // Meta+Shift+R): unbound, so no owner was checked above.
+                                recheckHotkeyConflict(action.id, GlobalHotkeys::keysFor(action.keys),
+                                                      !accepted);
                                 state->lines
                                     << (accepted
                                             ? action.id + QStringLiteral(": was unbound, re-asserted ")
@@ -2431,9 +3029,11 @@ void AppContext::hotkeyBindStatusAsync(
                 for (int key : raw) {
                     m_hotkeys->keyOwnerAsync(
                         key, this,
-                        [state, action, key, remaining, process](const QString &owner) {
+                        [state, action, key, remaining, found, process](const QString &owner) {
                             if (!owner.isEmpty()
                                 && !owner.startsWith(GlobalHotkeys::componentPrefix())) {
+                                if (!found->first)
+                                    *found = {key, owner};
                                 const QString conflict = QKeySequence(key).toString()
                                     + QStringLiteral(" (") + action.name
                                     + QStringLiteral(") → ") + owner;
@@ -2632,16 +3232,7 @@ bool AppContext::showNotificationHelper(CaptureNotification *n, const QVariantMa
 
     // Resolve the UI language exactly as applyLanguage() does, so the card's
     // qsTr strings render in the same language as the rest of the app.
-    const QString pref = m_settings->uiLanguage();
-    static const QStringList supported = {QStringLiteral("en"), QStringLiteral("pl"),
-                                          QStringLiteral("es"), QStringLiteral("it"),
-                                          QStringLiteral("fr"), QStringLiteral("ru"),
-                                          QStringLiteral("de")};
-    QString lang = pref;
-    if (!supported.contains(pref)) {
-        const QString sys = QLocale::system().name().left(2);
-        lang = supported.contains(sys) ? sys : QStringLiteral("en");
-    }
+    const QString lang = resolveUiLanguage(m_settings->uiLanguage());
 
     auto *proc = new QProcess(this);
     proc->setProgram(QCoreApplication::applicationFilePath());
@@ -2761,15 +3352,10 @@ bool AppContext::capVideoPlayback() const
     return ok;
 }
 
-void AppContext::showRecordBorder(QRect physRegion, QScreen *screen, int countdown,
-                                  bool countdownOnly, const QSize &countdownRef)
+// Whether the record frame, and the scroll capture's frame and controls, are
+// drawn by the XWayland helper (--record-border-helper) instead of in-process.
+bool AppContext::recordBorderViaHelper() const
 {
-    hideRecordBorder(); // retire any stale frame first (also clears the flag)
-    if (!m_engine || !screen || physRegion.isEmpty() || !capRecordBorder())
-        return; // capRecordBorder(): layer-shell, KWin trick, X11 or XWayland helper
-    m_recordBorderCountdownOnly = countdownOnly;
-    noteForceBlur();
-
     // GNOME (Wayland, no layer-shell, no KWin): an in-process toplevel would
     // sink below the next window the user raises - mutter has no keep-above
     // for xdg_toplevel. Spawn the XWayland helper instead: mutter stacks
@@ -2795,30 +3381,68 @@ void AppContext::showRecordBorder(QRect physRegion, QScreen *screen, int countdo
     const bool kwin = bi && bi->isServiceRegistered(QStringLiteral("org.kde.KWin"));
     const bool forceHelper =
         qEnvironmentVariable("UNISIC_RECORD_BORDER") == QLatin1String("helper");
-    if (forceHelper || x11
+    return forceHelper || x11
         || (wayland && !m_layerShellAvailable && !kwin
-            && qEnvironmentVariableIsSet("DISPLAY"))) {
-        const qreal hdpr = screen->devicePixelRatio() > 0 ? screen->devicePixelRatio() : 1.0;
-        const QRect lg = screen->geometry();
-        const QSizeF phys(lg.width() * hdpr, lg.height() * hdpr);
-        // Overlay colors follow the active theme (incl. custom themes); the
-        // fallbacks are the stock tokens. Alpha matters (pill/disc) → HexArgb.
-        QColor accent(QStringLiteral("#C8ACD6"));
-        QColor badgeBg(0, 0, 0, 200), badgeText(Qt::white), dot(QStringLiteral("#FF4D4D"));
-        QColor cdBg(0, 0, 0, 140), cdNumber, frameContrast(0, 0, 0, 140);
-        if (QObject *theme = m_engine->singletonInstance<QObject *>(
-                QStringLiteral("Unisic"), QStringLiteral("Theme"))) {
-            accent = theme->property("accent").value<QColor>();
-            badgeBg = theme->property("recBadgeBg").value<QColor>();
-            badgeText = theme->property("recBadgeText").value<QColor>();
-            dot = theme->property("recDot").value<QColor>();
-            cdBg = theme->property("countdownBg").value<QColor>();
-            cdNumber = theme->property("countdownNumber").value<QColor>();
-            frameContrast = theme->property("recordFrameContrast").value<QColor>();
-        }
-        if (!cdNumber.isValid())
-            cdNumber = accent;
-        const auto frac = [](double v) { return QString::number(v, 'f', 8); };
+            && qEnvironmentVariableIsSet("DISPLAY"));
+}
+
+// The helper's command line for a frame around `physRegion` (screen-local
+// physical px). Callers append mode arguments after it.
+QStringList AppContext::recordBorderHelperArgs(QRect physRegion, QScreen *screen, int countdown,
+                                              bool countdownOnly) const
+{
+    const qreal hdpr = screen->devicePixelRatio() > 0 ? screen->devicePixelRatio() : 1.0;
+    const QRect lg = screen->geometry();
+    const QSizeF phys(lg.width() * hdpr, lg.height() * hdpr);
+    // Overlay colors follow the active theme (incl. custom themes); the
+    // fallbacks are the stock tokens. Alpha matters (pill/disc) → HexArgb.
+    QColor accent(QStringLiteral("#C8ACD6"));
+    QColor badgeBg(0, 0, 0, 200), badgeText(Qt::white), dot(QStringLiteral("#FF4D4D"));
+    QColor cdBg(0, 0, 0, 140), cdNumber, frameContrast(0, 0, 0, 140);
+    if (QObject *theme = m_engine->singletonInstance<QObject *>(
+            QStringLiteral("Unisic.Kit"), QStringLiteral("Theme"))) {
+        accent = theme->property("accent").value<QColor>();
+        badgeBg = theme->property("recBadgeBg").value<QColor>();
+        badgeText = theme->property("recBadgeText").value<QColor>();
+        dot = theme->property("recDot").value<QColor>();
+        cdBg = theme->property("countdownBg").value<QColor>();
+        cdNumber = theme->property("countdownNumber").value<QColor>();
+        frameContrast = theme->property("recordFrameContrast").value<QColor>();
+    }
+    if (!cdNumber.isValid())
+        cdNumber = accent;
+    const auto frac = [](double v) { return QString::number(v, 'f', 8); };
+    return {QStringLiteral("--record-border-helper"),
+            screen->name(),
+            QString::number(lg.x()), QString::number(lg.y()),
+            QString::number(lg.width()), QString::number(lg.height()),
+            QString::number(qRound(phys.width())),
+            QString::number(qRound(phys.height())),
+            frac(physRegion.x() / phys.width()),
+            frac(physRegion.y() / phys.height()),
+            frac(physRegion.width() / phys.width()),
+            frac(physRegion.height() / phys.height()),
+            accent.name(QColor::HexRgb),
+            QString::number(countdown),
+            countdownOnly ? QStringLiteral("1") : QStringLiteral("0"),
+            badgeBg.name(QColor::HexArgb),
+            badgeText.name(QColor::HexArgb),
+            dot.name(QColor::HexArgb),
+            cdBg.name(QColor::HexArgb),
+            cdNumber.name(QColor::HexArgb),
+            frameContrast.name(QColor::HexArgb)};
+}
+
+void AppContext::showRecordBorder(QRect physRegion, QScreen *screen, int countdown,
+                                  bool countdownOnly, const QSize &countdownRef)
+{
+    hideRecordBorder(); // retire any stale frame first (also clears the flag)
+    if (!m_engine || !screen || physRegion.isEmpty() || !capRecordBorder())
+        return; // capRecordBorder(): layer-shell, KWin trick, X11 or XWayland helper
+    m_recordBorderCountdownOnly = countdownOnly;
+    noteForceBlur();
+
+    if (recordBorderViaHelper()) {
         auto *proc = new QProcess(this);
         proc->setProgram(QCoreApplication::applicationFilePath());
         // Same rule as the notification helper: stdout is the protocol, so
@@ -2827,25 +3451,7 @@ void AppContext::showRecordBorder(QRect physRegion, QScreen *screen, int countdo
             DiagLog::appendChildOutput(QStringLiteral("border-helper"),
                                        proc->readAllStandardError());
         });
-        proc->setArguments({QStringLiteral("--record-border-helper"),
-                            screen->name(),
-                            QString::number(lg.x()), QString::number(lg.y()),
-                            QString::number(lg.width()), QString::number(lg.height()),
-                            QString::number(qRound(phys.width())),
-                            QString::number(qRound(phys.height())),
-                            frac(physRegion.x() / phys.width()),
-                            frac(physRegion.y() / phys.height()),
-                            frac(physRegion.width() / phys.width()),
-                            frac(physRegion.height() / phys.height()),
-                            accent.name(QColor::HexRgb),
-                            QString::number(countdown),
-                            countdownOnly ? QStringLiteral("1") : QStringLiteral("0"),
-                            badgeBg.name(QColor::HexArgb),
-                            badgeText.name(QColor::HexArgb),
-                            dot.name(QColor::HexArgb),
-                            cdBg.name(QColor::HexArgb),
-                            cdNumber.name(QColor::HexArgb),
-                            frameContrast.name(QColor::HexArgb)});
+        proc->setArguments(recordBorderHelperArgs(physRegion, screen, countdown, countdownOnly));
         // The helper's badge carries clickable stop/pause controls; a click there
         // arrives as a "stop"/"pause" line on the helper's stdout. Dispatch it
         // like the in-process border's buttons (the resulting paused state is
@@ -2917,6 +3523,15 @@ void AppContext::showRecordBorder(QRect physRegion, QScreen *screen, int countdo
     borderCtl->setParent(win);
     borderCtl->setWindow(win);
     win->setScreen(screen);
+    // An in-process frame is invisible to a replay ring on KWin's native
+    // stream (KWin hides the requesting process's windows), so the ring paints
+    // it into the clip itself. The helper is another process: KWin shows it.
+    if (!countdownOnly) {
+        if (QObject *theme = m_engine->singletonInstance<QObject *>(
+                QStringLiteral("Unisic.Kit"), QStringLiteral("Theme")))
+            m_replay->setOwnFrame(physRegion, screen, theme->property("accent").value<QColor>(),
+                                  theme->property("recordFrameContrast").value<QColor>());
+    }
     // Pre-recording countdown number (0 = none) - RecordBorder.qml shows it
     // centered in the region and hides the REC badge while it ticks.
     win->setProperty("countdown", countdown);
@@ -2973,6 +3588,7 @@ void AppContext::hideRecordBorder()
 {
     m_pendingRecordRegion = QRect();
     m_recordBorderCountdownOnly = false;
+    m_replay->setOwnFrame({}, nullptr, {}, {});
     if (m_recordBorderHelper) {
         QProcess *p = m_recordBorderHelper;
         m_recordBorderHelper = nullptr;
@@ -2995,9 +3611,9 @@ void AppContext::hideRecordBorder()
     }
 }
 
-void AppContext::onRecordingFinished(const QString &path, bool fromInstantReplay)
+void AppContext::onRecordingFinished(const QString &path, const QString &origin)
 {
-    m_converting = false;
+    setSaveProgress(-1);
     emit recordingChanged();
     if (path.isEmpty())
         return; // stopping the rolling replay ring creates no output by itself
@@ -3010,23 +3626,23 @@ void AppContext::onRecordingFinished(const QString &path, bool fromInstantReplay
         auto *proc = new QProcess(this);
         const auto completed = std::make_shared<bool>(false);
         connect(proc, &QProcess::finished, this,
-                [this, proc, path, kind, posterPath, completed, fromInstantReplay](int, QProcess::ExitStatus) {
+                [this, proc, path, kind, posterPath, completed, origin](int, QProcess::ExitStatus) {
             if (*completed)
                 return;
             *completed = true;
             proc->deleteLater();
             QImage thumb(posterPath);
             QFile::remove(posterPath);
-            finishRecordingEntry(path, thumb, kind, fromInstantReplay);
+            finishRecordingEntry(path, thumb, kind, origin);
         });
         connect(proc, &QProcess::errorOccurred, this,
-                [this, proc, path, kind, posterPath, completed, fromInstantReplay](QProcess::ProcessError e) {
+                [this, proc, path, kind, posterPath, completed, origin](QProcess::ProcessError e) {
             if (e != QProcess::FailedToStart || *completed)
                 return;
             *completed = true;
             proc->deleteLater();
             QFile::remove(posterPath);
-            finishRecordingEntry(path, QImage(), kind, fromInstantReplay);
+            finishRecordingEntry(path, QImage(), kind, origin);
         });
         // Extract the poster already downscaled to thumbnail size: the only
         // consumer is a history/popup thumbnail (≤480 px), so a full-res 4K PNG
@@ -3060,22 +3676,28 @@ void AppContext::onRecordingFinished(const QString &path, bool fromInstantReplay
     QImage thumb = reader.read();
     if (thumb.isNull())
         thumb = QImage(path); // fall back to a full decode if the scaled read failed
-    finishRecordingEntry(path, thumb, kind);
+    finishRecordingEntry(path, thumb, kind, origin);
 }
 
 void AppContext::finishRecordingEntry(const QString &path, const QImage &thumb, const QString &kind,
-                                      bool fromInstantReplay)
+                                      const QString &origin)
 {
     // Audible cue that the (possibly long) encode is done and the file exists -
     // the screenshot pipeline plays its own cue in finishCapture.
     playRecordingSound();
 
-    m_history->addEntry(path, thumb, kind, {}, {},
-                        fromInstantReplay ? QStringLiteral("replay") : QString());
+    const quint64 historyId = m_history->addEntry(path, thumb, kind, {}, {}, origin);
     showToast(tr("Saved %1").arg(path));
     if (m_settings->copyToClipboard())
         copyFileToClipboard(path);
     runExternalAction(thumb, path);
+    if (origin == QLatin1String("replay")) {
+        showClipIndicator(tr("Clip saved"), QFileInfo(path).fileName(), QStringLiteral("ok"), 3500);
+        if (m_settings->clipOpenReplay())
+            openTrimRecording(path);
+    } else if (origin == QLatin1String("session")) {
+        showClipIndicator(tr("Session saved"), QFileInfo(path).fileName(), QStringLiteral("ok"), 3500);
+    }
 
     // Inhibition is sampled NOW, not at recording start: a recording can run
     // for minutes, and muteOnFullscreen must reflect what is on screen when
@@ -3083,13 +3705,16 @@ void AppContext::finishRecordingEntry(const QString &path, const QImage &thumb, 
     auto *notif = showCaptureNotification(thumb, path, kind, nowInhibited());
     QPointer<CaptureNotification> np(notif);
 
-    if (m_settings->uploadAfterCapture()) {
+    if (m_settings->uploadAfterCapture()
+        || (origin == QLatin1String("replay") && m_settings->clipUpload())) {
         if (np) np->setUploading(true);
-        m_uploads->uploadFile(path, [this, path, np](const QString &url, const QString &del, const QString &err) {
+        m_uploads->uploadFile(path, [this, path, historyId, np](const QString &url, const QString &del,
+                                                               const QString &err) {
             if (err.isEmpty()) {
                 m_history->setUrl(path, url, del);
                 afterUploadActions(url);
                 if (np) np->setUrl(url);
+                trashAfterUpload(path, historyId, np);
             } else {
                 showToast(tr("Upload failed: %1").arg(err), true);
                 if (np) np->setUploadFailed(err);
@@ -3278,6 +3903,7 @@ void AppContext::finishCapture(const QImage &img, bool inhibited, bool forceCopy
                         m_history->addEntry(path, {}, QStringLiteral("image"), url, del);
                     afterUploadActions(url);
                     if (np) np->setUrl(url);
+                    trashAfterUpload(path, historyId, np);
                 }, uploadDestination);
         }, upFmt);
     } else if (!path.isEmpty() && !cliMode) {
@@ -3326,6 +3952,27 @@ void AppContext::copyLastCapture()
     showToast(tr("Copied to clipboard"));
 }
 
+QString AppContext::trashAfterUpload(const QString &path, quint64 historyId, CaptureNotification *card)
+{
+    // An after-capture program got this path and may still be reading it.
+    if (!m_settings->afterUploadTrashFile() || path.isEmpty()
+        || (m_settings->externalActionEnabled() && !m_settings->externalActionCommand().trimmed().isEmpty()))
+        return {};
+    // The trash, never a hard delete: the link may expire or die, and then the
+    // trash is the only copy left.
+    QString inTrash;
+    if (!QFile::moveToTrash(path, &inTrash)) {
+        showToast(tr("Uploaded, but %1 could not be moved to the trash").arg(path), true);
+        return {};
+    }
+    // Before the event loop runs again, or the directory watcher prunes the
+    // entry, link and all, for its missing file.
+    m_history->setFilePathById(historyId, {});
+    if (card)
+        card->forgetFile();
+    return inTrash;
+}
+
 void AppContext::afterUploadActions(const QString &url)
 {
     // Read now: both are only set while the chain's callback runs (this one).
@@ -3367,7 +4014,21 @@ void AppContext::afterUploadActions(const QString &url)
             QDesktopServices::openUrl(u);
     };
 
-    finish(url);
+    const QString scheme = QUrl(url).scheme().toLower();
+    if (!m_settings->afterUploadShortenUrl()
+        || (scheme != QLatin1String("http") && scheme != QLatin1String("https"))) {
+        finish(url);
+        return;
+    }
+    // A failed shortening costs only the short form: the full link goes on as
+    // if shortening were off, and one toast says both.
+    const QString service = m_settings->linkShortener();
+    m_uploads->shortenUrl(service, url, [this, url, service, finish](const QString &shortUrl, const QString &error) {
+        finish(shortUrl.isEmpty() ? url : shortUrl);
+        if (shortUrl.isEmpty())
+            showToast(tr("Uploaded, but %1 could not shorten the link (%2). The full link is used.")
+                          .arg(UploadManager::shortenerName(service), error), true);
+    });
 }
 
 // The one place the watermark settings are read. The Settings preview renders
@@ -3395,11 +4056,29 @@ QString AppContext::watermarkPreviewSource() const
     return QStringLiteral("image://watermark/%1").arg(m_watermarkPreviewRev);
 }
 
-QString AppContext::pickWatermarkImage()
+QString AppContext::replayWatermarkPreviewSource() const
 {
-    const QString start = m_settings->watermarkImagePath().isEmpty()
+    return QStringLiteral("image://watermark/replay/%1").arg(m_replayWatermarkPreviewRev);
+}
+
+QString AppContext::replayPreviewGame() const
+{
+    const QString now = currentGame();
+    if (!now.isEmpty())
+        return now;
+    const QStringList recent = m_settings->recentGames();
+    const QString last = recent.isEmpty() ? QString() : recent.first().section(QLatin1Char('\t'), 1, 1);
+    // A name the user would recognise as a game; never written anywhere.
+    return last.isEmpty() ? QStringLiteral("Counter-Strike 2") : last;
+}
+
+QString AppContext::pickWatermarkImage(bool replay)
+{
+    const QString current = replay ? m_settings->replayWatermarkImagePath()
+                                   : m_settings->watermarkImagePath();
+    const QString start = current.isEmpty()
                               ? QStandardPaths::writableLocation(QStandardPaths::PicturesLocation)
-                              : QFileInfo(m_settings->watermarkImagePath()).absolutePath();
+                              : QFileInfo(current).absolutePath();
     const QString path = QFileDialog::getOpenFileName(
         nullptr, tr("Choose watermark image"), start.isEmpty() ? QDir::homePath() : start,
         tr("Images (*.png *.svg *.svgz *.jpg *.jpeg *.webp)"));
@@ -3418,28 +4097,16 @@ QString AppContext::pickWatermarkImage()
         showToast(tr("Could not load the watermark image"), true);
         return {};
     }
-    m_settings->setWatermarkImagePath(path);
+    if (replay)
+        m_settings->setReplayWatermarkImagePath(path);
+    else
+        m_settings->setWatermarkImagePath(path);
     return path;
 }
 
 void AppContext::refreshWatermarkImage()
 {
-    m_watermarkImage = {};
-    const QString path = m_settings->watermarkImagePath();
-    if (path.isEmpty())
-        return;
-    QImageReader reader(path);
-    reader.setAutoTransform(true);
-    const QSize sourceSize = reader.size();
-    if (!sourceSize.isValid() || sourceSize.width() > 16384 || sourceSize.height() > 16384)
-        return;
-    // Cap the decoded size at 1024 to avoid pinning a huge source, but NEVER
-    // upscale a small logo (KeepAspectRatio would blow a 120px icon up to 1024
-    // and then watermarkImage scales it back down - a double resample that
-    // fringes the alpha edges).
-    if (sourceSize.width() > 1024 || sourceSize.height() > 1024)
-        reader.setScaledSize(sourceSize.scaled(QSize(1024, 1024), Qt::KeepAspectRatio));
-    m_watermarkImage = reader.read().convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    m_watermarkImage = UnisicImageEffects::loadWatermark(m_settings->watermarkImagePath());
 }
 
 QString AppContext::editableKindFor(const QString &path)
@@ -3685,6 +4352,7 @@ void AppContext::openTrimRecording(const QString &path)
         // is not a contract worth leaning on.
         qreal duration = -1;
         qreal frameDur = 0;
+        QSize size;
         const QList<QByteArray> lines = output.split('\n');
         for (const QByteArray &line : lines) {
             const int eq = line.indexOf('=');
@@ -3697,6 +4365,10 @@ void AppContext::openTrimRecording(const QString &path)
                 const qreal d = value.toDouble(&ok);
                 if (ok)
                     duration = d;
+            } else if (key == "width") {
+                size.setWidth(value.toInt());
+            } else if (key == "height") {
+                size.setHeight(value.toInt());
             } else if (key == "avg_frame_rate") {
                 // "30/1", "30000/1001"; "0/0" for unknown → stays 0.
                 const int slash = value.indexOf('/');
@@ -3711,7 +4383,7 @@ void AppContext::openTrimRecording(const QString &path)
             showToast(tr("Could not read the recording duration"), true);
             return;
         }
-        showTrimWindow(path, duration, frameDur);
+        showTrimWindow(path, duration, frameDur, size);
     });
     connect(probe, &QProcess::errorOccurred, this,
             [this, probe, completed](QProcess::ProcessError error) {
@@ -3724,11 +4396,12 @@ void AppContext::openTrimRecording(const QString &path)
     probe->start(ffprobe, {QStringLiteral("-v"), QStringLiteral("error"),
                            QStringLiteral("-select_streams"), QStringLiteral("v:0"),
                            QStringLiteral("-show_entries"),
-                           QStringLiteral("stream=avg_frame_rate:format=duration"),
+                           QStringLiteral("stream=avg_frame_rate,width,height:format=duration"),
                            QStringLiteral("-of"), QStringLiteral("default=nw=1"), path});
 }
 
-void AppContext::showTrimWindow(const QString &path, qreal duration, qreal frameDuration)
+void AppContext::showTrimWindow(const QString &path, qreal duration, qreal frameDuration,
+                                QSize videoSize)
 {
     if (!m_engine)
         return;
@@ -3738,7 +4411,7 @@ void AppContext::showTrimWindow(const QString &path, qreal duration, qreal frame
         return;
     }
     auto *ctx = new QQmlContext(m_engine->rootContext(), this);
-    auto *trim = new TrimController(path, duration, frameDuration);
+    auto *trim = new TrimController(path, duration, frameDuration, videoSize);
     ctx->setContextProperty(QStringLiteral("trimSourcePath"), path);
     ctx->setContextProperty(QStringLiteral("trimDuration"), duration);
     ctx->setContextProperty(QStringLiteral("trimController"), trim);
@@ -3761,7 +4434,8 @@ void AppContext::showTrimWindow(const QString &path, qreal duration, qreal frame
 }
 
 void AppContext::runTrimStep(const QStringList &args,
-                             std::function<void(bool, const QString &)> done)
+                             std::function<void(bool, const QString &)> done,
+                             qint64 progressMs, qreal from, qreal to)
 {
     const QString ffmpeg = QStandardPaths::findExecutable(QStringLiteral("ffmpeg"));
     if (ffmpeg.isEmpty()) {
@@ -3770,38 +4444,64 @@ void AppContext::runTrimStep(const QStringList &args,
     }
     auto *process = new QProcess(this);
     const auto completed = std::make_shared<bool>(false);
-    process->setProcessChannelMode(QProcess::MergedChannels);
+    QStringList fullArgs = args;
+    if (progressMs > 0) {
+        // Progress on stdout, the diagnostic stays on stderr.
+        fullArgs.prepend(QStringLiteral("pipe:1"));
+        fullArgs.prepend(QStringLiteral("-progress"));
+        setSaveProgress(from);
+        connect(process, &QProcess::readyReadStandardOutput, this,
+                [this, process, progressMs, from, to] {
+            while (process->canReadLine()) {
+                const QByteArray line = process->readLine().trimmed();
+                if (line.startsWith("out_time_us=")) {
+                    const qreal f = qBound(0.0, line.mid(12).toLongLong() / (progressMs * 1000.0), 1.0);
+                    setSaveProgress(from + (to - from) * f);
+                }
+            }
+        });
+    } else {
+        process->setProcessChannelMode(QProcess::MergedChannels);
+    }
+    const bool last = progressMs > 0 && to >= 1.0;
     connect(process, &QProcess::finished, this,
-            [process, completed, done](int code, QProcess::ExitStatus status) {
+            [this, process, completed, done, progressMs, last](int code, QProcess::ExitStatus status) {
         if (*completed)
             return;
         *completed = true;
-        const QString diagnostic = QString::fromUtf8(process->readAll()).trimmed();
+        const QString diagnostic = QString::fromUtf8(progressMs > 0 ? process->readAllStandardError()
+                                                                    : process->readAll()).trimmed();
         process->deleteLater();
-        done(code == 0 && status == QProcess::NormalExit, diagnostic);
+        const bool ok = code == 0 && status == QProcess::NormalExit;
+        if (progressMs > 0 && (last || !ok))
+            setSaveProgress(-1);
+        done(ok, diagnostic);
     });
     connect(process, &QProcess::errorOccurred, this,
-            [this, process, completed, done](QProcess::ProcessError error) {
+            [this, process, completed, done, progressMs](QProcess::ProcessError error) {
         if (error != QProcess::FailedToStart || *completed)
             return;
         *completed = true;
         process->deleteLater();
+        if (progressMs > 0)
+            setSaveProgress(-1);
         done(false, tr("Trimming requires ffmpeg"));
     });
-    process->start(ffmpeg, args);
+    process->start(ffmpeg, fullArgs);
 }
 
-void AppContext::trimGif(const QString &path, const QString &output, qreal start, qreal end)
+void AppContext::trimGif(const QString &path, const QString &output,
+                         const QList<QPointF> &segments, const QString &videoTail, qint64 lengthMs)
 {
     // A GIF cannot be seeked (input -ss silently yields the whole file) and
     // cannot be stream-copied mid-file, so the range is selected inside the
     // filter graph and the selection is re-rendered through the same two-pass
     // palettegen/paletteuse the recorder uses. setpts rebases the selection to
     // zero; without it the output keeps a `start` seconds of empty lead-in.
+    // Every kept span is trimmed and joined in the graph (ClipGraph), then
+    // cropped/scaled when the clip is reframed; it leaves as [v].
     const int quality = m_settings->gifQuality();
-    const QString range = QStringLiteral("trim=start=%1:end=%2,setpts=PTS-STARTPTS")
-                              .arg(QString::number(start, 'f', 3),
-                                   QString::number(end, 'f', 3));
+    const QString range = ClipGraph::build(segments, videoTail, {}, -1, {}, {}).filter;
     // The palette is scratch: it lives in the cache dir (NOT next to the
     // recording, where an exit mid-trim would leave a stray
     // "*-trimmed.gif.palette.png" forever), and stale ones from an earlier
@@ -3823,10 +4523,11 @@ void AppContext::trimGif(const QString &path, const QString &output, qreal start
     runTrimStep({QStringLiteral("-y"), QStringLiteral("-nostats"),
                  QStringLiteral("-loglevel"), QStringLiteral("error"),
                  QStringLiteral("-i"), path,
-                 QStringLiteral("-vf"),
-                 range + QLatin1Char(',') + FfmpegUtil::gifPaletteGenFilter(quality),
+                 QStringLiteral("-filter_complex"),
+                 range + QStringLiteral(";[v]%1[p]").arg(FfmpegUtil::gifPaletteGenFilter(quality)),
+                 QStringLiteral("-map"), QStringLiteral("[p]"),
                  palette},
-                [this, path, output, palette, range, quality](bool ok, const QString &diagnostic) {
+                [this, path, output, palette, range, quality, lengthMs](bool ok, const QString &diagnostic) {
         if (!ok) {
             QFile::remove(palette);
             showToast(tr("Trim failed: %1").arg(diagnostic), true);
@@ -3836,9 +4537,9 @@ void AppContext::trimGif(const QString &path, const QString &output, qreal start
                      QStringLiteral("-loglevel"), QStringLiteral("error"),
                      QStringLiteral("-i"), path,
                      QStringLiteral("-i"), palette,
-                     QStringLiteral("-lavfi"),
-                     QStringLiteral("[0:v]%1[x];[x][1:v]%2")
-                         .arg(range, FfmpegUtil::gifPaletteUseFilter(quality)),
+                     QStringLiteral("-filter_complex"),
+                     range + QStringLiteral(";[v][1:v]%1[g]").arg(FfmpegUtil::gifPaletteUseFilter(quality)),
+                     QStringLiteral("-map"), QStringLiteral("[g]"),
                      output},
                     [this, output, palette](bool ok2, const QString &diagnostic2) {
             QFile::remove(palette);
@@ -3848,14 +4549,36 @@ void AppContext::trimGif(const QString &path, const QString &output, qreal start
                 return;
             }
             onRecordingFinished(output);
-        });
-    });
+        }, lengthMs, 0.5, 1.0);
+    }, lengthMs, 0.0, 0.5);
 }
 
 void AppContext::trimRecording(const QString &path, qreal startSeconds, qreal endSeconds,
                                bool lossless, const QVariantList &audioGains, int mixTrack)
 {
-    if (!QFileInfo::exists(path) || startSeconds < 0 || endSeconds <= startSeconds) {
+    exportClip({{QStringLiteral("path"), path},
+                {QStringLiteral("segments"), QVariantList{QVariantList{startSeconds, endSeconds}}},
+                {QStringLiteral("lossless"), lossless},
+                {QStringLiteral("gains"), audioGains},
+                {QStringLiteral("mixTrack"), mixTrack}});
+}
+
+void AppContext::exportClip(const QVariantMap &options)
+{
+    const QString path = options.value(QStringLiteral("path")).toString();
+    QList<QPointF> segments;
+    qreal keptSeconds = 0;
+    for (const QVariant &v : options.value(QStringLiteral("segments")).toList()) {
+        const QVariantList pair = v.toList();
+        if (pair.size() != 2)
+            continue;
+        const QPointF seg(qMax(0.0, pair.at(0).toDouble()), pair.at(1).toDouble());
+        if (seg.y() - seg.x() < 0.01 || (!segments.isEmpty() && seg.x() < segments.last().y()))
+            continue;   // empty, or out of order: the graph needs ascending spans
+        segments << seg;
+        keptSeconds += seg.y() - seg.x();
+    }
+    if (!QFileInfo::exists(path) || segments.isEmpty() || keptSeconds < 0.05) {
         showToast(tr("Invalid trim range"), true);
         return;
     }
@@ -3864,44 +4587,71 @@ void AppContext::trimRecording(const QString &path, qreal startSeconds, qreal en
         return;
     }
     const QFileInfo source(path);
-    QString output = source.absolutePath() + QLatin1Char('/') + source.completeBaseName()
-                     + QStringLiteral("-trimmed.") + source.suffix();
+    // A clip title becomes the file name; whatever a file system or a shell
+    // would trip over turns into a dash, and the name stays next to the source.
+    QString base = options.value(QStringLiteral("name")).toString();
+    base.replace(QRegularExpression(QStringLiteral("[/\\\\:*?\"<>|\\x00-\\x1f]")), QStringLiteral("-"));
+    base = base.trimmed().left(120);
+    if (base.isEmpty() || base.startsWith(QLatin1Char('.')))
+        base = source.completeBaseName() + QStringLiteral("-trimmed");
+    const QString stem = source.absolutePath() + QLatin1Char('/') + base;
+    QString output = stem + QLatin1Char('.') + source.suffix();
     for (int i = 1; QFileInfo::exists(output); ++i)
-        output = source.absolutePath() + QLatin1Char('/') + source.completeBaseName()
-                 + QStringLiteral("-trimmed-%1.").arg(i) + source.suffix();
+        output = stem + QStringLiteral("-%1.").arg(i) + source.suffix();
+
+    const QVariantMap crop = options.value(QStringLiteral("crop")).toMap();
+    const QString tail = ClipGraph::videoTail(
+        options.value(QStringLiteral("width")).toInt(), options.value(QStringLiteral("height")).toInt(),
+        crop.value(QStringLiteral("x")).toInt(), crop.value(QStringLiteral("y")).toInt(),
+        crop.value(QStringLiteral("w")).toInt(), crop.value(QStringLiteral("h")).toInt(),
+        options.value(QStringLiteral("shortSide")).toInt());
+    const QString evenCrop = QStringLiteral("crop=trunc(iw/2)*2:trunc(ih/2)*2");
+    const bool reframed = tail != evenCrop;
+    const qint64 keptMs = qRound64(keptSeconds * 1000);
 
     showToast(tr("Trimming recording…"));
     const QString suffix = source.suffix().toLower();
     if (suffix == QLatin1String("gif")) {
-        trimGif(path, output, startSeconds, endSeconds);
+        trimGif(path, output, segments, reframed ? tail : QString(), keptMs);
         return;
     }
 
-    const QString ss = QString::number(startSeconds, 'f', 3);
-    const QString dur = QString::number(endSeconds - startSeconds, 'f', 3);
     // The trim window sends one gain per audio track; all-1.0 (or none) means
     // the audio is untouched and can stay a stream copy.
     QList<double> gains;
     bool audioEdited = false;
-    for (const QVariant &value : audioGains) {
+    for (const QVariant &value : options.value(QStringLiteral("gains")).toList()) {
         const double gain = value.toDouble();
         gains << gain;
         if (gain < 0 || !qFuzzyCompare(gain, 1.0))
             audioEdited = true;
     }
+    const int mixTrack = options.value(QStringLiteral("mixTrack"), -1).toInt();
     const bool webm = suffix == QLatin1String("webm");
     const auto editArgs = [&] {
         return mixTrack >= 0 && mixTrack < gains.size()
                    ? GifRecorder::audioRemixArgs(webm, gains, mixTrack, tr("Mix"))
                    : GifRecorder::audioEditArgs(webm, gains);
     };
-    QStringList args{QStringLiteral("-y"), QStringLiteral("-nostats"),
-                     QStringLiteral("-loglevel"), QStringLiteral("error"),
-                     QStringLiteral("-ss"), ss,
-                     QStringLiteral("-i"), path,
-                     QStringLiteral("-t"), dur};
-    if (lossless) {
-        // The caller has already snapped `startSeconds` onto a keyframe, so the
+    // Cut from a clip or a session, the result is a clip too: it stays on
+    // the Clips page instead of turning into a plain video.
+    const QString category = m_history->categoryOfFile(path);
+    const QString origin = category == QLatin1String("replay") || category == QLatin1String("session")
+                               ? QStringLiteral("clip") : QString();
+    const auto finish = [this, output, origin](bool ok, const QString &diagnostic) {
+        if (!ok) {
+            QFile::remove(output);
+            showToast(tr("Trim failed: %1").arg(diagnostic), true);
+            return;
+        }
+        onRecordingFinished(output, origin);
+    };
+
+    const QPointF first = segments.first();
+    // A stream copy cannot crop, scale or join cuts; the window only offers
+    // it for one plain segment, and anything else re-encodes here regardless.
+    if (options.value(QStringLiteral("lossless")).toBool() && segments.size() == 1 && !reframed) {
+        // The caller has already snapped the start onto a keyframe, so the
         // copy starts exactly there. make_zero rebases the timestamps instead of
         // leaning on a container edit list (which not every player honours).
         // Explicit maps, not `-c copy` alone: ffmpeg's default stream selection
@@ -3909,80 +4659,106 @@ void AppContext::trimRecording(const QString &path, qreal startSeconds, qreal en
         // separate-tracks recording. A volume/mute edit re-encodes the audio
         // (a filter cannot run on a copied stream); the video is copied either
         // way, so the cut stays instant.
-        args << QStringLiteral("-avoid_negative_ts") << QStringLiteral("make_zero")
-             << QStringLiteral("-map") << QStringLiteral("0:v:0")
-             << QStringLiteral("-c:v") << QStringLiteral("copy");
+        QStringList args{QStringLiteral("-y"), QStringLiteral("-nostats"),
+                         QStringLiteral("-loglevel"), QStringLiteral("error"),
+                         QStringLiteral("-ss"), QString::number(first.x(), 'f', 3),
+                         QStringLiteral("-i"), path,
+                         QStringLiteral("-t"), QString::number(first.y() - first.x(), 'f', 3),
+                         QStringLiteral("-avoid_negative_ts"), QStringLiteral("make_zero"),
+                         QStringLiteral("-map"), QStringLiteral("0:v:0"),
+                         QStringLiteral("-c:v"), QStringLiteral("copy")};
         if (audioEdited)
             args << editArgs();
         else
             args << QStringLiteral("-map") << QStringLiteral("0:a?")
                  << QStringLiteral("-c:a") << QStringLiteral("copy");
+        args << output;
+        runTrimStep(args, finish, keptMs);
+        return;
+    }
+
+    // Re-encode. With -ss/-t in front of -i ffmpeg seeks to the keyframe
+    // before the first cut and decodes forward, so the file starts on the
+    // exact frame and a cut late in an hour-long replay does not decode the
+    // whole hour; every later span is then relative to that first frame.
+    const int crf = UnisicVideo::crfFromPercent(m_settings->videoQualityPercent());
+    QStringList pre, codec;
+    QString hwTail;
+    if (webm) {
+        codec << QStringLiteral("-c:v") << QStringLiteral("libvpx-vp9")
+              << QStringLiteral("-crf") << QString::number(crf)
+              << QStringLiteral("-b:v") << QStringLiteral("0")
+              << QStringLiteral("-deadline") << QStringLiteral("good")
+              << QStringLiteral("-cpu-used") << QStringLiteral("4")
+              << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
+              << QStringLiteral("-row-mt") << QStringLiteral("1");
+    } else if (m_settings->videoEncoder() == QLatin1String("vaapi")
+               && FfmpegUtil::hardwareEncoderAvailable(QStringLiteral("vaapi"))) {
+        pre << QStringLiteral("-vaapi_device") << QStringLiteral("/dev/dri/renderD128");
+        hwTail = QStringLiteral(",format=nv12,hwupload");
+        codec << QStringLiteral("-c:v") << QStringLiteral("h264_vaapi")
+              << QStringLiteral("-qp") << QString::number(qBound(1, crf, 40))
+              << QStringLiteral("-movflags") << QStringLiteral("+faststart");
+    } else if (m_settings->videoEncoder() == QLatin1String("nvenc")
+               && FfmpegUtil::hardwareEncoderAvailable(QStringLiteral("nvenc"))) {
+        codec << QStringLiteral("-c:v") << QStringLiteral("h264_nvenc")
+              << QStringLiteral("-preset") << QStringLiteral("p4")
+              << QStringLiteral("-cq") << QString::number(crf)
+              << QStringLiteral("-b:v") << QStringLiteral("0")
+              << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
+              << QStringLiteral("-movflags") << QStringLiteral("+faststart");
+    } else if (FfmpegUtil::encoderUsable(QStringLiteral("libx264"))) {
+        codec << QStringLiteral("-c:v") << QStringLiteral("libx264")
+              << QStringLiteral("-preset") << QStringLiteral("veryfast")
+              << QStringLiteral("-crf") << QString::number(crf)
+              << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
+              << QStringLiteral("-movflags") << QStringLiteral("+faststart");
     } else {
-        // Re-encode: with -ss in front of -i ffmpeg seeks to the preceding
-        // keyframe and decodes forward, so the output starts on the exact frame.
-        const int crf = UnisicVideo::crfFromPercent(m_settings->videoQualityPercent());
-        // yuv420p needs even dimensions (same rule the recorder enforces on its
-        // crop): an imported MP4/MOV/MKV can be odd-sized, and libx264 & friends
-        // abort with "width not divisible by 2". Trim at most one edge pixel.
-        const QString evenCrop = QStringLiteral("crop=trunc(iw/2)*2:trunc(ih/2)*2");
-        if (suffix == QLatin1String("webm")) {
-            args << QStringLiteral("-vf") << evenCrop
-                 << QStringLiteral("-c:v") << QStringLiteral("libvpx-vp9")
-                 << QStringLiteral("-crf") << QString::number(crf)
-                 << QStringLiteral("-b:v") << QStringLiteral("0")
-                 << QStringLiteral("-deadline") << QStringLiteral("good")
-                 << QStringLiteral("-cpu-used") << QStringLiteral("4")
-                 << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
-                 << QStringLiteral("-row-mt") << QStringLiteral("1");
-        } else if (m_settings->videoEncoder() == QLatin1String("vaapi")
-                   && FfmpegUtil::hardwareEncoderAvailable(QStringLiteral("vaapi"))) {
-            args << QStringLiteral("-vaapi_device") << QStringLiteral("/dev/dri/renderD128")
-                 << QStringLiteral("-vf") << evenCrop + QStringLiteral(",format=nv12,hwupload")
-                 << QStringLiteral("-c:v") << QStringLiteral("h264_vaapi")
-                 << QStringLiteral("-qp") << QString::number(qBound(1, crf, 40))
-                 << QStringLiteral("-movflags") << QStringLiteral("+faststart");
-        } else if (m_settings->videoEncoder() == QLatin1String("nvenc")
-                   && FfmpegUtil::hardwareEncoderAvailable(QStringLiteral("nvenc"))) {
-            args << QStringLiteral("-vf") << evenCrop
-                 << QStringLiteral("-c:v") << QStringLiteral("h264_nvenc")
-                 << QStringLiteral("-preset") << QStringLiteral("p4")
-                 << QStringLiteral("-cq") << QString::number(crf)
-                 << QStringLiteral("-b:v") << QStringLiteral("0")
-                 << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
-                 << QStringLiteral("-movflags") << QStringLiteral("+faststart");
-        } else if (FfmpegUtil::encoderUsable(QStringLiteral("libx264"))) {
-            args << QStringLiteral("-vf") << evenCrop
-                 << QStringLiteral("-c:v") << QStringLiteral("libx264")
-                 << QStringLiteral("-preset") << QStringLiteral("veryfast")
-                 << QStringLiteral("-crf") << QString::number(crf)
-                 << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
-                 << QStringLiteral("-movflags") << QStringLiteral("+faststart");
-        } else {
-            args << QStringLiteral("-vf") << evenCrop
-                 << QStringLiteral("-c:v") << QStringLiteral("libopenh264")
-                 << QStringLiteral("-b:v") << QStringLiteral("%1M").arg(qBound(2, (51 - crf) / 3, 16))
-                 << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
-                 << QStringLiteral("-movflags") << QStringLiteral("+faststart");
-        }
+        codec << QStringLiteral("-c:v") << QStringLiteral("libopenh264")
+              << QStringLiteral("-b:v") << QStringLiteral("%1M").arg(qBound(2, (51 - crf) / 3, 16))
+              << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
+              << QStringLiteral("-movflags") << QStringLiteral("+faststart");
+    }
+    // tail always starts with a crop: yuv420p needs even dimensions (the
+    // recorder enforces the same on its region), and an imported MP4/MOV/MKV
+    // can be odd-sized - libx264 & friends abort "width not divisible by 2".
+    QStringList args = QStringList{QStringLiteral("-y"), QStringLiteral("-nostats"),
+                                   QStringLiteral("-loglevel"), QStringLiteral("error")}
+                       + pre
+                       + QStringList{QStringLiteral("-ss"), QString::number(first.x(), 'f', 3),
+                                     QStringLiteral("-t"),
+                                     QString::number(segments.last().y() - first.x(), 'f', 3),
+                                     QStringLiteral("-i"), path};
+    if (segments.size() == 1) {
+        args << QStringLiteral("-vf") << tail + hwTail << codec
+             << QStringLiteral("-map") << QStringLiteral("0:v:0");
         // Same audio args the recorder's own conversion uses, so a trim keeps
         // every track of a multi-track recording instead of the first one.
         // No names passed: this file is finished, and ffmpeg's metadata copy
         // carries the ones it already has.
-        args << QStringLiteral("-map") << QStringLiteral("0:v:0");
         if (audioEdited)
             args << editArgs();
         else
             args << GifRecorder::finalAudioArgs(webm);
+    } else {
+        // Several kept spans: the audio has to be cut in the graph too, track
+        // by track, so the titles go back on by hand (filters drop them).
+        QList<QPointF> relative;
+        for (const QPointF &seg : std::as_const(segments))
+            relative << seg - QPointF(first.x(), first.x());
+        QStringList titles;
+        for (const QVariant &t : options.value(QStringLiteral("titles")).toList())
+            titles << t.toString();
+        const ClipGraph::Graph graph = ClipGraph::build(relative, tail + hwTail, gains, mixTrack,
+                                                        titles, tr("Mix"));
+        args << QStringLiteral("-filter_complex") << graph.filter
+             << QStringLiteral("-map") << QStringLiteral("[v]") << codec << graph.audioArgs;
+        if (!graph.audioArgs.isEmpty())
+            args << QStringLiteral("-c:a") << (webm ? QStringLiteral("libopus") : QStringLiteral("aac"))
+                 << QStringLiteral("-b:a") << (webm ? QStringLiteral("128k") : QStringLiteral("192k"));
     }
     args << output;
-    runTrimStep(args, [this, output](bool ok, const QString &diagnostic) {
-        if (!ok) {
-            QFile::remove(output);
-            showToast(tr("Trim failed: %1").arg(diagnostic), true);
-            return;
-        }
-        onRecordingFinished(output);
-    });
+    runTrimStep(args, finish, keptMs);
 }
 
 void AppContext::runExternalAction(const QImage &image, const QString &savedPath)
@@ -4265,6 +5041,63 @@ void AppContext::copyAsFromHistory(const QString &filePath, const QString &url,
         return;
     }
     copyImageAs({}, filePath, url, format);
+}
+
+void AppContext::printFromHistory(const QString &filePath)
+{
+    const QImage img(filePath);
+    if (img.isNull()) {
+        showToast(tr("Can't open %1 to print").arg(QFileInfo(filePath).fileName()), true);
+        return;
+    }
+    printImage(img, QFileInfo(filePath).fileName());
+}
+
+QRectF AppContext::printImageRect(const QSize &image, const QRectF &area)
+{
+    QSizeF size = QSizeF(image) * 0.75; // 96 dpi pixels in 72 dpi points
+    if (size.width() > area.width() || size.height() > area.height())
+        size.scale(area.size(), Qt::KeepAspectRatio);
+    QRectF r(QPointF(), size);
+    r.moveCenter(area.center());
+    return r;
+}
+
+QByteArray AppContext::printPdf(const QImage &img, const QVariantMap &pageSetup)
+{
+    double w = pageSetup.value(QStringLiteral("Width")).toDouble();
+    double h = pageSetup.value(QStringLiteral("Height")).toDouble();
+    if (w <= 0 || h <= 0) {
+        w = 210;
+        h = 297;
+    }
+    // Paper as portrait, then the orientation on top: backends disagree on
+    // whether Width/Height are already turned, and this reads both the same.
+    if (w > h)
+        std::swap(w, h);
+    const bool landscape = pageSetup.value(QStringLiteral("Orientation")).toString()
+                               .endsWith(QLatin1String("landscape"));
+    // The largest of the four margins on every side: whether the backend gives
+    // them for the turned page or the upright paper, the image clears them.
+    double marginMm = 0;
+    for (const char *key : {"MarginTop", "MarginBottom", "MarginLeft", "MarginRight"})
+        marginMm = std::max(marginMm, pageSetup.value(QLatin1String(key)).toDouble());
+
+    QBuffer buf;
+    buf.open(QIODevice::WriteOnly);
+    {
+        QPdfWriter pdf(&buf);
+        pdf.setResolution(72); // device units are points
+        pdf.setPageSize(QPageSize(QSizeF(w, h), QPageSize::Millimeter));
+        pdf.setPageOrientation(landscape ? QPageLayout::Landscape : QPageLayout::Portrait);
+        pdf.setPageMargins(QMarginsF());
+        QPainter p(&pdf);
+        const double m = marginMm * 72.0 / 25.4;
+        const QRectF page(0, 0, pdf.width(), pdf.height());
+        p.setRenderHint(QPainter::SmoothPixmapTransform);
+        p.drawImage(printImageRect(img.size(), page.adjusted(m, m, -m, -m)), img);
+    }
+    return buf.data();
 }
 
 void AppContext::uploadFromHistory(const QString &filePath)
@@ -5088,14 +5921,17 @@ void AppContext::copyFileToClipboard(const QString &path)
                     QUrl::fromLocalFile(path).toEncoded() + "\r\n");
 }
 
-void AppContext::showQr(const QString &url)
+void AppContext::showQr(const QString &text)
 {
-    const QUrl parsed(url);
-    if (!parsed.isValid() || parsed.scheme().isEmpty()) {
-        showToast(tr("No valid link to turn into a QR code"), true);
+    if (text.trimmed().isEmpty()) {
+        showToast(tr("Nothing to turn into a QR code"), true);
         return;
     }
-    const QImage qr = qrPreviewImage(url);
+    if (const qsizetype bytes = text.toUtf8().size(); bytes > kQrMaxBytes) {
+        showToast(tr("Too long for a QR code: %1 bytes, at most %2").arg(bytes).arg(kQrMaxBytes), true);
+        return;
+    }
+    const QImage qr = qrPreviewImage(text);
     if (qr.isNull()) {
         // zxing-cpp is always linked in, so a null image can only be the encoder
         // refusing this payload (too long, or an unencodable byte sequence).
@@ -5455,7 +6291,18 @@ QVector<AppContext::HotkeyAction> AppContext::hotkeyActions() const
         {QStringLiteral("record-video"), tr("Record video (start/stop)"), m_settings->hotkeyRecord()},
         {QStringLiteral("ocr-region"), tr("OCR region (copy text)"), m_settings->hotkeyOcr()},
         {QStringLiteral("copy-last"), tr("Copy last capture"), m_settings->hotkeyCopyLast()},
-        {QStringLiteral("instant-replay"), tr("Start/save instant replay"), m_settings->hotkeyInstantReplay()},
+        {QStringLiteral("instant-replay"), tr("Save clip (instant replay)"), m_settings->hotkeyInstantReplay()},
+        {QStringLiteral("record-screen"), tr("Record video (full screen)"), m_settings->hotkeyRecordScreen()},
+        {QStringLiteral("gif-screen"), tr("Record GIF (full screen)"), m_settings->hotkeyGifScreen()},
+        {QStringLiteral("record-window"), tr("Record video (window)"), m_settings->hotkeyRecordWindow()},
+        {QStringLiteral("pause-recording"), tr("Pause/resume recording"), m_settings->hotkeyPauseRecording()},
+        {QStringLiteral("measure"), tr("Measure"), m_settings->hotkeyMeasure()},
+        {QStringLiteral("edit-image"), tr("Edit an image"), m_settings->hotkeyEditImage()},
+        {QStringLiteral("trim-video"), tr("Trim a video"), m_settings->hotkeyTrimVideo()},
+        {QStringLiteral("upload-file"), tr("Upload a file…"), m_settings->hotkeyUploadFile()},
+        {QStringLiteral("upload-clipboard"), tr("Upload clipboard"), m_settings->hotkeyUploadClipboard()},
+        {QStringLiteral("qr-clipboard"), tr("QR code of copied text"), m_settings->hotkeyQrClipboard()},
+        {QStringLiteral("replay-toggle"), tr("Instant replay on/off"), m_settings->hotkeyReplayToggle()},
     };
 }
 
@@ -5638,6 +6485,17 @@ void AppContext::syncHotkeyFromDaemon(const QString &actionId, const QString &po
     else if (actionId == QLatin1String("ocr-region")) m_settings->setHotkeyOcr(portable);
     else if (actionId == QLatin1String("copy-last")) m_settings->setHotkeyCopyLast(portable);
     else if (actionId == QLatin1String("instant-replay")) m_settings->setHotkeyInstantReplay(portable);
+    else if (actionId == QLatin1String("record-screen")) m_settings->setHotkeyRecordScreen(portable);
+    else if (actionId == QLatin1String("gif-screen")) m_settings->setHotkeyGifScreen(portable);
+    else if (actionId == QLatin1String("record-window")) m_settings->setHotkeyRecordWindow(portable);
+    else if (actionId == QLatin1String("pause-recording")) m_settings->setHotkeyPauseRecording(portable);
+    else if (actionId == QLatin1String("measure")) m_settings->setHotkeyMeasure(portable);
+    else if (actionId == QLatin1String("edit-image")) m_settings->setHotkeyEditImage(portable);
+    else if (actionId == QLatin1String("trim-video")) m_settings->setHotkeyTrimVideo(portable);
+    else if (actionId == QLatin1String("upload-file")) m_settings->setHotkeyUploadFile(portable);
+    else if (actionId == QLatin1String("upload-clipboard")) m_settings->setHotkeyUploadClipboard(portable);
+    else if (actionId == QLatin1String("qr-clipboard")) m_settings->setHotkeyQrClipboard(portable);
+    else if (actionId == QLatin1String("replay-toggle")) m_settings->setHotkeyReplayToggle(portable);
     else return;
     // Rare + important: flush so a SIGTERM/logout doesn't resurrect the stale key.
     m_settings->raw()->sync();
@@ -5702,17 +6560,21 @@ void AppContext::defineHotkeys()
         // Fixed emergency stop: ALWAYS Ctrl+Escape, not user-configurable.
         // Pushed with SetPresent|NoAutoloading on every startup, so even a KCM
         // edit is reverted at the next launch. Stock Plasma ships Ctrl+Esc
-        // bound to "Show System Activity" - the daemon then refuses the grab,
-        // so tell the user instead of failing silently.
+        // bound to "Show System Activity" - the daemon then refuses the grab.
+        // Marked in hotkeyConflicts ("stop-recording") for the Hotkeys pane,
+        // which names the owner (often Unisic's other build), not a toast on
+        // every launch. Re-checked on acceptance too: the reply can accept a
+        // key whose presses still resolve to another component.
         m_hotkeys->setShortcutAsync(
             QStringLiteral("stop-recording"), tr("Stop recording (emergency)"),
             QStringLiteral("Ctrl+Escape"), this, [this](bool accepted) {
+                recheckHotkeyConflict(QStringLiteral("stop-recording"),
+                                      GlobalHotkeys::keysFor(QStringLiteral("Ctrl+Escape")),
+                                      !accepted);
                 if (accepted)
                     return;
                 qWarning() << "Ctrl+Escape emergency stop could not be bound (owned by another"
                               " component - on stock Plasma: Show System Activity)";
-                showToast(tr("Ctrl+Esc emergency stop unavailable: the key is taken by the system "
-                             "(System Settings → Shortcuts to free it)"));
             });
 #ifdef UNISIC_DEV_BUILD
         // Dev-only: F8 runs the smoke test. Fixed key (not user-configurable).
@@ -5769,14 +6631,12 @@ void AppContext::defineHotkeys()
                     qWarning().noquote()
                         << "Hotkey repair:\n" + report.join(QLatin1Char('\n'));
                 // A key another component owns daemon-side never reaches us
-                // even though it shows as bound.
-                if (!conflicts.isEmpty()) {
+                // even though it shows as bound. The rows in Settings > Hotkeys
+                // carry it (hotkeyConflicts, set per action during the audit);
+                // a toast on every launch only nagged about it.
+                if (!conflicts.isEmpty())
                     qWarning().noquote()
                         << "Hotkey conflicts:\n" + conflicts.join(QLatin1Char('\n'));
-                    showToast(tr("Hotkey taken by another app: %1. Pick a different key in "
-                                 "Settings → Hotkeys, or free it in System Settings → Shortcuts.")
-                                  .arg(conflicts.join(QStringLiteral("; "))), true);
-                }
             });
         return;
     }
@@ -5831,8 +6691,8 @@ void AppContext::bindPortalHotkeys()
 }
 
 // Grab the whole set through XGrabKey (X11 session). Re-grabs everything (the
-// backend has no per-action rebind); a key another client owns is surfaced as a
-// conflict toast, mirroring the KGlobalAccel path.
+// backend has no per-action rebind); a key another client owns is marked in
+// hotkeyConflicts, mirroring the KGlobalAccel path.
 void AppContext::bindX11Hotkeys()
 {
     // Only ever non-null when defineHotkeys() elected the X11 backend, so this
@@ -5840,9 +6700,14 @@ void AppContext::bindX11Hotkeys()
     if (!m_x11hotkeys)
         return;
     QVector<X11Hotkeys::Shortcut> list;
-    const auto acts = hotkeyActions();
-    for (const HotkeyAction &a : acts)
-        list.append({a.id, a.keys});
+    // While a Settings recorder listens, the action keys stay released so the
+    // chord being recorded reaches it (see setShortcutRecording); the
+    // emergency stop below stays, a recording must remain stoppable.
+    if (!m_shortcutRecording) {
+        const auto acts = hotkeyActions();
+        for (const HotkeyAction &a : acts)
+            list.append({a.id, a.keys});
+    }
     // Fixed emergency stop, same key the other backends reserve (Windows,
     // whose Start menu owns Ctrl+Esc, gets its own: HotkeyDefaults.h).
     list.append({QStringLiteral("stop-recording"), QStringLiteral(UNISIC_HOTKEY_EMERGENCY_STOP)});
@@ -5855,18 +6720,31 @@ void AppContext::bindX11Hotkeys()
         qWarning().noquote() << QStringLiteral("Hotkey conflicts (%1):\n")
                                         .arg(QStringLiteral(UNISIC_HOTKEY_NATIVE_BACKEND))
                                     + conflicts.join(QLatin1Char('\n'));
-        showToast(tr("Hotkey taken by another app: %1. Pick a different key in "
-                     "Settings → Hotkeys.").arg(conflicts.join(QStringLiteral("; "))), true);
     }
+    // The emergency stop is grabbed even while a recorder listens.
+    setHotkeyConflict(QStringLiteral("stop-recording"),
+                      QStringLiteral(UNISIC_HOTKEY_EMERGENCY_STOP), QString(),
+                      conflicts.contains(QStringLiteral("stop-recording")));
+    // While a recorder listens the action keys were not grabbed at all, so the
+    // empty answer says nothing about them: keep the marks until the re-grab.
+    if (m_shortcutRecording)
+        return;
+    const auto acts = hotkeyActions();
+    for (const HotkeyAction &a : acts)
+        setHotkeyConflict(a.id, a.keys, QString(), conflicts.contains(a.id));
 }
 
 // Push ONE action's stored key to the system. KGlobalAccel: setShortcut with
-// SetPresent|NoAutoloading, conflict surfaced as a toast + the daemon's actual
+// SetPresent|NoAutoloading, conflict marked in hotkeyConflicts + the daemon's actual
 // key synced back into the UI. Portal: re-bind the whole set (the portal has
 // no per-shortcut rebind; unchanged sets don't re-prompt on KDE/GNOME).
 void AppContext::applyHotkey(const QString &actionId)
 {
     if (m_hotkeyBackend == QLatin1String(UNISIC_HOTKEY_NATIVE_BACKEND)) {
+        // A recorder hands its key over before it lets go, while the grabs
+        // are released for it: they come back, with the new key, when it does.
+        if (m_shortcutRecording)
+            return;
         bindX11Hotkeys();
         return;
     }
@@ -5883,10 +6761,11 @@ void AppContext::applyHotkey(const QString &actionId)
         m_hotkeys->setShortcutAsync(
             action.id, action.name, action.keys, this,
             [this, action](bool accepted) {
+                // Accepted: re-check what is active now (clears a stale mark).
+                // Refused: name who holds the wished key on the row.
+                recheckHotkeyConflict(action.id, GlobalHotkeys::keysFor(action.keys), !accepted);
                 if (accepted)
                     return;
-                showToast(tr("Could not bind %1; the key is taken by another shortcut")
-                              .arg(action.keys), true);
                 // Show what is actually bound instead of the refused wish.
                 m_hotkeys->activeKeysAsync(
                     action.id, this,
@@ -5905,6 +6784,8 @@ void AppContext::applyHotkey(const QString &actionId)
 void AppContext::applyHotkeys()
 {
     if (m_hotkeyBackend == QLatin1String(UNISIC_HOTKEY_NATIVE_BACKEND)) {
+        if (m_shortcutRecording)
+            return;
         bindX11Hotkeys();
         return;
     }
@@ -5922,12 +6803,11 @@ void AppContext::applyHotkeys()
     for (const HotkeyAction &action : acts) {
         m_hotkeys->setShortcutAsync(
             action.id, action.name, action.keys, this,
-            [this, remaining, allOk](bool accepted) {
+            [this, action, remaining, allOk](bool accepted) {
+                recheckHotkeyConflict(action.id, GlobalHotkeys::keysFor(action.keys), !accepted);
                 *allOk &= accepted;
                 if (--*remaining != 0 || *allOk)
                     return;
-                showToast(tr("Some hotkeys could not be bound (keys taken); showing the actual state"),
-                          true);
                 syncAllHotkeysFromDaemon();
             });
     }
@@ -5939,9 +6819,10 @@ static QPixmap recolorPixmap(const QString &path, const QColor &color, const QSi
 
 // A QIcon from a bundled sym/<name>.svg, tinted to the menu text colour so it
 // sits right in a native QMenu in both light and dark themes.
-static QIcon trayMenuIcon(const QString &name)
+static QIcon trayMenuIcon(const QString &name, QColor c = QColor())
 {
-    const QColor c = qApp->palette().color(QPalette::WindowText);
+    if (!c.isValid())
+        c = qApp->palette().color(QPalette::WindowText);
     QIcon icon;
     for (int s : {16, 22, 24}) {
         const QPixmap pm = recolorPixmap(
@@ -5976,6 +6857,8 @@ QVector<TrayEntry> trayEntryTable(AppContext *a)
         {QStringLiteral("region"), QStringLiteral("region"), AppContext::tr("Capture region"), 0, false, [a] { a->captureRegion(); }},
         {QStringLiteral("full-screen"), QStringLiteral("monitor"), AppContext::tr("Capture full screen"), 0, false, [a] { a->captureFullScreen(); }},
         {QStringLiteral("screen-under-cursor"), QStringLiteral("monitor"), AppContext::tr("Capture screen under cursor"), 0, false, [a] { a->captureScreenUnderCursor(); }},
+        // No `run`: a submenu of the connected monitors, filled as the menu opens.
+        {QStringLiteral("monitor-pick"), QStringLiteral("monitor"), AppContext::tr("Capture monitor"), 0, false, nullptr},
         {QStringLiteral("window"), QStringLiteral("window"), AppContext::tr("Capture window"), 0, false, [a] { a->captureWindow(); }},
         {QStringLiteral("scroll"), QStringLiteral("chevron-down"), AppContext::tr("Capture scrolling region"), 0, false, [a] { a->captureScroll(); }},
         {QStringLiteral("recapture"), QStringLiteral("region"), AppContext::tr("Re-capture last region"), 0, false, [a] { a->recaptureLastRegion(); }},
@@ -5988,8 +6871,15 @@ QVector<TrayEntry> trayEntryTable(AppContext *a)
         {QStringLiteral("gif-screen"), QStringLiteral("gif"), AppContext::tr("Record GIF (full screen)"), 1, false, [a] { a->startGifFullScreen(); }},
         {QStringLiteral("replay-start"), QStringLiteral("media-record"), AppContext::tr("Start instant replay"), 1, false, [a] { a->startInstantReplay(); }},
         {QStringLiteral("replay-save"), QStringLiteral("document-save"), AppContext::tr("Save instant replay"), 1, false, [a] { a->saveInstantReplay(); }},
-        {QStringLiteral("stop-recording"), QStringLiteral("stop"), AppContext::tr("Stop recording"), 1, false, [a] { a->stopRecording(); }},
+        {QStringLiteral("stop-recording"), QStringLiteral("stop"), AppContext::tr("Stop recording"), 1, false, [a] {
+            // The recording first; with none, the replay ring.
+            if (a->recording()) a->stopRecording();
+            else a->stopInstantReplay();
+        }},
         {QStringLiteral("copy-last"), QStringLiteral("content-copy"), AppContext::tr("Copy last capture"), 2, false, [a] { a->copyLastCapture(); }},
+        {QStringLiteral("upload-file"), QStringLiteral("upload-cloud"), AppContext::tr("Upload a file…"), 2, false, [a] { a->uploadAnyFile(); }},
+        {QStringLiteral("upload-clipboard"), QStringLiteral("document-send"), AppContext::tr("Upload clipboard"), 2, false, [a] { a->uploadClipboard(); }},
+        {QStringLiteral("qr-clipboard"), QStringLiteral("view-preview"), AppContext::tr("QR code of copied text"), 2, false, [a] { a->qrFromClipboard(); }},
         {QStringLiteral("open"), QStringLiteral("monitor"), AppContext::tr("Open Unisic"), kTrayUpdateGroup + 1, true, [a] { emit a->showMainWindowRequested(); }},
         {QStringLiteral("quit"), QStringLiteral("close"), AppContext::tr("Quit"), kTrayUpdateGroup + 1, true, [a] { a->quitApp(QStringLiteral("tray menu Quit")); }},
     };
@@ -6014,6 +6904,46 @@ QVariantList AppContext::trayMenuEntries() const
                                {QStringLiteral("locked"), e.locked}});
     }
     return out;
+}
+
+// Windows draws the tray menu itself, with the light system style whatever the
+// app's theme, so it is given the theme's colors here, on every open (the theme
+// can change in between). Elsewhere the panel draws it (StatusNotifierItem's
+// DBusMenu) in the desktop's own colors, and the icons keep the palette's tint.
+void AppContext::styleTrayMenu(QMenu *menu)
+{
+    if (QGuiApplication::platformName() != QLatin1String("windows") || !m_engine)
+        return;
+    QObject *theme = m_engine->singletonInstance<QObject *>(QStringLiteral("Unisic.Kit"),
+                                                           QStringLiteral("Theme"));
+    if (!theme)
+        return;
+    const auto c = [theme](const char *token) {
+        return theme->property(token).value<QColor>().name(QColor::HexArgb);
+    };
+    const QString sheet = QStringLiteral(
+        "QMenu { background: %1; color: %2; border: 1px solid %3; padding: 4px; }"
+        "QMenu::item { padding: 6px 24px 6px 8px; border-radius: 4px; }"
+        "QMenu::item:selected { background: %4; }"
+        "QMenu::item:disabled { color: %5; }"
+        "QMenu::icon { padding-left: 10px; }"
+        "QMenu::separator { height: 1px; background: %3; margin: 4px 8px; }"
+        "QMenu::right-arrow { width: 8px; height: 8px; margin-right: 8px; }")
+        .arg(c("surface"), c("textPrimary"), c("divider"), c("surfaceHi"), c("textTertiary"));
+    if (menu->styleSheet() == sheet)
+        return;
+    const QColor text = theme->property("textPrimary").value<QColor>();
+    const std::function<void(QMenu *)> apply = [&](QMenu *m) {
+        m->setStyleSheet(sheet);
+        for (QAction *a : m->actions()) {
+            const QString icon = a->property("symIcon").toString();
+            if (!icon.isEmpty())
+                a->setIcon(trayMenuIcon(icon, text));
+            if (a->menu())
+                apply(a->menu());
+        }
+    };
+    apply(menu);
 }
 
 QMenu *AppContext::buildTrayMenu()
@@ -6043,8 +6973,19 @@ QMenu *AppContext::buildTrayMenu()
         if (!e.locked && hidden.contains(e.id))
             return;
         flushSeparator();
+        if (!e.run) {
+            QAction *sub = menu->addMenu(trayMenuIcon(e.icon), e.label)->menuAction();
+            sub->setProperty("symIcon", e.icon);
+            actions.insert(e.id, sub);
+            return;
+        }
         QAction *a = menu->addAction(trayMenuIcon(e.icon), e.label);
-        connect(a, &QAction::triggered, this, e.run);
+        a->setProperty("symIcon", e.icon);
+        connect(a, &QAction::triggered, this, [this, run = e.run] {
+            m_trayTrigger = true;
+            run();
+            m_trayTrigger = false;
+        });
         actions.insert(e.id, a);
     };
     for (const TrayEntry &e : entries)
@@ -6077,18 +7018,31 @@ QMenu *AppContext::buildTrayMenu()
     // The menu is built once, so anything state-dependent has to be refreshed
     // when it opens - otherwise it shows whatever was true at startup. An entry
     // the user hid has no action here, hence the null checks.
-    connect(menu, &QMenu::aboutToShow, this, [this, actions] {
+    connect(menu, &QMenu::aboutToShow, this, [this, menu, actions] {
+        styleTrayMenu(menu);
         const bool replay = instantReplayActive();
-        if (QAction *a = actions.value(QStringLiteral("replay-start"))) {
+        if (QAction *a = actions.value(QStringLiteral("replay-start")))
             a->setVisible(!replay);
-            a->setEnabled(!recording());
-        }
         if (QAction *a = actions.value(QStringLiteral("replay-save")))
             a->setVisible(replay);
         if (QAction *a = actions.value(QStringLiteral("stop-recording")))
-            a->setEnabled(recording());
+            a->setEnabled(recording() || replay);
         if (QAction *a = actions.value(QStringLiteral("recapture")))
             a->setEnabled(!m_settings->lastCaptureRegion().isEmpty());
+        // Rebuilt on every open, so a monitor plugged in or a mode changed
+        // since the last one shows up; a handful of actions at most.
+        if (QAction *a = actions.value(QStringLiteral("monitor-pick"))) {
+            const QList<QScreen *> screens = QGuiApplication::screens();
+            // One monitor: "Capture full screen" already is that monitor.
+            a->setVisible(screens.size() > 1);
+            QMenu *sub = a->menu();
+            sub->clear();
+            for (const QScreen *s : screens) {
+                const QSize px = s->geometry().size() * s->devicePixelRatio();
+                sub->addAction(QStringLiteral("%1 (%2x%3)").arg(s->name()).arg(px.width()).arg(px.height()),
+                               this, [this, name = s->name()] { captureScreenNamed(name); });
+            }
+        }
     });
     return menu;
 }
@@ -6148,6 +7102,8 @@ void AppContext::setupTray()
         if (r == QSystemTrayIcon::Trigger)
             emit showMainWindowRequested();
     });
+    // The only message this icon shows is the update notice above (Windows).
+    connect(m_tray, &QSystemTrayIcon::messageClicked, this, &AppContext::showMainWindowRequested);
     m_tray->show();
     emit trayAvailableChanged();
 }
@@ -6286,7 +7242,7 @@ void AppContext::applyTrayIcon()
         return;
     // Badge the tray while ACTIVELY recording (not during encoding) so it's an
     // at-a-glance "recording now" and clears the instant the user stops.
-    m_tray->setIcon(recording() && !converting() ? trayIconBadged() : trayIcon());
+    m_tray->setIcon((recording() && !converting()) || instantReplayActive() ? trayIconBadged() : trayIcon());
 }
 
 void AppContext::addTrayIcon()

@@ -1,23 +1,48 @@
 import QtQuick
-import QtQuick.Effects
 import Unisic
 import Unisic.Kit
 import "../components"
 
 // Files you already have, not captures: an image opens in the same editor a
 // screenshot does, a recording in the same trim window History's Trim opens.
-// Its own page rather than a fourth card on Capture — nothing here captures
-// anything, and the two cases want different file dialogs.
+// Its own page rather than more tiles on Capture: nothing here captures
+// anything. Below them, the same kind of tiles for sharing what you have: a
+// file, the clipboard, a QR code.
+//
+// Atelier layout, the Capture and Record pages': the work on the left, the
+// editor's defaults in an inspector column on the right. That column is the
+// third sanctioned exception to "one full-width grid per page"
+// (docs/dev/ui-kit.md): it holds settings, the same App.settings properties
+// as Settings > Editor, not content.
+//
+// The settings rows reuse Settings > Editor's strings in that page's context
+// (qsTranslate("SettingsPage", ...)) and the header and Recent reuse the
+// Capture page's, so they share one translation each instead of seven new
+// copies that could drift.
 Item {
+    id: page
+
     // Nothing modal on this page - the flag exists on every page so Main.qml
     // can ask the active one without a per-page special case.
     readonly property bool modalOpen: false
 
+    // Main.qml owns the page index and the Settings tab.
+    signal openPage(int index)
+    signal openSettings(int tab, string query)
+
+    // Same rule as the Capture page, for two tiles instead of four.
+    readonly property bool compact: height < 760 || width - aside.width - 2 * 40 < 2 * 200 + 14
+
+    // ------------------------------------------------------------------ main --
+
     Flickable {
         id: pageFlick
-        anchors.fill: parent
-        anchors.margins: Theme.spacingXL
-        contentHeight: col.height
+        objectName: "editPageFlick"
+        anchors.left: parent.left
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        anchors.right: aside.left
+        contentHeight: col.height + 2 * col.y
         clip: true
         boundsBehavior: Flickable.StopAtBounds
 
@@ -26,182 +51,322 @@ Item {
 
         Column {
             id: col
-            width: parent.width
-            spacing: Theme.spacingL
+            x: 40
+            y: page.compact ? 20 : 28
+            // Clamped for the Recent GridView, as on the Capture page.
+            width: Math.max(0, pageFlick.width - 2 * 40)
+            spacing: page.compact ? 18 : 30
 
-            Text {
-                text: qsTr("Edit")
-                color: Theme.textPrimary
-                font.pixelSize: Theme.fontTitle
-                font.weight: Font.Bold
-            }
-            Text {
-                text: qsTr("Open a picture or a video you already have - the same editor and trim window your captures use.")
+            Item {
                 width: parent.width
-                wrapMode: Text.WordWrap
-                color: Theme.textSecondary
-                font.pixelSize: Theme.fontM
-            }
+                height: Math.max(titleCol.height, pasteBtn.height)
 
-            Item { width: 1; height: Theme.spacingS }
-
-            // The same stretch-to-fill tile grid as the Capture page, so both
-            // pages share one grid; wraps instead of clipping when narrow.
-            Flow {
-                id: modeFlow
-                width: parent.width
-                spacing: Theme.spacingL
-
-                readonly property int count: 2
-                readonly property int minCard: 180
-                readonly property int fits: Math.max(1, Math.floor((width + spacing) / (minCard + spacing)))
-                readonly property int perRow: {
-                    for (var n = Math.min(fits, count); n > 1; --n)
-                        if (count % n === 0)
-                            return n
-                    return 1
-                }
-                readonly property real cardW: Math.floor((width - (perRow - 1) * spacing) / perRow)
-
-                Repeater {
-                    model: [
-                        { iconName: "edit", title: qsTr("Edit an image"),
-                          sub: qsTr("Annotate, crop, blur"), kind: "image" },
-                        { iconName: "cut", title: qsTr("Trim a video"),
-                          sub: qsTr("Cut a start and an end"), kind: "video",
-                          // Trimming shells out to ffmpeg; without recording
-                          // support the rest of the app has no ffmpeg either.
-                          available: true },
-                    ]
-
-                    // Color-only hover feedback — the tiles never move (same
-                    // rule as the Capture page).
-                    delegate: Rectangle {
-                        id: modeTile
-                        // One entry point for pointer, keyboard and assistive
-                        // tech, so the three can never drift apart.
-                        function activate() { App.openFileForEditing(modelData.kind) }
-                        width: modeFlow.cardW
-                        // Kept in lockstep with CapturePage's tiles: the two
-                        // pages share one grid, so a height that differs
-                        // between them is visible the moment you switch.
-                        height: 140
-                        radius: Theme.radiusXL
-                        gradient: Gradient {
-                            GradientStop { position: 0.0; color: cardMouse.containsMouse ? Theme.surfaceHiTop : Theme.surfaceTop }
-                            GradientStop { position: 1.0; color: cardMouse.containsMouse ? Theme.surfaceHi : Theme.surfaceBottom }
-                        }
-                        border.width: 1
-                        border.color: cardMouse.containsMouse ? Theme.alpha(Theme.accent, 0.55) : Theme.divider
-                        Behavior on border.color { ColorAnimation { duration: Theme.animFast } }
-                        layer.enabled: true
-                        layer.effect: MultiEffect {
-                            shadowEnabled: true
-                            shadowColor: Theme.shadow
-                            shadowBlur: 0.7
-                            shadowVerticalOffset: 4
-                            shadowOpacity: 0.55
-                        }
-
-                        Rectangle {
-                            x: parent.radius / 2
-                            width: parent.width - parent.radius
-                            height: 1; y: 1
-                            color: Theme.edgeLight
-                        }
-
-                        Column {
-                            anchors.centerIn: parent
-                            spacing: 10
-                            UIcon {
-                                name: modelData.iconName
-                                size: 40
-                                color: cardMouse.containsMouse ? Theme.accent : Theme.textPrimary
-                                anchors.horizontalCenter: parent.horizontalCenter
-                            }
-                            // Folded into the tile's Accessible.name below, so
-                            // the button announces itself exactly once.
-                            Text {
-                                text: modelData.title
-                                color: Theme.textPrimary
-                                font.pixelSize: Theme.fontL
-                                font.weight: Font.DemiBold
-                                anchors.horizontalCenter: parent.horizontalCenter
-                                Accessible.ignored: true
-                            }
-                            Text {
-                                text: modelData.sub
-                                color: Theme.textSecondary
-                                font.pixelSize: Theme.fontS
-                                anchors.horizontalCenter: parent.horizontalCenter
-                                Accessible.ignored: true
-                            }
-                        }
-
-                        MouseArea {
-                            id: cardMouse
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: modeTile.activate()
-                        }
-
-                        // Same rule as the Capture tiles.
-                        activeFocusOnTab: true
-                        Keys.onSpacePressed: (e) => UKeys.activate(e, modeTile.activate)
-                        Keys.onReturnPressed: (e) => UKeys.activate(e, modeTile.activate)
-                        Keys.onEnterPressed: (e) => UKeys.activate(e, modeTile.activate)
-
-                        Accessible.role: Accessible.Button
-                        //: Spoken name of an Edit tile: title, subtitle.
-                        Accessible.name: qsTr("%1, %2").arg(modelData.title).arg(modelData.sub)
-                        Accessible.focusable: modeTile.activeFocusOnTab
-                        Accessible.onPressAction: modeTile.activate()
-                        UFocusRing { inset: 3 }
-                    }
-                }
-            }
-
-            Item { width: 1; height: Theme.spacingS }
-
-            Text {
-                text: qsTr("Good to know")
-                color: Theme.textPrimary
-                font.pixelSize: Theme.fontL
-                font.weight: Font.Bold
-                bottomPadding: Theme.spacingXS
-            }
-
-            Rectangle {
-                width: parent.width
-                implicitHeight: infoCol.implicitHeight + 2 * Theme.spacingM
-                radius: Theme.radiusM
-                color: Theme.surface
-                border.width: 1
-                border.color: Theme.divider
                 Column {
-                    id: infoCol
-                    x: Theme.spacingM
-                    y: Theme.spacingM
-                    width: parent.width - 2 * Theme.spacingM
-                    spacing: Theme.spacingS
-                    Text {
+                    id: titleCol
+                    anchors.left: parent.left
+                    anchors.right: pasteBtn.left
+                    anchors.rightMargin: 24
+                    anchors.bottom: parent.bottom
+                    spacing: 6
+                    PageTitle {
                         width: parent.width
-                        wrapMode: Text.WordWrap
-                        text: qsTr("Editing an image never touches the original: the editor saves where your captures go, under a new name, unless you overwrite it yourself. Trimming always writes a new file next to the source.")
-                        color: Theme.textSecondary
-                        font.pixelSize: Theme.fontS
+                        text: qsTr("Edit")
                     }
                     Text {
                         width: parent.width
                         wrapMode: Text.WordWrap
-                        visible: !App.capVideoPlayback
-                        text: qsTr("Install qt6-qtmultimedia for a video preview while trimming; without it the trim window falls back to a slider-only range picker.")
-                        color: Theme.textTertiary
-                        font.pixelSize: Theme.fontS
+                        text: qsTr("Open a picture or a video you already have - the same editor and trim window your captures use.")
+                        color: Theme.textSecondary
+                        font.pixelSize: 13
                     }
                 }
+
+                // The clipboard is the other way in besides a file; it goes
+                // through the same router (AppContext::openPath) as the
+                // tiles, the drop area and the window's Ctrl+V.
+                HeaderButton {
+                    id: pasteBtn
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    iconName: "line-clipboard"
+                    text: qsTranslate("CapturePage", "Paste")
+                    kbd: "Ctrl V"
+                    accessibleDescription: qsTranslate("CapturePage", "Open the image on the clipboard in the editor, Ctrl+V")
+                    onActivated: App.pasteFromClipboard()
+                }
+            }
+
+            Column {
+                width: parent.width
+                spacing: 12
+
+                SectionLabel { text: qsTr("Open") }
+
+                // One dialog either way (AppContext::openFileForEditing): the
+                // tile only picks which filter comes first, and what the file
+                // IS decides where it opens.
+                Flow {
+                    id: openFlow
+                    objectName: "editOpenFlow"
+                    width: parent.width
+                    spacing: page.compact ? 12 : 14
+                    readonly property int minCard: page.compact ? 130 : 200
+                    readonly property int perRow: width >= 2 * minCard + spacing ? 2 : 1
+                    readonly property real cardW: Math.floor((width - (perRow - 1) * spacing) / perRow)
+
+                    SourceTile {
+                        width: openFlow.cardW
+                        compact: page.compact
+                        art: editArt
+                        title: qsTr("Edit an image")
+                        sub: qsTr("Annotate, crop, blur")
+                        hotkey: App.settings.hotkeyEditImage
+                        subLines: 1
+                        onOpenHotkeys: page.openSettings(-1, qsTranslate("SettingsPage", "Edit an image"))
+                        onActivated: App.openFileForEditing("image")
+                    }
+                    SourceTile {
+                        width: openFlow.cardW
+                        compact: page.compact
+                        art: trimArt
+                        title: qsTr("Trim a video")
+                        sub: qsTr("Cut a start and an end")
+                        hotkey: App.settings.hotkeyTrimVideo
+                        subLines: 1
+                        onOpenHotkeys: page.openSettings(-1, qsTranslate("SettingsPage", "Trim a video"))
+                        onActivated: App.openFileForEditing("video")
+                    }
+                }
+            }
+
+            Column {
+                width: parent.width
+                spacing: 12
+
+                SectionLabel { text: qsTr("Share") }
+
+                // Not captures either: these go through the same servers,
+                // failure chain and after-upload actions a capture upload does.
+                Grid {
+                    id: shareGrid
+                    objectName: "editShareGrid"
+                    width: parent.width
+                    // Only a column count that divides the three tiles.
+                    columns: width >= 3 * openFlow.minCard + 2 * columnSpacing ? 3 : 1
+                    columnSpacing: openFlow.spacing
+                    rowSpacing: openFlow.spacing
+                    readonly property real cellW: Math.floor((width - (columns - 1) * columnSpacing) / columns)
+
+                    ActionTile {
+                        width: shareGrid.cellW
+                        compact: page.compact
+                        iconName: "line-upload"
+                        title: qsTr("Upload a file")
+                        sub: qsTr("Any file, to your server")
+                        hotkey: App.settings.hotkeyUploadFile
+                        onActivated: App.uploadAnyFile()
+                    }
+                    ActionTile {
+                        width: shareGrid.cellW
+                        compact: page.compact
+                        iconName: "line-send"
+                        title: qsTr("Upload clipboard")
+                        sub: qsTr("A copied image, file or text")
+                        hotkey: App.settings.hotkeyUploadClipboard
+                        onActivated: App.uploadClipboard()
+                    }
+                    ActionTile {
+                        width: shareGrid.cellW
+                        compact: page.compact
+                        iconName: "line-qr"
+                        title: qsTr("QR code")
+                        sub: qsTr("Of the text you copied")
+                        hotkey: App.settings.hotkeyQrClipboard
+                        onActivated: App.qrFromClipboard()
+                    }
+                }
+            }
+
+            // Every kind, since this page opens both: a still lands in the
+            // editor, a recording in the trim window (openToEdit).
+            RecentStrip {
+                id: recentSection
+                width: parent.width
+                model: App.history
+                gridName: "editRecentGrid"
+                openToEdit: true
+                available: pageFlick.height - 2 * col.y - recentSection.y
+                listName: qsTranslate("CapturePage", "Recent captures")
+                emptyText: qsTranslate("CapturePage", "Your captures will show up here.")
+                onOpenHistory: page.openPage(3)
             }
         }
     }
+
+    // ------------------------------------------------------------- inspector --
+
+    Inspector {
+        id: aside
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        flickName: "editAside"
+        accessibleName: qsTranslate("SettingsPage", "Editor defaults")
+
+        // A subset of Settings > Editor, the rows that change what the
+        // editor looks like when it opens; the rest stays behind Manage.
+        Column {
+            x: 20
+            width: parent.width - 40
+            topPadding: page.compact ? 14 : 22
+            bottomPadding: page.compact ? 12 : 18
+            spacing: page.compact ? 10 : 14
+
+            Item {
+                width: parent.width
+                height: Math.max(defaultsLabel.height, manageLink.height)
+                SectionLabel {
+                    id: defaultsLabel
+                    anchors.left: parent.left
+                    anchors.right: manageLink.left
+                    anchors.rightMargin: 12
+                    anchors.verticalCenter: parent.verticalCenter
+                    // Wraps rather than elides: in capitals with letter
+                    // spacing the Polish heading runs past the column.
+                    wrapMode: Text.WordWrap
+                    text: qsTranslate("SettingsPage", "Editor defaults")
+                    Accessible.role: Accessible.Heading
+                    Accessible.name: text
+                }
+                Link {
+                    id: manageLink
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: qsTranslate("CapturePage", "Manage")
+                    Accessible.description: qsTr("Open Settings at Editor")
+                    onActivated: page.openSettings(4, "")
+                }
+            }
+
+            // A list, not segments: four segments in this column cut every
+            // label but English short.
+            InspectorRow {
+                id: layoutRow
+                label: qsTranslate("SettingsPage", "Layout")
+                UComboBox {
+                    readonly property var ids: ["panels", "top", "bottom", "floating"]
+                    width: 150
+                    accessibleName: layoutRow.label
+                    model: [qsTranslate("SettingsPage", "Panels"), qsTranslate("SettingsPage", "Top bar"),
+                            qsTranslate("SettingsPage", "Bottom bar"), qsTranslate("SettingsPage", "Floating")]
+                    currentIndex: Math.max(0, ids.indexOf(App.settings.editorLayout))
+                    onActivated: (i) => App.settings.editorLayout = ids[i]
+                }
+            }
+
+            InspectorRow {
+                id: colorRow
+                label: qsTranslate("SettingsPage", "Stroke color")
+                // The swatches name themselves by colour, as in Settings;
+                // the group carries the row's caption.
+                Row {
+                    spacing: 6
+                    Accessible.role: Accessible.Grouping
+                    Accessible.name: colorRow.label
+                    Repeater {
+                        model: Theme.swatches.slice(0, 5)
+                        delegate: ColorDot {
+                            required property var modelData
+                            dotColor: modelData
+                            active: Qt.colorEqual(App.settings.editorStrokeColor, modelData)
+                            onClicked: App.settings.editorStrokeColor = modelData
+                        }
+                    }
+                }
+            }
+
+            InspectorRow {
+                id: widthRow
+                label: qsTranslate("SettingsPage", "Stroke width")
+                UValueCombo {
+                    width: 104
+                    values: [1, 2, 3, 4, 6, 8, 10, 12, 16, 20, 24, 32, 48, 64]
+                    from: 1; to: 64
+                    suffix: " px"
+                    accessibleName: widthRow.label
+                    value: App.settings.editorStrokeWidth
+                    onChanged: (v) => App.settings.editorStrokeWidth = v
+                }
+            }
+
+            InspectorRow {
+                id: textSizeRow
+                label: qsTranslate("SettingsPage", "Text size")
+                UValueCombo {
+                    width: 104
+                    values: [8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 40, 48, 56, 64, 72, 96, 144]
+                    from: 8; to: 144
+                    suffix: " px"
+                    accessibleName: textSizeRow.label
+                    value: App.settings.editorFontSize
+                    onChanged: (v) => App.settings.editorFontSize = v
+                }
+            }
+
+            InspectorRow {
+                id: resetColorsRow
+                label: qsTranslate("SettingsPage", "Always start with the default colors")
+                MiniSwitch {
+                    checked: App.settings.editorResetColors
+                    accessibleName: resetColorsRow.label
+                    accessibleDescription: qsTranslate("SettingsPage", "Color picks made while annotating last for that session only.")
+                    onToggled: (c) => App.settings.editorResetColors = c
+                }
+            }
+
+            InspectorRow {
+                id: resetToolsRow
+                label: qsTranslate("SettingsPage", "Always start with the default tool options")
+                MiniSwitch {
+                    checked: App.settings.editorResetTools
+                    accessibleName: resetToolsRow.label
+                    accessibleDescription: qsTranslate("SettingsPage", "Stroke width, text style and fill toggles last for that session only.")
+                    onToggled: (c) => App.settings.editorResetTools = c
+                }
+            }
+        }
+
+        Rectangle { width: parent.width; height: 1; color: Theme.alpha(Theme.accent, 0.10) }
+
+        Column {
+            x: 20
+            width: parent.width - 40
+            topPadding: page.compact ? 12 : 18
+            bottomPadding: page.compact ? 12 : 18
+            spacing: page.compact ? 10 : 14
+
+            SectionLabel { text: qsTr("Good to know") }
+
+            Text {
+                width: parent.width
+                wrapMode: Text.WordWrap
+                text: qsTr("Editing an image never touches the original: the editor saves where your captures go, under a new name, unless you overwrite it yourself. Trimming always writes a new file next to the source.")
+                color: Theme.textSecondary
+                font.pixelSize: Theme.fontS
+            }
+            // A build-time fact (QtMultimedia present or not), never a
+            // state that flips while the page is open.
+            Text {
+                width: parent.width
+                wrapMode: Text.WordWrap
+                visible: !App.capVideoPlayback
+                text: qsTr("Install qt6-qtmultimedia for a video preview while trimming; without it the trim window falls back to a slider-only range picker.")
+                color: Theme.textTertiary
+                font.pixelSize: Theme.fontS
+            }
+        }
+    }
+
+    Component { id: editArt; TileArt.EditImageArt {} }
+    Component { id: trimArt; TileArt.TrimVideoArt {} }
 }

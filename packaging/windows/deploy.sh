@@ -83,9 +83,14 @@ done
 
 # The bundle redistributes Unisic and Qt, so it carries the GPL text with it.
 cp "$repo_dir/LICENSE" "$out_dir/"
+# And the licenses of the stickers compiled into unisic.exe: CC BY 4.0 for
+# the Twemoji art, the Unicode License v3 for their names and groups.
+cp "$repo_dir/third_party/twemoji/LICENSE" "$out_dir/LICENSE.twemoji"
+cp "$repo_dir/third_party/twemoji/LICENSE.unicode" "$out_dir/LICENSE.unicode"
 
 # Runtime-loaded pieces the linker cannot vouch for.
 for f in bin/platforms/qwindows.dll bin/qml/QtQuick/Controls bin/tls bin/ffmpeg.exe bin/ffprobe.exe \
+         bin/qml/QtMultimedia bin/multimedia \
          share/tessdata/eng.traineddata; do
     [ -e "$out_dir/$f" ] || { echo "error: $f went missing from the bundle" >&2; exit 1; }
 done

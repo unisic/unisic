@@ -21,6 +21,9 @@ QImage watermarkText(const QImage &source, const QString &text, int opacity,
                      const QString &position, const QString &pattern, int scale = 100);
 QImage watermarkImage(const QImage &source, const QImage &watermark, int opacity,
                       const QString &position, const QString &pattern, int scale = 100);
+// A logo file decoded for watermarkImage(): null when missing, unreadable or
+// over 16384 px a side; anything over 1024 px is decoded down to 1024.
+QImage loadWatermark(const QString &path);
 
 // The stand-in capture the Settings watermark preview is stamped onto. It is
 // NOT a UI surface, it plays the part of a screenshot, so it is painted in

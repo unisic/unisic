@@ -25,6 +25,8 @@ class CaptureNotification : public QObject
     Q_PROPERTY(QString fileName READ fileName NOTIFY stateChanged)
     Q_PROPERTY(QString url READ url NOTIFY stateChanged)
     Q_PROPERTY(bool uploading READ uploading NOTIFY stateChanged)
+    // UploadManager::progress while this card uploads, -1 otherwise.
+    Q_PROPERTY(qreal uploadProgress READ uploadProgress NOTIFY uploadProgressChanged)
     // Why the last upload failed; empty while none has. The card says so in
     // place - the main window, where toasts live, is usually hidden by then.
     Q_PROPERTY(QString uploadError READ uploadError NOTIFY stateChanged)
@@ -42,6 +44,7 @@ public:
     QString fileName() const;
     QString url() const { return m_url; }
     bool uploading() const { return m_uploading; }
+    qreal uploadProgress() const;
     QString uploadError() const { return m_uploadError; }
     QStringList destinations() const;
     QString thumbFilePath() const { return m_thumbFile; } // local path for the notification image
@@ -53,6 +56,9 @@ public:
     void setUrl(const QString &url);
     void setUploading(bool on);
     void setUploadFailed(const QString &error);
+    // The file went to the trash after its upload: the card keeps the link and,
+    // for a screenshot, the pixels, so Save writes it again.
+    void forgetFile();
 
     // A file URL the drop target can copy when the thumbnail is dragged out to
     // another app. Saved captures/recordings hand over their real file; an
@@ -82,6 +88,7 @@ public:
 
 signals:
     void stateChanged();
+    void uploadProgressChanged();
     void closeRequested();
     void menuClosed();
 

@@ -1,10 +1,15 @@
 #include "OcrEngine.h"
+#include "OcrEngines.h"
+#include "WindowsOcr.h"
+#include <QThread>
+#include <algorithm>
 #include <QtConcurrent>
 #include <QCoreApplication>
 #include <QFutureWatcher>
 #include <QDir>
 #include <QFileInfo>
 #include <QSet>
+#include <vector>
 #include <tesseract/baseapi.h>
 #include <tesseract/ocrclass.h> // ETEXT_DESC - cancellable Recognize()
 #include <ZXing/ReadBarcode.h>
@@ -26,6 +31,22 @@ using ZXingOptions = ZXing::DecodeHints;
 namespace {
 struct OcrResult { QString text; QString error; };
 struct OcrBoxResult { QVector<OcrWord> words; QString error; };
+
+// PaddleOCR, when it is the engine. false means Tesseract reads instead: no
+// runtime, a model file missing, or a run failed.
+bool runPaddle(const PaddleOcr::Setup &s, const QImage &img, const std::atomic_bool &cancelled,
+               QVector<OcrWord> *words, QString *text)
+{
+    QString why = QStringLiteral("ONNX Runtime or the model is missing");
+    // Four threads: 107 ms a screenshot for tiny on an i5-13400F against 144 ms
+    // with ORT's own pick (every core) and 197 ms with one.
+    if (s.api && !s.det.isEmpty()
+        && PaddleOcr::recognize(s, img, cancelled, words, text, &why, std::min(4, QThread::idealThreadCount())))
+        return true;
+    if (!cancelled.load())
+        qWarning("OCR: PaddleOCR cannot run (%s), using Tesseract", qUtf8Printable(why));
+    return false;
+}
 
 // The tessdata directories the loader consults, honouring TESSDATA_PREFIX (when
 // set, ONLY its dir is valid - advertising langs from the distro dirs there
@@ -174,13 +195,67 @@ QString resolveScriptLangs(const QImage &img, const QString &availableSpec)
     return OcrEngine::languagesForScript(script, availableSpec);
 }
 
+// Grey copy of `src`, inverted wherever the local background is dark (the mean
+// over a (2r+1)-pixel square below mid-grey), so light-on-dark panels read
+// dark-on-light like the rest of the shot. Tesseract's own per-line inversion
+// misses them once PSM_SPARSE_TEXT cuts a dark card into fragments. Box sums
+// over a ring of 2r+1 rows: about 2r+1 rows of 16-bit sums plus one 32-bit sum
+// per column besides the grey copy and the result, whatever the image size.
+QImage normalizePolarity(const QImage &src)
+{
+    constexpr int r = 24;
+    constexpr int win = 2 * r + 1;
+    const QImage g = src.convertToFormat(QImage::Format_Grayscale8);
+    const int w = g.width(), h = g.height();
+    QImage out(w, h, QImage::Format_Grayscale8);
+    std::vector<quint16> ring(size_t(win) * w);
+    std::vector<quint32> col(w, 0);
+    // Row y's sums over [x-r, x+r] (49 * 255 fits 16 bits) into its ring slot,
+    // added to (sign 1) or taken from (sign -1) the column sums.
+    auto rowSums = [&](int y) {
+        const uchar *row = g.constScanLine(y);
+        quint16 *dst = ring.data() + size_t(y % win) * w;
+        quint32 run = 0;
+        for (int x = 0; x <= qMin(r, w - 1); ++x)
+            run += row[x];
+        for (int x = 0; x < w; ++x) {
+            dst[x] = quint16(run);
+            col[x] += run;
+            if (x + r + 1 < w)
+                run += row[x + r + 1];
+            if (x - r >= 0)
+                run -= row[x - r];
+        }
+    };
+    for (int y = 0; y <= qMin(r, h - 1); ++y)
+        rowSums(y);
+    for (int y = 0; y < h; ++y) {
+        const uchar *row = g.constScanLine(y);
+        uchar *o = out.scanLine(y);
+        const quint32 cy = quint32(qMin(h, y + r + 1) - qMax(0, y - r));
+        for (int x = 0; x < w; ++x) {
+            const quint32 cx = quint32(qMin(w, x + r + 1) - qMax(0, x - r));
+            o[x] = col[x] < 128 * cx * cy ? uchar(255 - row[x]) : row[x];
+        }
+        // Slide the window down: the leaving row's slot is the entering row's.
+        if (y - r >= 0) {
+            const quint16 *leave = ring.data() + size_t((y - r) % win) * w;
+            for (int x = 0; x < w; ++x)
+                col[x] -= leave[x];
+        }
+        if (y + r + 1 < h)
+            rowSums(y + r + 1);
+    }
+    return out;
+}
+
 // Runs on a worker thread. Recognizes and walks the result iterator at SYMBOL
 // (glyph) granularity so the editor overlay can select individual letters,
 // tracking the text-line index (for per-line underlines) and word boundaries
 // (so a copied range keeps its spaces). No barcode short-circuit - a QR
 // payload has no glyph geometry.
-OcrBoxResult runOcrBoxes(QImage img, QString langs, bool autoScript,
-                         std::shared_ptr<std::atomic_bool> cancelled)
+OcrBoxResult runOcrBoxes(QImage img, QString langs, bool autoScript, QString engine,
+                         PaddleOcr::Setup paddle, std::shared_ptr<std::atomic_bool> cancelled)
 {
     OcrBoxResult r;
     if (img.isNull()) {
@@ -189,6 +264,22 @@ OcrBoxResult runOcrBoxes(QImage img, QString langs, bool autoScript,
     }
     if (cancelled->load())
         return r;
+    if (engine == QLatin1String("windows")) {
+        QString why;
+        if (WindowsOcr::recognize(img, *cancelled, &r.words, nullptr, &why))
+            return r;
+        r.words.clear();
+        if (cancelled->load())
+            return r;
+        qWarning("OCR: Windows OCR cannot run (%s), using Tesseract", qUtf8Printable(why));
+    }
+    if (engine == QLatin1String("paddle")) {
+        if (runPaddle(paddle, img, *cancelled, &r.words, nullptr))
+            return r;
+        r.words.clear();
+        if (cancelled->load())
+            return r;
+    }
     // Auto-language: detect the script (OSD) and narrow to its langpacks - far
     // more accurate than loading every installed pack at once. Empty result
     // keeps `langs` (the full load-all spec) as the fallback.
@@ -204,10 +295,15 @@ OcrBoxResult runOcrBoxes(QImage img, QString langs, bool autoScript,
                               "Install the Tesseract language packs").arg(langs);
         return r;
     }
-    const QImage rgba = img.convertToFormat(QImage::Format_RGBA8888);
-    api.SetImage(rgba.constBits(), rgba.width(), rgba.height(), 4,
-                 static_cast<int>(rgba.bytesPerLine()));
+    // Sparse text, not the default single block: a screenshot is a scatter of
+    // labels, buttons and cards, and one block makes tesseract join a sidebar
+    // and the column beside it into garbled lines. Sparse mode alone loses
+    // light text on dark cards, hence the polarity pass.
+    const QImage grey = normalizePolarity(img);
+    api.SetImage(grey.constBits(), grey.width(), grey.height(), 1,
+                 static_cast<int>(grey.bytesPerLine()));
     api.SetSourceResolution(96);
+    api.SetPageSegMode(tesseract::PSM_SPARSE_TEXT);
     using namespace tesseract;
     ETEXT_DESC monitor;
     monitor.cancel = [](void *that, int) { return static_cast<std::atomic_bool *>(that)->load(); };
@@ -253,8 +349,8 @@ OcrBoxResult runOcrBoxes(QImage img, QString langs, bool autoScript,
 // `cancelled` is flipped by ~OcrEngine so a job in flight aborts at its next
 // checkpoint on quit instead of pinning the global thread pool (whose
 // destructor waits) until tesseract finishes; nobody consumes the result then.
-OcrResult runOcr(QImage img, QString langs, bool autoScript,
-                 std::shared_ptr<std::atomic_bool> cancelled)
+OcrResult runOcr(QImage img, QString langs, bool autoScript, QString engine,
+                 PaddleOcr::Setup paddle, std::shared_ptr<std::atomic_bool> cancelled)
 {
     OcrResult r;
     if (img.isNull()) {
@@ -282,6 +378,22 @@ OcrResult runOcr(QImage img, QString langs, bool autoScript,
     }
     if (cancelled->load())
         return r;
+    // The barcode pass above is engine-independent; OSD below is Tesseract's own
+    // (it picks Tesseract langpacks), so the Windows engine skips it.
+    if (engine == QLatin1String("windows")) {
+        QString why;
+        if (WindowsOcr::recognize(img, *cancelled, nullptr, &r.text, &why))
+            return r;
+        if (cancelled->load())
+            return r;
+        qWarning("OCR: Windows OCR cannot run (%s), using Tesseract", qUtf8Printable(why));
+    }
+    if (engine == QLatin1String("paddle")) {
+        if (runPaddle(paddle, img, *cancelled, nullptr, &r.text))
+            return r;
+        if (cancelled->load())
+            return r;
+    }
     // Auto-language: narrow to the detected script's langpacks (see runOcrBoxes).
     if (autoScript) {
         const QString picked = resolveScriptLangs(img, langs);
@@ -397,7 +509,9 @@ void OcrEngine::recognize(const QImage &img, const QString &langs, bool autoScri
         fw->deleteLater();
         cb(r.text, r.error);
     });
-    fw->setFuture(QtConcurrent::run(runOcr, img, langs, autoScript, m_cancelled));
+    const QString engine = OcrEngines::resolve(m_engine);
+    fw->setFuture(QtConcurrent::run(runOcr, img, langs, autoScript, engine, paddleSetup(engine),
+                                    m_cancelled));
 }
 
 void OcrEngine::recognizeBoxes(const QImage &img, const QString &langs, bool autoScript,
@@ -409,5 +523,7 @@ void OcrEngine::recognizeBoxes(const QImage &img, const QString &langs, bool aut
         fw->deleteLater();
         cb(r.words, r.error);
     });
-    fw->setFuture(QtConcurrent::run(runOcrBoxes, img, langs, autoScript, m_cancelled));
+    const QString engine = OcrEngines::resolve(m_engine);
+    fw->setFuture(QtConcurrent::run(runOcrBoxes, img, langs, autoScript, engine, paddleSetup(engine),
+                                    m_cancelled));
 }

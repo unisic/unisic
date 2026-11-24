@@ -139,6 +139,8 @@ jobs:
         # fullscreen windows and the pinned preview. Noble's
         # liblayershellqtinterface-dev is the Qt5 build (5.27), which cannot
         # serve a Qt 6.8 app, so the small KDE lib is built against the aqt Qt.
+        # It links libOpenGL.so.0 like KF6GuiAddons does; the Build AppImage
+        # step removes that entry from the bundled copies (#141).
         run: |
           git clone --depth 1 --branch v6.3.5 https://invent.kde.org/plasma/layer-shell-qt.git
           cmake -S layer-shell-qt -B build-lsq -G Ninja \
@@ -213,6 +215,20 @@ jobs:
             cp "$data" AppDir/usr/share/tessdata/
           done
           ls -la AppDir/usr/share/tessdata
+          # ONNX Runtime for PaddleOCR (the default OCR engine) and background
+          # removal: the same pinned upstream build (our unisic-models mirror,
+          # microsoft/onnxruntime answers 404) the Flatpak bundles and
+          # src/editor/BackgroundRemover.cpp downloads (kPins, kRuntimeFile).
+          # dlopen()ed, so linuxdeploy cannot find it; probe() looks for this
+          # exact file in <bin>/../lib before any system copy.
+          ort=1.31.1
+          curl -fsSL -o ort.tgz "https://github.com/unisic/unisic-models/releases/download/onnxruntime-${ort}/onnxruntime-linux-x64-${ort}.tgz"
+          echo "8b5b171ec86280789101de7ad7c762b65054aa24790a057d7950b41c1d01a490  ort.tgz" | sha256sum -c -
+          tar -xzf ort.tgz
+          install -Dm755 "onnxruntime-linux-x64-${ort}/lib/libonnxruntime.so.${ort}" "AppDir/usr/lib/libonnxruntime.so.${ort}"
+          install -Dm644 "onnxruntime-linux-x64-${ort}/LICENSE" AppDir/usr/share/licenses/onnxruntime/LICENSE
+          install -Dm644 "onnxruntime-linux-x64-${ort}/ThirdPartyNotices.txt" AppDir/usr/share/licenses/onnxruntime/ThirdPartyNotices.txt
+          rm -rf ort.tgz "onnxruntime-linux-x64-${ort}"
 
       - name: Build AppImage
         env:
@@ -314,8 +330,26 @@ jobs:
             "${HELPER_ARGS[@]}" \
             --exclude-library "libwayland-client*" \
             --exclude-library "libwayland-cursor*" \
-            --exclude-library "libwayland-egl*" \
-            --output appimage
+            --exclude-library "libwayland-egl*"
+
+          # Ubuntu ships libOpenGL.so.0 only in libopengl0, which a desktop
+          # install lacks (#141), and the bundled KDE libraries list it without
+          # calling it: aqt's libQt6Gui calls glGetString and glGetIntegerv but
+          # lists libGL.so.1, not libOpenGL.so.0, so ld keeps libOpenGL.so.0
+          # for them in anything that links Qt6::Gui, --as-needed (Ubuntu's
+          # default) or not. libGL.so.1 serves those calls at run time. Only
+          # the AppDir copies are patched, after unisic was linked: in
+          # lsq-prefix the entry is what keeps it out of unisic's own NEEDED
+          # list. A library that does call gl* keeps it and fails the check
+          # below.
+          while IFS= read -r lib; do
+            nm -D --undefined-only "$lib" | grep -E ' gl[A-Z]' >/dev/null && continue
+            patchelf --remove-needed libOpenGL.so.0 "$lib"
+          done < <(find AppDir/usr -type f \( -name '*.so*' -o -path 'AppDir/usr/bin/*' \) \
+                   -exec sh -c 'readelf -d "$1" 2>/dev/null | grep -q "\[libOpenGL\.so\.0\]" && echo "$1"' _ {} \;)
+          # A second run only packs: linuxdeploy never overwrites a file the
+          # AppDir already has.
+          ./tools/linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage
 
           # The wayland platform plugin must actually be in the AppDir - fail
           # loudly instead of shipping another XWayland-only build.
@@ -330,6 +364,8 @@ jobs:
           # prove any of them reached the package.
           test -s AppDir/usr/share/tessdata/eng.traineddata \
             || { echo "::error::tessdata went missing from the AppDir"; exit 1; }
+          test -s AppDir/usr/lib/libonnxruntime.so.1.31.1 \
+            || { echo "::error::ONNX Runtime went missing from the AppDir"; exit 1; }
           test -f AppDir/usr/qml/QtMultimedia/libquickmultimediaplugin.so \
             || { echo "::error::QtMultimedia QML plugin was not deployed"; exit 1; }
           test -f AppDir/usr/plugins/multimedia/libffmpegmediaplugin.so \
@@ -338,6 +374,11 @@ jobs:
             test -x "AppDir/usr/bin/$tool" \
               || { echo "::error::$tool went missing from the AppDir"; exit 1; }
           done
+          # Nothing bundled may link libOpenGL.so.0: the host supplies it, and
+          # Ubuntu only with libopengl0, which a desktop install lacks (#141).
+          gl="$(find AppDir/usr -type f \( -name '*.so*' -o -path 'AppDir/usr/bin/*' \) \
+                -exec sh -c 'readelf -d "$1" 2>/dev/null | grep -q "\[libOpenGL\.so\.0\]" && echo "$1"' _ {} \;)"
+          [ -z "$gl" ] || { echo "::error::these link libOpenGL.so.0: $gl"; exit 1; }
 
           # linuxdeploy's appimage plugin emits the matching .zsync next to the
           # binary when update information is embedded. HARD-fail if it did
@@ -365,9 +406,10 @@ jobs:
 
               ./AppRun
 
-          Qt, the KDE libraries, QtMultimedia, OCR with English/Polish/script
-          data, ffmpeg, curl, zip, wl-copy, grim and the PipeWire command-line
-          tools are bundled. No FUSE and no package manager are needed.
+          Qt, the KDE libraries, QtMultimedia, OCR (PaddleOCR with ONNX Runtime,
+          and Tesseract with English/Polish/script data), ffmpeg, curl, zip,
+          wl-copy, grim and the PipeWire command-line tools are bundled. No
+          FUSE and no package manager are needed.
 
           The desktop still supplies its platform services: a running PipeWire
           service and xdg-desktop-portal with the backend for KDE, GNOME or

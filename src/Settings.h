@@ -9,6 +9,7 @@
 #include <QCoreApplication>
 #include "ConfigPath.h"
 #include "hotkeys/HotkeyDefaults.h"
+#include "ocr/OcrEngines.h"
 // For kDefaultTimeoutMs: the shipped default and the runner's own fallback have
 // to be the same number, and only one of them gets to define it.
 #include "actions/ExternalActionRunner.h"
@@ -97,6 +98,10 @@ class Settings : public QObject
     Q_PROPERTY(bool openAfterSave READ openAfterSave WRITE setOpenAfterSave NOTIFY openAfterSaveChanged)
     Q_PROPERTY(bool afterUploadCopyLink READ afterUploadCopyLink WRITE setAfterUploadCopyLink NOTIFY afterUploadCopyLinkChanged)
     Q_PROPERTY(bool afterUploadOpenInBrowser READ afterUploadOpenInBrowser WRITE setAfterUploadOpenInBrowser NOTIFY afterUploadOpenInBrowserChanged)
+    Q_PROPERTY(bool afterUploadShortenUrl READ afterUploadShortenUrl WRITE setAfterUploadShortenUrl NOTIFY afterUploadShortenUrlChanged)
+    Q_PROPERTY(bool afterUploadTrashFile READ afterUploadTrashFile WRITE setAfterUploadTrashFile NOTIFY afterUploadTrashFileChanged)
+    Q_PROPERTY(QString linkShortener READ linkShortener WRITE setLinkShortener NOTIFY linkShortenerChanged)
+    Q_PROPERTY(QString watchFolder READ watchFolder WRITE setWatchFolder NOTIFY watchFolderChanged)
     Q_PROPERTY(bool doNotDisturbWhileCapturing READ doNotDisturbWhileCapturing WRITE setDoNotDisturbWhileCapturing NOTIFY doNotDisturbWhileCapturingChanged)
     Q_PROPERTY(bool externalActionEnabled READ externalActionEnabled WRITE setExternalActionEnabled NOTIFY externalActionEnabledChanged)
     Q_PROPERTY(QString externalActionCommand READ externalActionCommand WRITE setExternalActionCommand NOTIFY externalActionCommandChanged)
@@ -125,6 +130,8 @@ class Settings : public QObject
     Q_PROPERTY(bool editorResetColors READ editorResetColors WRITE setEditorResetColors NOTIFY editorResetColorsChanged)
     Q_PROPERTY(bool editorResetTools READ editorResetTools WRITE setEditorResetTools NOTIFY editorResetToolsChanged)
     Q_PROPERTY(QString recentColors READ recentColors WRITE setRecentColors NOTIFY recentColorsChanged)
+    Q_PROPERTY(QString recentStickers READ recentStickers WRITE setRecentStickers NOTIFY recentStickersChanged)
+    Q_PROPERTY(int stickerTone READ stickerTone WRITE setStickerTone NOTIFY stickerToneChanged)
     Q_PROPERTY(QString editorStylePresets READ editorStylePresets WRITE setEditorStylePresets NOTIFY editorStylePresetsChanged)
     Q_PROPERTY(QString hiddenTools READ hiddenTools WRITE setHiddenTools NOTIFY hiddenToolsChanged)
     Q_PROPERTY(QString overlayToolbarPosition READ overlayToolbarPosition WRITE setOverlayToolbarPosition NOTIFY overlayToolbarPositionChanged)
@@ -147,9 +154,46 @@ class Settings : public QObject
     Q_PROPERTY(bool separateAudioTracks READ separateAudioTracks WRITE setSeparateAudioTracks NOTIFY separateAudioTracksChanged)
     Q_PROPERTY(QString videoEncoder READ videoEncoder WRITE setVideoEncoder NOTIFY videoEncoderChanged)
     Q_PROPERTY(int instantReplaySeconds READ instantReplaySeconds WRITE setInstantReplaySeconds NOTIFY instantReplaySecondsChanged)
+    Q_PROPERTY(QString instantReplayAuto READ instantReplayAuto WRITE setInstantReplayAuto NOTIFY instantReplayAutoChanged)
+    Q_PROPERTY(bool replayWatermarkEnabled READ replayWatermarkEnabled WRITE setReplayWatermarkEnabled NOTIFY replayWatermarkEnabledChanged)
+    Q_PROPERTY(QString replayWatermarkText READ replayWatermarkText WRITE setReplayWatermarkText NOTIFY replayWatermarkTextChanged)
+    Q_PROPERTY(QString replayWatermarkPosition READ replayWatermarkPosition WRITE setReplayWatermarkPosition NOTIFY replayWatermarkPositionChanged)
+    Q_PROPERTY(QString replayWatermarkType READ replayWatermarkType WRITE setReplayWatermarkType NOTIFY replayWatermarkTypeChanged)
+    Q_PROPERTY(QString replayWatermarkImagePath READ replayWatermarkImagePath WRITE setReplayWatermarkImagePath NOTIFY replayWatermarkImagePathChanged)
+    Q_PROPERTY(int replayWatermarkOpacity READ replayWatermarkOpacity WRITE setReplayWatermarkOpacity NOTIFY replayWatermarkOpacityChanged)
+    Q_PROPERTY(int replayWatermarkScale READ replayWatermarkScale WRITE setReplayWatermarkScale NOTIFY replayWatermarkScaleChanged)
+    Q_PROPERTY(bool clipOpenReplay READ clipOpenReplay WRITE setClipOpenReplay NOTIFY clipOpenReplayChanged)
+    Q_PROPERTY(bool clipUpload READ clipUpload WRITE setClipUpload NOTIFY clipUploadChanged)
+    Q_PROPERTY(QString clipAspect READ clipAspect WRITE setClipAspect NOTIFY clipAspectChanged)
+    Q_PROPERTY(int clipShortSide READ clipShortSide WRITE setClipShortSide NOTIFY clipShortSideChanged)
+    Q_PROPERTY(QString clipSaveDirectory READ clipSaveDirectory WRITE setClipSaveDirectory NOTIFY clipSaveDirectoryChanged)
+    Q_PROPERTY(bool clipIndicator READ clipIndicator WRITE setClipIndicator NOTIFY clipIndicatorChanged)
+    Q_PROPERTY(QString clipIndicatorStyle READ clipIndicatorStyle WRITE setClipIndicatorStyle NOTIFY clipIndicatorStyleChanged)
+    Q_PROPERTY(QString clipSource READ clipSource WRITE setClipSource NOTIFY clipSourceChanged)
+    Q_PROPERTY(bool clipKeepSession READ clipKeepSession WRITE setClipKeepSession NOTIFY clipKeepSessionChanged)
+    Q_PROPERTY(QString clipSessionDirectory READ clipSessionDirectory WRITE setClipSessionDirectory NOTIFY clipSessionDirectoryChanged)
+    Q_PROPERTY(bool clipSystemAudio READ clipSystemAudio WRITE setClipSystemAudio NOTIFY clipSystemAudioChanged)
+    Q_PROPERTY(bool clipMicrophone READ clipMicrophone WRITE setClipMicrophone NOTIFY clipMicrophoneChanged)
+    Q_PROPERTY(int clipSystemVolume READ clipSystemVolume WRITE setClipSystemVolume NOTIFY clipSystemVolumeChanged)
+    Q_PROPERTY(int clipMicrophoneVolume READ clipMicrophoneVolume WRITE setClipMicrophoneVolume NOTIFY clipMicrophoneVolumeChanged)
+    Q_PROPERTY(bool clipKeystrokes READ clipKeystrokes WRITE setClipKeystrokes NOTIFY clipKeystrokesChanged)
+    Q_PROPERTY(bool clipStatusDot READ clipStatusDot WRITE setClipStatusDot NOTIFY clipStatusDotChanged)
+    Q_PROPERTY(QString clipStatusCorner READ clipStatusCorner WRITE setClipStatusCorner NOTIFY clipStatusCornerChanged)
+    Q_PROPERTY(QStringList recentGames READ recentGames WRITE setRecentGames NOTIFY recentGamesChanged)
+    Q_PROPERTY(QString hotkeyReplayToggle READ hotkeyReplayToggle WRITE setHotkeyReplayToggle NOTIFY hotkeyReplayToggleChanged)
     Q_PROPERTY(QString hotkeyInstantReplay READ hotkeyInstantReplay WRITE setHotkeyInstantReplay NOTIFY hotkeyInstantReplayChanged)
     Q_PROPERTY(QString hotkeyRecord READ hotkeyRecord WRITE setHotkeyRecord NOTIFY hotkeyRecordChanged)
     Q_PROPERTY(QString hotkeyOcr READ hotkeyOcr WRITE setHotkeyOcr NOTIFY hotkeyOcrChanged)
+    Q_PROPERTY(QString hotkeyRecordScreen READ hotkeyRecordScreen WRITE setHotkeyRecordScreen NOTIFY hotkeyRecordScreenChanged)
+    Q_PROPERTY(QString hotkeyGifScreen READ hotkeyGifScreen WRITE setHotkeyGifScreen NOTIFY hotkeyGifScreenChanged)
+    Q_PROPERTY(QString hotkeyRecordWindow READ hotkeyRecordWindow WRITE setHotkeyRecordWindow NOTIFY hotkeyRecordWindowChanged)
+    Q_PROPERTY(QString hotkeyPauseRecording READ hotkeyPauseRecording WRITE setHotkeyPauseRecording NOTIFY hotkeyPauseRecordingChanged)
+    Q_PROPERTY(QString hotkeyMeasure READ hotkeyMeasure WRITE setHotkeyMeasure NOTIFY hotkeyMeasureChanged)
+    Q_PROPERTY(QString hotkeyEditImage READ hotkeyEditImage WRITE setHotkeyEditImage NOTIFY hotkeyEditImageChanged)
+    Q_PROPERTY(QString hotkeyTrimVideo READ hotkeyTrimVideo WRITE setHotkeyTrimVideo NOTIFY hotkeyTrimVideoChanged)
+    Q_PROPERTY(QString hotkeyUploadFile READ hotkeyUploadFile WRITE setHotkeyUploadFile NOTIFY hotkeyUploadFileChanged)
+    Q_PROPERTY(QString hotkeyUploadClipboard READ hotkeyUploadClipboard WRITE setHotkeyUploadClipboard NOTIFY hotkeyUploadClipboardChanged)
+    Q_PROPERTY(QString hotkeyQrClipboard READ hotkeyQrClipboard WRITE setHotkeyQrClipboard NOTIFY hotkeyQrClipboardChanged)
     Q_PROPERTY(bool showCapturePopup READ showCapturePopup WRITE setShowCapturePopup NOTIFY showCapturePopupChanged)
     Q_PROPERTY(QString capturePopupPosition READ capturePopupPosition WRITE setCapturePopupPosition NOTIFY capturePopupPositionChanged)
     Q_PROPERTY(QString capturePopupStyle READ capturePopupStyle WRITE setCapturePopupStyle NOTIFY capturePopupStyleChanged)
@@ -160,7 +204,9 @@ class Settings : public QObject
     Q_PROPERTY(bool muteOnFullscreen READ muteOnFullscreen WRITE setMuteOnFullscreen NOTIFY muteOnFullscreenChanged)
     Q_PROPERTY(bool ocrAutoLanguage READ ocrAutoLanguage WRITE setOcrAutoLanguage NOTIFY ocrAutoLanguageChanged)
     Q_PROPERTY(QString ocrLanguages READ ocrLanguages WRITE setOcrLanguages NOTIFY ocrLanguagesChanged)
+    Q_PROPERTY(QString ocrEngine READ ocrEngine WRITE setOcrEngine NOTIFY ocrEngineChanged)
     Q_PROPERTY(QString editorIconStyle READ editorIconStyle WRITE setEditorIconStyle NOTIFY editorIconStyleChanged)
+    Q_PROPERTY(QString editorLayout READ editorLayout WRITE setEditorLayout NOTIFY editorLayoutChanged)
     Q_PROPERTY(QString editorToolIcons READ editorToolIcons WRITE setEditorToolIcons NOTIFY editorToolIconsChanged)
     Q_PROPERTY(QString uiLanguage READ uiLanguage WRITE setUiLanguage NOTIFY uiLanguageChanged)
     Q_PROPERTY(bool useSystemDecoration READ useSystemDecoration WRITE setUseSystemDecoration NOTIFY useSystemDecorationChanged)
@@ -197,7 +243,7 @@ public:
         // the STABLE app's config so testing starts from familiar settings —
         // EXCEPT hotkeys, which are seeded unbound: the stable component
         // still owns its keys daemon-side, so copied bindings would lose
-        // every press and fire the conflict toast on each launch. Assign
+        // every press and come up as conflicts on each launch. Assign
         // dev-specific keys in Settings → Hotkeys when needed.
         const QString stableConf = UnisicConfig::stableConfigDir() + QStringLiteral("/unisic.conf");
         if (m_s.allKeys().isEmpty() && QFile::exists(stableConf)) {
@@ -498,6 +544,11 @@ public:
     U_SETTING(bool, openAfterSave, setOpenAfterSave, "openAfterSave", false)
     U_SETTING(bool, afterUploadCopyLink, setAfterUploadCopyLink, "upload/afterUploadCopyLink", true)
     U_SETTING(bool, afterUploadOpenInBrowser, setAfterUploadOpenInBrowser, "upload/afterUploadOpenInBrowser", false)
+    U_SETTING(bool, afterUploadShortenUrl, setAfterUploadShortenUrl, "upload/afterUploadShortenUrl", false)
+    U_SETTING(bool, afterUploadTrashFile, setAfterUploadTrashFile, "upload/afterUploadTrashFile", false)
+    U_SETTING(QString, linkShortener, setLinkShortener, "upload/linkShortener", QStringLiteral("isgd"))
+    // Every new file in this folder is uploaded; empty is off.
+    U_SETTING(QString, watchFolder, setWatchFolder, "upload/watchFolder", QString())
     U_SETTING(bool, doNotDisturbWhileCapturing, setDoNotDisturbWhileCapturing,
               "capture/doNotDisturb", false)
     U_SETTING(bool, externalActionEnabled, setExternalActionEnabled,
@@ -542,6 +593,12 @@ public:
     U_SETTING(bool, editorResetColors, setEditorResetColors, "editor/resetColors", false)
     U_SETTING(bool, editorResetTools, setEditorResetTools, "editor/resetTools", false)
     U_SETTING(QString, recentColors, setRecentColors, "editor/recentColors", QString())
+    // The Sticker tool's quick row, comma-separated emoji, newest first; empty
+    // is StickerPopup.qml's quickDefaults.
+    U_SETTING(QString, recentStickers, setRecentStickers, "editor/recentStickers", QString())
+    // The sticker library's skin tone: 0 none (the yellow default), 1-5 light
+    // to dark, Unicode's U+1F3FB..U+1F3FF.
+    U_SETTING(int, stickerTone, setStickerTone, "editor/stickerTone", 0)
     // Saved annotation-style presets: a JSON array of objects, each holding the
     // canvas style properties captured when the preset was saved. One opaque
     // string rather than a key per field so the QML side owns the schema and a
@@ -614,10 +671,84 @@ public:
     U_SETTING(QString, videoEncoder, setVideoEncoder, "video/encoder", QStringLiteral("auto"))
     U_SETTING(int, instantReplaySeconds, setInstantReplaySeconds,
               "video/instantReplaySeconds", 30)
+    // Starts the replay ring by itself: "off", "launch" (with Unisic) or
+    // "game" (while GameDetector sees a game).
+    U_SETTING(QString, instantReplayAuto, setInstantReplayAuto,
+              "video/instantReplayAuto", QStringLiteral("off"))
+    // The instant replay's own mark, separate from the screenshot
+    // watermark (image/watermark*): burned into the ring's frames.
+    U_SETTING(bool, replayWatermarkEnabled, setReplayWatermarkEnabled, "video/replayWatermarkEnabled", false)
+    U_SETTING(QString, replayWatermarkText, setReplayWatermarkText, "video/replayWatermarkText", QStringLiteral("Unisic"))
+    U_SETTING(QString, replayWatermarkPosition, setReplayWatermarkPosition,
+              "video/replayWatermarkPosition", QStringLiteral("bottom-right"))
+    // "text" or "image"; text expands %game% and %date% once, when the ring starts.
+    U_SETTING(QString, replayWatermarkType, setReplayWatermarkType, "video/replayWatermarkType", QStringLiteral("text"))
+    U_SETTING(QString, replayWatermarkImagePath, setReplayWatermarkImagePath, "video/replayWatermarkImagePath", QString())
+    U_SETTING(int, replayWatermarkOpacity, setReplayWatermarkOpacity, "video/replayWatermarkOpacity", 80)
+    U_SETTING(int, replayWatermarkScale, setReplayWatermarkScale, "video/replayWatermarkScale", 100)
+    // Clips (Settings > Clips). A saved instant replay opens in the clip
+    // editor; the editor starts with this frame ("original", "16:9", "9:16",
+    // "1:1") and output size (shorter side in px, 0 = as recorded).
+    U_SETTING(bool, clipOpenReplay, setClipOpenReplay, "clips/openReplay", false)
+    // A saved clip goes to the upload server even with uploadAfterCapture off.
+    U_SETTING(bool, clipUpload, setClipUpload, "clips/upload", false)
+    U_SETTING(QString, clipAspect, setClipAspect, "clips/aspect", QStringLiteral("original"))
+    U_SETTING(int, clipShortSide, setClipShortSide, "clips/shortSide", 0)
+    // Saved instant replays land here; empty = videoSaveDirectory.
+    U_SETTING(QString, clipSaveDirectory, setClipSaveDirectory, "clips/saveDirectory", QString())
+    // The on-screen pill (ClipOsd) for replay on/off, saving and saved.
+    U_SETTING(bool, clipIndicator, setClipIndicator, "clips/indicator", true)
+    // Its look: "pill" (icon, title, detail), "compact" (icon and title),
+    // "dot" (the icon alone) or "tinted" (edge and title in the tone colour).
+    U_SETTING(QString, clipIndicatorStyle, setClipIndicatorStyle, "clips/indicatorStyle", QStringLiteral("pill"))
+    // The replay ring keeps the whole session (up to GifRecorder::kSessionSeconds) instead
+    // of the last instantReplaySeconds, and stopping it saves the session as
+    // one recording to cut clips from later.
+    U_SETTING(bool, clipKeepSession, setClipKeepSession, "clips/keepSession", false)
+    // Where session recordings and their ring go; empty = the clips folder.
+    // A big second disk is the point: the ring of a 4 h session is tens of GB.
+    U_SETTING(QString, clipSessionDirectory, setClipSessionDirectory, "clips/sessionDirectory", QString())
+    // A steady dot in a screen corner while instant replay runs (ClipOsd::
+    // setStatusDot), in "top-left" / "top-right" / "bottom-left" / "bottom-right".
+    // Instant replay's own audio and key badge, apart from recordings': a game
+    // clip wants the game's sound and rarely the typed keys. Per-app audio and
+    // the microphone device stay shared (GifRecorder reads them for both).
+    U_SETTING(bool, clipSystemAudio, setClipSystemAudio, "clips/systemAudio", true)
+    U_SETTING(bool, clipMicrophone, setClipMicrophone, "clips/microphone", false)
+    // Their volumes in percent (0-200), applied by ffmpeg's volume filter
+    // when the replay ring starts.
+    U_SETTING(int, clipSystemVolume, setClipSystemVolume, "clips/systemVolume", 100)
+    U_SETTING(int, clipMicrophoneVolume, setClipMicrophoneVolume, "clips/microphoneVolume", 100)
+    U_SETTING(bool, clipKeystrokes, setClipKeystrokes, "clips/keystrokes", false)
+    U_SETTING(bool, clipStatusDot, setClipStatusDot, "clips/statusDot", false)
+    U_SETTING(QString, clipStatusCorner, setClipStatusCorner, "clips/statusCorner", QStringLiteral("top-right"))
+    // What instant replay records: "screen" (the monitor under the pointer)
+    // or "window" (the game's window, else the window in front when it starts;
+    // AppContext::startReplayRing).
+    U_SETTING(QString, clipSource, setClipSource, "clips/source", QStringLiteral("screen"))
+    // Games GameDetector saw, newest first, "<epoch seconds>\t<name>" plus
+    // "\t<cover path>" when Steam had art for it, at most 12
+    // (AppContext::onGameChanged).
+    U_SETTING(QStringList, recentGames, setRecentGames, "clips/recentGames", QStringList())
+    // Turns the replay ring on or off; hotkeyInstantReplay saves (or starts).
+    U_SETTING(QString, hotkeyReplayToggle, setHotkeyReplayToggle, "hotkeys/replayToggle", QString())
     U_SETTING(QString, hotkeyInstantReplay, setHotkeyInstantReplay,
               "hotkeys/instantReplay", QStringLiteral("Meta+Shift+I"))
     U_SETTING(QString, hotkeyRecord, setHotkeyRecord, "hotkeys/record", QStringLiteral(UNISIC_HOTKEY_RECORD))
     U_SETTING(QString, hotkeyOcr, setHotkeyOcr, "hotkeys/ocrRegion", QStringLiteral(UNISIC_HOTKEY_OCR))
+    // One per page tile that had no hotkey. Unbound by default: every free
+    // Meta+Shift letter is already someone's, and an unbound action costs only
+    // its row in the desktop's shortcut list.
+    U_SETTING(QString, hotkeyRecordScreen, setHotkeyRecordScreen, "hotkeys/recordScreen", QString())
+    U_SETTING(QString, hotkeyGifScreen, setHotkeyGifScreen, "hotkeys/gifScreen", QString())
+    U_SETTING(QString, hotkeyRecordWindow, setHotkeyRecordWindow, "hotkeys/recordWindow", QString())
+    U_SETTING(QString, hotkeyPauseRecording, setHotkeyPauseRecording, "hotkeys/pauseRecording", QString())
+    U_SETTING(QString, hotkeyMeasure, setHotkeyMeasure, "hotkeys/measure", QString())
+    U_SETTING(QString, hotkeyEditImage, setHotkeyEditImage, "hotkeys/editImage", QString())
+    U_SETTING(QString, hotkeyTrimVideo, setHotkeyTrimVideo, "hotkeys/trimVideo", QString())
+    U_SETTING(QString, hotkeyUploadFile, setHotkeyUploadFile, "hotkeys/uploadFile", QString())
+    U_SETTING(QString, hotkeyUploadClipboard, setHotkeyUploadClipboard, "hotkeys/uploadClipboard", QString())
+    U_SETTING(QString, hotkeyQrClipboard, setHotkeyQrClipboard, "hotkeys/qrClipboard", QString())
     // Deliberately NOT a Q_PROPERTY: machine-local state ("the user installed
     // desktop custom shortcuts here"), must not travel via settings export.
     // Read on startup to re-assert stores the desktop itself rewrites
@@ -656,14 +787,25 @@ public:
     // turn it off to pin a specific, faster spec.
     U_SETTING(bool, ocrAutoLanguage, setOcrAutoLanguage, "ocr/autoLanguage", true)
     U_SETTING(QString, ocrLanguages, setOcrLanguages, "ocr/languages", QStringLiteral("eng"))
+    // Which recognizer OCR runs: an OcrEngines id ("windows" by default on
+    // Windows, "tesseract" everywhere else). An id this build cannot run, e.g.
+    // settings imported from Windows into Linux, reads as Tesseract.
+    U_SETTING(QString, ocrEngine, setOcrEngine, "ocr/engine", QStringLiteral(UNISIC_OCR_DEFAULT_ENGINE))
     // Editor/overlay tool icons only (never the main app chrome): "custom" =
     // bundled monochrome glyphs, "system" = freedesktop QIcon::fromTheme.
     U_SETTING(QString, editorIconStyle, setEditorIconStyle, "ui/editorIconStyle", QStringLiteral("custom"))
+    // Editor window arrangement: "panels" = tool rail left, options in an
+    // inspector column right; "top" = the same with the options in a bar
+    // across the top; "bottom" = the same with the tools in a pill over
+    // the bottom of the image instead of the rail; "floating" = full-bleed canvas with the same controls
+    // in floating pills. Same controls every way, only placement.
+    U_SETTING(QString, editorLayout, setEditorLayout, "ui/editorLayout", QStringLiteral("panels"))
     // Optional per-tool freedesktop icon-name overrides, JSON {"toolId":"name"}.
     U_SETTING(QString, editorToolIcons, setEditorToolIcons, "ui/editorToolIcons", QString())
     // UI language: "system" follows the OS locale, "en" forces English, "pl"
-    // forces Polish. BARE top-level key (never a "general" group — see the
-    // constructor's key-folding + AGENTS.md). Applied via QTranslator swap.
+    // forces Polish, "zh_CN" forces Simplified Chinese. BARE top-level key
+    // (never a "general" group — see the constructor's key-folding +
+    // AGENTS.md). Applied via QTranslator swap.
     U_SETTING(QString, uiLanguage, setUiLanguage, "uiLanguage", QStringLiteral("system"))
     // Main window chrome: true = system window decoration, false = the app's own
     // custom title bar (frameless).
@@ -736,6 +878,8 @@ public:
         emit portalAutostartGrantedChanged();
         emit minimizeToTrayOnCloseChanged(); emit openAfterSaveChanged();
         emit afterUploadCopyLinkChanged(); emit afterUploadOpenInBrowserChanged();
+        emit afterUploadShortenUrlChanged(); emit linkShortenerChanged(); emit afterUploadTrashFileChanged();
+        emit watchFolderChanged();
         emit doNotDisturbWhileCapturingChanged();
         emit externalActionEnabledChanged(); emit externalActionCommandChanged();
         emit externalActionTimeoutSecChanged();
@@ -743,6 +887,7 @@ public:
         emit editorHighlightModeChanged(); emit lastSeenVersionChanged();
         emit editorStepSizeChanged();
         emit editorFillColorChanged(); emit editorFillEnabledChanged(); emit recentColorsChanged();
+        emit recentStickersChanged(); emit stickerToneChanged();
         emit editorStylePresetsChanged();
         emit editorFontFamilyChanged(); emit editorFontBoldChanged(); emit editorFontItalicChanged();
         emit editorFontUnderlineChanged(); emit editorTextOutlineChanged(); emit editorTextOutlineColorChanged();
@@ -756,16 +901,25 @@ public:
         emit videoFpsChanged(); emit videoFormatChanged(); emit videoQualityPercentChanged();
         emit videoMaxDurationSecChanged(); emit hotkeyRecordChanged();
         emit hotkeyOcrChanged();
+        emit hotkeyRecordScreenChanged(); emit hotkeyGifScreenChanged(); emit hotkeyRecordWindowChanged();
+        emit hotkeyPauseRecordingChanged(); emit hotkeyMeasureChanged(); emit hotkeyEditImageChanged();
+        emit hotkeyTrimVideoChanged(); emit hotkeyUploadFileChanged(); emit hotkeyUploadClipboardChanged();
+        emit hotkeyQrClipboardChanged();
         emit recordSystemAudioChanged(); emit recordMicrophoneChanged();
         emit recordAppAudioAppsChanged(); emit microphoneSourceChanged();
         emit videoEncoderChanged();
         emit separateAudioTracksChanged();
-        emit instantReplaySecondsChanged(); emit hotkeyInstantReplayChanged();
+        emit instantReplaySecondsChanged(); emit hotkeyInstantReplayChanged(); emit instantReplayAutoChanged();
+        emit replayWatermarkEnabledChanged(); emit replayWatermarkTextChanged(); emit replayWatermarkPositionChanged();
+        emit replayWatermarkTypeChanged(); emit replayWatermarkImagePathChanged(); emit replayWatermarkOpacityChanged(); emit replayWatermarkScaleChanged();
+        emit clipOpenReplayChanged(); emit clipUploadChanged(); emit clipAspectChanged(); emit clipShortSideChanged();
+        emit clipSaveDirectoryChanged(); emit clipIndicatorChanged(); emit hotkeyReplayToggleChanged();
+        emit clipIndicatorStyleChanged(); emit clipKeepSessionChanged(); emit clipSessionDirectoryChanged(); emit clipSystemAudioChanged(); emit clipMicrophoneChanged(); emit clipSystemVolumeChanged(); emit clipMicrophoneVolumeChanged(); emit clipKeystrokesChanged(); emit clipStatusDotChanged(); emit clipStatusCornerChanged(); emit clipSourceChanged(); emit recentGamesChanged();
         emit showCapturePopupChanged(); emit capturePopupPositionChanged();
         emit capturePopupDurationSecChanged(); emit capturePopupStyleChanged(); emit capturePopupMarginChanged();
         emit hiddenNotifActionsChanged(); emit notificationActionOrderChanged();
-        emit muteOnFullscreenChanged(); emit ocrLanguagesChanged();
-        emit editorIconStyleChanged(); emit editorToolIconsChanged();
+        emit muteOnFullscreenChanged(); emit ocrLanguagesChanged(); emit ocrEngineChanged();
+        emit editorIconStyleChanged(); emit editorToolIconsChanged(); emit editorLayoutChanged();
         emit uiLanguageChanged();
         emit useSystemDecorationChanged(); emit trayIconPathChanged(); emit hiddenTrayItemsChanged();
         emit recordPageModeChanged();
@@ -838,6 +992,10 @@ signals:
     void openAfterSaveChanged();
     void afterUploadCopyLinkChanged();
     void afterUploadOpenInBrowserChanged();
+    void afterUploadShortenUrlChanged();
+    void afterUploadTrashFileChanged();
+    void linkShortenerChanged();
+    void watchFolderChanged();
     void doNotDisturbWhileCapturingChanged();
     void externalActionEnabledChanged();
     void externalActionCommandChanged();
@@ -861,6 +1019,8 @@ signals:
     void editorResetColorsChanged();
     void editorResetToolsChanged();
     void recentColorsChanged();
+    void recentStickersChanged();
+    void stickerToneChanged();
     void editorStylePresetsChanged();
     void hiddenToolsChanged();
     void overlayToolbarPositionChanged();
@@ -883,9 +1043,46 @@ signals:
     void videoEncoderChanged();
     void separateAudioTracksChanged();
     void instantReplaySecondsChanged();
+    void instantReplayAutoChanged();
+    void replayWatermarkEnabledChanged();
+    void replayWatermarkTextChanged();
+    void replayWatermarkPositionChanged();
+    void replayWatermarkTypeChanged();
+    void replayWatermarkImagePathChanged();
+    void replayWatermarkOpacityChanged();
+    void replayWatermarkScaleChanged();
     void hotkeyInstantReplayChanged();
+    void clipOpenReplayChanged();
+    void clipUploadChanged();
+    void clipAspectChanged();
+    void clipShortSideChanged();
+    void clipSaveDirectoryChanged();
+    void clipIndicatorChanged();
+    void clipIndicatorStyleChanged();
+    void clipKeepSessionChanged();
+    void clipSessionDirectoryChanged();
+    void clipSystemAudioChanged();
+    void clipMicrophoneChanged();
+    void clipSystemVolumeChanged();
+    void clipMicrophoneVolumeChanged();
+    void clipKeystrokesChanged();
+    void clipStatusDotChanged();
+    void clipStatusCornerChanged();
+    void clipSourceChanged();
+    void recentGamesChanged();
+    void hotkeyReplayToggleChanged();
     void hotkeyRecordChanged();
     void hotkeyOcrChanged();
+    void hotkeyRecordScreenChanged();
+    void hotkeyGifScreenChanged();
+    void hotkeyRecordWindowChanged();
+    void hotkeyPauseRecordingChanged();
+    void hotkeyMeasureChanged();
+    void hotkeyEditImageChanged();
+    void hotkeyTrimVideoChanged();
+    void hotkeyUploadFileChanged();
+    void hotkeyUploadClipboardChanged();
+    void hotkeyQrClipboardChanged();
     void desktopShortcutsInstalledChanged();
     void showCapturePopupChanged();
     void capturePopupPositionChanged();
@@ -897,7 +1094,9 @@ signals:
     void muteOnFullscreenChanged();
     void ocrAutoLanguageChanged();
     void ocrLanguagesChanged();
+    void ocrEngineChanged();
     void editorIconStyleChanged();
+    void editorLayoutChanged();
     void editorToolIconsChanged();
     void uiLanguageChanged();
     void useSystemDecorationChanged();

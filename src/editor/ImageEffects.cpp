@@ -2,6 +2,7 @@
 
 #include <QFont>
 #include <QFontMetrics>
+#include <QImageReader>
 #include <QLinearGradient>
 #include <QPainter>
 #include <QtMath>
@@ -278,6 +279,24 @@ QImage watermarkImage(const QImage &source, const QImage &watermark, int opacity
     QImage output = writableCopy(source);
     paintStamps(output, logo, opacity, position, pattern);
     return output;
+}
+
+QImage loadWatermark(const QString &path)
+{
+    if (path.isEmpty())
+        return {};
+    QImageReader reader(path);
+    reader.setAutoTransform(true);
+    const QSize sourceSize = reader.size();
+    if (!sourceSize.isValid() || sourceSize.width() > 16384 || sourceSize.height() > 16384)
+        return {};
+    // Cap the decoded size at 1024 to avoid pinning a huge source, but NEVER
+    // upscale a small logo (KeepAspectRatio would blow a 120px icon up to 1024
+    // and then watermarkImage scales it back down - a double resample that
+    // fringes the alpha edges).
+    if (sourceSize.width() > 1024 || sourceSize.height() > 1024)
+        reader.setScaledSize(sourceSize.scaled(QSize(1024, 1024), Qt::KeepAspectRatio));
+    return reader.read().convertToFormat(QImage::Format_ARGB32_Premultiplied);
 }
 
 QImage mockCapture(const QSize &size)

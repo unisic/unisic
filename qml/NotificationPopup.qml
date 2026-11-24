@@ -194,7 +194,8 @@ Window {
         if (id === "copy") return notif.kind === "image" || notif.filePath !== ""
         if (id === "link") return notif.url !== ""
         if (id === "qr") return notif.url !== ""
-        if (id === "folder") return true
+        // A recording moved to the trash after its upload has no folder left.
+        if (id === "folder") return notif.kind === "image" || notif.filePath !== ""
         if (id === "upload") return notif.url === "" && !notif.uploading
         if (id === "ocr") return notif.kind === "image"
         if (id === "trim") return notif.filePath !== ""
@@ -311,7 +312,9 @@ Window {
 
     // Filename / URL / upload-state line, shared by the text-bearing styles.
     component StatusText: Text {
-        text: notif.uploading ? qsTr("Uploading…")
+        //: %1 is the percentage of the upload already sent.
+        text: notif.uploading ? (notif.uploadProgress >= 0 ? qsTr("Uploading… %1%").arg(Math.round(notif.uploadProgress * 100))
+                                                           : qsTr("Uploading…"))
               : notif.url !== "" ? notif.url
               : notif.uploadError !== "" ? qsTr("Upload failed: %1").arg(notif.uploadError)
               : notif.fileName !== "" ? notif.fileName
@@ -625,8 +628,10 @@ Window {
             onClicked: notif.dismiss()
         }
 
+        // The countdown drain, or the upload's progress while it uploads.
         Rectangle {
-            visible: popup.autoHideSec > 0
+            readonly property bool upload: notif.uploading && notif.uploadProgress >= 0
+            visible: popup.autoHideSec > 0 || upload
             anchors.bottom: parent.bottom
             anchors.left: parent.left
             anchors.leftMargin: 8
@@ -636,8 +641,8 @@ Window {
             color: Theme.accent
             // The brighter frozen bar is the pause cue; no animation is needed,
             // and its width remains the exact saved countdown position.
-            opacity: popup.autoHidePaused ? 0.9 : 0.5
-            width: (card.width - 16) * card.drain
+            opacity: upload || popup.autoHidePaused ? 0.9 : 0.5
+            width: (card.width - 16) * (upload ? notif.uploadProgress : card.drain)
         }
     }
 }

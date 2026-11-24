@@ -21,7 +21,7 @@ class OverlayController : public QObject
     // focus-follows-hover activation must not steal keyboard focus mid-typing
     // (Escape would then cancel the whole session instead of the text box).
     Q_PROPERTY(bool textEditing READ textEditing WRITE setTextEditing NOTIFY textEditingChanged)
-    // Whether KWin answered where the active window was when this session
+    // Whether KWin (Win32 on Windows) answered where the active window was when this session
     // opened. Drives the W hint, so it is a property and not a plain getter:
     // the answer arrives asynchronously, usually after the windows are up.
     Q_PROPERTY(bool activeWindowKnown READ activeWindowKnown NOTIFY activeWindowKnownChanged)
@@ -105,7 +105,7 @@ public slots:
     void startScrollCapture(QQuickWindow *win);  // Starts scrolling capture for selected region
     void cancel();                               // Esc
     // W: selects the rectangle of the window that was active when the overlay
-    // opened (KWin only). Does nothing when nobody could tell us where it was.
+    // opened (KWin and Windows). Does nothing when nobody could tell us where it was.
     void selectActiveWindow();
 
 private:

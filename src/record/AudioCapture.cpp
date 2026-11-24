@@ -1,5 +1,6 @@
 #include "AudioCapture.h"
 #include "PwDump.h"
+#include "media/FfmpegUtil.h"
 
 #include <QStandardPaths>
 
@@ -30,9 +31,27 @@ std::unique_ptr<AudioCapture> AudioCapture::open(Source source, const QString &d
 
 QStringList AudioCapture::ffmpegInput() const
 {
-    return {QStringLiteral("-f"), QStringLiteral("pulse"),
-            QStringLiteral("-thread_queue_size"), QStringLiteral("1024"),
-            QStringLiteral("-i"), d->device};
+    return QStringList{QStringLiteral("-f"), QStringLiteral("pulse")}
+           << FfmpegUtil::inputThreadQueueSize(1024) << QStringLiteral("-i") << d->device;
+}
+
+QStringList AudioCapture::monitorArgs(const QString &device, double gain)
+{
+    const QString mic = device.trimmed();
+    // Small pulse buffers on both sides (10 ms in, 40 ms out) to keep the
+    // echo short; the defaults leave the size to the server.
+    return {QStringLiteral("-hide_banner"), QStringLiteral("-nostdin"),
+            QStringLiteral("-loglevel"), QStringLiteral("error"),
+            QStringLiteral("-fflags"), QStringLiteral("nobuffer"),
+            QStringLiteral("-f"), QStringLiteral("pulse"),
+            QStringLiteral("-fragment_size"), QStringLiteral("1920"),
+            QStringLiteral("-name"), QStringLiteral("Unisic"),
+            QStringLiteral("-i"), mic.isEmpty() ? QStringLiteral("default") : mic,
+            QStringLiteral("-af"), QStringLiteral("volume=%1").arg(QString::number(gain, 'f', 2)),
+            QStringLiteral("-f"), QStringLiteral("pulse"),
+            QStringLiteral("-buffer_duration"), QStringLiteral("40"),
+            QStringLiteral("-name"), QStringLiteral("Unisic"),
+            QStringLiteral("Microphone monitor")};
 }
 
 bool AudioCapture::inputListAvailable()

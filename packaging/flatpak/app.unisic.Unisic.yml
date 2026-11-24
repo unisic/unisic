@@ -387,6 +387,27 @@ modules:
           type: git
           tag-pattern: ^([\d.]+)$
 
+  # ONNX Runtime for PaddleOCR (the default OCR engine) and "Remove background"
+  # (docs/dev/packaging.md "Background removal"). Unisic dlopen()s it, nothing
+  # links it, and the sandbox cannot borrow the host's, so it is bundled. The
+  # upstream release build, not a source build: ORT's own build pulls dozens of
+  # sources over the network at configure time, which flatpak-builder forbids.
+  # The release ships one x86_64 tarball, matching the one arch built here.
+  - name: onnxruntime
+    only-arches:
+      - x86_64
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 lib/libonnxruntime.so.1.31.1 /app/lib/libonnxruntime.so.1.31.1
+      - ln -s libonnxruntime.so.1.31.1 /app/lib/libonnxruntime.so.1
+      - install -Dm644 LICENSE /app/share/licenses/app.unisic.Unisic/onnxruntime/LICENSE
+      - install -Dm644 ThirdPartyNotices.txt /app/share/licenses/app.unisic.Unisic/onnxruntime/ThirdPartyNotices.txt
+    sources:
+      - type: archive
+        # unisic-models mirror, see docs/dev/packaging.md "Background removal".
+        url: https://github.com/unisic/unisic-models/releases/download/onnxruntime-1.31.1/onnxruntime-linux-x64-1.31.1.tgz
+        sha256: 8b5b171ec86280789101de7ad7c762b65054aa24790a057d7950b41c1d01a490
+
   - name: unisic
     buildsystem: cmake-ninja
     builddir: true

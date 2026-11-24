@@ -6,6 +6,7 @@
 #include <QProcess>
 #include <QPointer>
 #include <QFutureWatcher>
+#include <QImage>
 #include <QList>
 #include <functional>
 #include <memory>
@@ -89,8 +90,10 @@ public:
     static QStringList pauseExciseArgs(const QString &input, const QString &output,
                                        const QList<QPair<qint64, qint64>> &intervalsMs,
                                        bool hasAudio);
+    // Completed ring segments, oldest first (file names in `dir`).
+    static QStringList ringOrder(const QString &dir);
     static int replaySegmentCount(int seconds)
-    { return qBound(3, qBound(10, seconds, 600) / 2 + 2, 302); }
+    { return qBound(3, qBound(10, seconds, 3600) / 2 + 2, 1802); }
 
     // cropPhysical: region in stream (physical) pixels; empty = full stream.
     // For Window source the portal picks the window; crop is ignored.
@@ -119,6 +122,32 @@ public:
     bool devFreezeEncoderForTest();
     void abort();    // discard everything
     void saveInstantReplay();
+    // The game being played, for the names of the files the ring writes.
+    // Empty when none; the session keeps the last game seen while it ran.
+    void setReplayGame(const QString &name);
+    // KWin hides every window of the process that asked for a native stream,
+    // so a monitor stream never shows our own record frame. While a region
+    // recording's frame is up, this recorder paints it into its frames itself
+    // (the replay ring beside a recording). physLocal: the framed region in
+    // physical px local to `screen`; an empty rect clears it.
+    void setOwnFrame(const QRect &physLocal, QScreen *screen, const QColor &accent,
+                     const QColor &contrast);
+    // Rebuilds the burned-in watermark from the settings (see the .cpp).
+    void buildReplayStamp();
+    // The recording watermark over `img`, as recordings burn it in (and Settings previews it).
+    static QImage stampReplayWatermark(const Settings *settings, const QImage &img,
+                                       const QString &game);
+    // The next Window-source start streams this KWin window (a uuid from
+    // KWinWindowGeometry::queryWindow) without asking anyone to pick one.
+    // Used once, then forgotten.
+    void setWindowUuid(const QString &uuid) { m_windowUuid = uuid; }
+    // KWin can stream a given window: KDE, outside a sandbox, with the
+    // screencast protocol granted to the installed desktop file.
+    bool canStreamWindow();
+    // How much a ring that keeps the whole session holds: past it the oldest
+    // two seconds go, as in the short ring. Disk, at the replay encode's
+    // bitrate: about 2-15 GB per hour.
+    static constexpr int kSessionSeconds = 4 * 3600;
 
 signals:
     // Portal sharing approved and the stream is live, but encoding is HELD until
@@ -127,12 +156,16 @@ signals:
     void armed();
     void started();
     void converting();
-    // fromInstantReplay: the file came out of the replay ring's export, not a
-    // recording the user started and stopped. Both produce an .mp4, so the path
-    // alone cannot tell them apart, and history categorizes them separately.
-    void finished(const QString &filePath, bool fromInstantReplay = false);
+    // origin: "replay" for a clip out of the replay ring, "session" for the
+    // whole ring written out when it stops (Settings::clipKeepSession), empty
+    // for a recording the user started and stopped. All three produce an .mp4,
+    // so the path alone cannot tell them apart, and history files them apart.
+    void finished(const QString &filePath, const QString &origin = {});
     void failed(const QString &error);
     void replayExportFailed(const QString &error);
+    // 0..1 while a stopped recording is converted or a replay is written out.
+    // The receiver resets it on finished/failed/replayExportFailed.
+    void saveProgress(qreal fraction);
     void elapsedChanged();
     void pausedChanged();
 
@@ -154,7 +187,8 @@ private:
     void openKWinWindowStream(uint cursorMode);
     // Resolve the requested cursor mode (Hidden/Embedded/Metadata wire value,
     // shared by the portal and the KWin protocol) and arm m_cursorOverlayActive.
-    uint resolveCursorMode();
+    // directGrab: the X11ShmGrabber source, whose frames never carry the pointer.
+    uint resolveCursorMode(bool directGrab = false);
     // Attach the PipeWireGrabber to a negotiated stream. fd = the portal's
     // OpenPipeWireRemote fd, or -1 for the KWin-native path (default daemon).
     void attachStream(int fd, uint nodeId);
@@ -195,7 +229,6 @@ private:
     bool m_committed = false;     // commit() received; encoding may proceed
     QSize m_heldStreamSize;       // stream size stashed while holding
     bool m_probeWarmed = false; // ffmpeg encoder probe kicked off once
-    bool m_orphansSwept = false; // stale-temp sweep runs once, on first start()
     QFutureWatcher<void> m_probeWatcher; // gates beginEncoding until the probe warms
     ScreenCastSession *m_session = nullptr;
     IScreenGrabber *m_grabber = nullptr;
@@ -281,4 +314,33 @@ private:
     QString m_replaySnapshotDir;
     QString m_replayExportPath;
     QProcess *m_replayExporter = nullptr;
+    QFutureWatcher<QStringList> *m_replaySnapshot = nullptr; // copy phase of a replay save
+    int m_replayWrap = 0;          // segment_wrap of the running ring
+    bool m_keepSession = false;    // this ring keeps the whole session
+    QString m_replayGame;          // see setReplayGame
+    QString m_sessionGame;
+    QString m_windowUuid;
+    // The replay watermark, rendered once per ring and cropped to its own
+    // pixels so each frame blends only that rectangle.
+    QImage m_replayStamp;
+    QPoint m_replayStampAt;
+    // setOwnFrame(), and the monitor a native full-screen stream shows.
+    QRect m_ownFrame;
+    QPointer<QScreen> m_ownFrameScreen;
+    QColor m_ownFrameAccent;
+    QColor m_ownFrameContrast;
+    QPointer<QScreen> m_castScreen;
+    QRectF ownFrameInEncoded(qreal *unit) const;
+    qint64 m_convertTotalMs = 0;   // recorded length, for conversion progress
+    qreal m_progressFrom = 0;      // where the next conversion pass starts on the bar
+    // Adds the ffmpeg "-progress pipe:1" reader to p (call before start): maps
+    // out_time over totalMs onto [from, to] of saveProgress. Errors stay on stderr.
+    void watchProgress(QProcess *p, qint64 totalMs, qreal from, qreal to);
+    void exportReplaySnapshot(const QString &snapshot, const QStringList &linked, bool session = false);
+    QString replayStem(const QString &kind, const QString &game) const;
+    // Clips: clipSaveDirectory, else recordings. Sessions: clipSessionDirectory,
+    // else the clips folder. The session ring sits hidden inside the latter.
+    static QString clipDirectory(const Settings *settings);
+    static QString sessionDirectory(const Settings *settings);
+    static QString sessionRingBase(const Settings *settings);
 };

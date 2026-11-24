@@ -4,6 +4,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QRegularExpression>
 #include <QFileSystemWatcher>
 #include <QImage>
 #include <QImageReader>
@@ -241,8 +242,10 @@ int HistoryStore::rowCount(const QModelIndex &parent) const
 
 QString HistoryStore::categoryOf(const Entry &e)
 {
-    if (e.origin == QLatin1String("replay"))
+    if (e.origin == QLatin1String("replay") || e.origin == QLatin1String("clip"))
         return QStringLiteral("replay");
+    if (e.origin == QLatin1String("session"))
+        return QStringLiteral("session");
     // Pre-0.7.1 entries have no origin: fall back to the name every replay
     // export is given (GifRecorder writes "Unisic_Replay_<stamp>.mp4"), so the
     // clips already in someone's history land in the right chip too.
@@ -386,8 +389,9 @@ bool HistoryStore::setFilePathById(quint64 id, const QString &filePath)
 {
     // The capture card's Save button persists an until-now unsaved capture:
     // point its own entry (by id — see setUrlById) at the file so path-keyed
-    // lookups (Delete, upload URL) find it.
-    if (id == 0 || filePath.isEmpty())
+    // lookups (Delete, upload URL) find it. An empty path detaches the file
+    // (moved to the trash after its upload), so pruneMissing keeps the link.
+    if (id == 0)
         return false;
     for (int i = 0; i < m_entries.size(); ++i) {
         if (m_entries[i].id == id) {
@@ -481,6 +485,34 @@ void HistoryStore::setFavorite(int row, bool favorite)
     m_entries[row].favorite = favorite;
     emit dataChanged(index(row), index(row), {FavoriteRole});
     persist();
+}
+
+QString HistoryStore::categoryOfFile(const QString &filePath) const
+{
+    for (const Entry &e : m_entries) {
+        if (e.filePath == filePath)
+            return categoryOf(e);
+    }
+    return {};
+}
+
+QString HistoryStore::gameThumbnail(const QString &tag) const
+{
+    if (tag.isEmpty())
+        return {};
+    static const QRegularExpression numbered(QStringLiteral("-\\d+$")); // "<stem>-2.mp4"
+    const QString suffix = QLatin1Char('_') + tag;
+    for (const Entry &e : m_entries) { // newest first
+        if (e.thumbPath.isEmpty())
+            continue;
+        if (e.origin != QLatin1String("replay") && e.origin != QLatin1String("session")
+            && e.origin != QLatin1String("clip"))
+            continue;
+        QString base = QFileInfo(e.filePath).completeBaseName();
+        if (base.endsWith(suffix) || base.remove(numbered).endsWith(suffix))
+            return e.thumbPath;
+    }
+    return {};
 }
 
 QVariantMap HistoryStore::entryById(quint64 id) const

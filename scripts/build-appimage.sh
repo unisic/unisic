@@ -139,7 +139,8 @@ fi
 # --- 5. LayerShellQt -> HAVE_LAYERSHELL: on-top notification card,
 #        overlay-over-fullscreen capture, preview pin. Noble's
 #        liblayershellqtinterface-dev is the Qt5 build (5.27), so this one is
-#        built against the aqt Qt. --------------------------------------------
+#        built against the aqt Qt. It links libOpenGL.so.0 like KF6GuiAddons
+#        does; step 8 removes that entry from the bundled copies (#141). ------
 if ! has_config LayerShellQtConfig.cmake; then
     cd "$CACHE"
     [ -d layer-shell-qt ] || git clone --depth 1 --branch v6.3.5 \
@@ -217,6 +218,19 @@ for lang in eng pol osd; do
     cp "$data" "$APPDIR/usr/share/tessdata/"
 done
 
+# ONNX Runtime for PaddleOCR and background removal, the pinned upstream build
+# from our unisic-models mirror (microsoft/onnxruntime answers 404)
+# (same steps as .github/workflows/appimage.yml). dlopen()ed, so linuxdeploy
+# cannot find it; BackgroundRemover::probe() looks in <bin>/../lib.
+ORT=1.31.1
+[ -s "$TOOLS/onnxruntime-$ORT.tgz" ] || curl -fL -o "$TOOLS/onnxruntime-$ORT.tgz" \
+    "https://github.com/unisic/unisic-models/releases/download/onnxruntime-$ORT/onnxruntime-linux-x64-$ORT.tgz"
+echo "8b5b171ec86280789101de7ad7c762b65054aa24790a057d7950b41c1d01a490  $TOOLS/onnxruntime-$ORT.tgz" | sha256sum -c -
+tar -xzf "$TOOLS/onnxruntime-$ORT.tgz" -C "$TOOLS"
+install -Dm755 "$TOOLS/onnxruntime-linux-x64-$ORT/lib/libonnxruntime.so.$ORT" "$APPDIR/usr/lib/libonnxruntime.so.$ORT"
+install -Dm644 "$TOOLS/onnxruntime-linux-x64-$ORT/LICENSE" "$APPDIR/usr/share/licenses/onnxruntime/LICENSE"
+install -Dm644 "$TOOLS/onnxruntime-linux-x64-$ORT/ThirdPartyNotices.txt" "$APPDIR/usr/share/licenses/onnxruntime/ThirdPartyNotices.txt"
+
 # --- 8. linuxdeploy -> AppImage ----------------------------------------------
 version_line="$(grep -m1 '^set(UNISIC_VERSION_STRING' "$SRC/CMakeLists.txt" || true)"
 if [ -n "$version_line" ]; then
@@ -289,8 +303,23 @@ rm -f ./*.AppImage   # drop any AppImage from a previous run in the work dir
     "${HELPER_ARGS[@]}" \
     --exclude-library "libwayland-client*" \
     --exclude-library "libwayland-cursor*" \
-    --exclude-library "libwayland-egl*" \
-    --output appimage
+    --exclude-library "libwayland-egl*"
+
+# Ubuntu ships libOpenGL.so.0 only in libopengl0, which a desktop install lacks
+# (#141), and the bundled KDE libraries list it without calling it: aqt's
+# libQt6Gui calls glGetString and glGetIntegerv but lists libGL.so.1, not
+# libOpenGL.so.0, so ld keeps libOpenGL.so.0 for them in anything that links
+# Qt6::Gui, --as-needed (Ubuntu's default) or not. libGL.so.1 serves those calls
+# at run time. Only the AppDir copies are patched, after unisic was linked: in
+# $PREFIX the entry is what keeps it out of unisic's own NEEDED list. A library
+# that does call gl* keeps it and fails the check below.
+while IFS= read -r lib; do
+    nm -D --undefined-only "$lib" | grep -E ' gl[A-Z]' >/dev/null && continue
+    patchelf --remove-needed libOpenGL.so.0 "$lib"
+done < <(find "$APPDIR/usr" -type f \( -name '*.so*' -o -path "$APPDIR/usr/bin/*" \) \
+    -exec sh -c 'readelf -d "$1" 2>/dev/null | grep -q "\[libOpenGL\.so\.0\]" && echo "$1"' _ {} \;)
+# A second run only packs: linuxdeploy never overwrites a file the AppDir has.
+"$TOOLS/linuxdeploy-x86_64.AppImage" --appdir "$APPDIR" --output appimage
 
 test -f "$APPDIR/usr/plugins/platforms/libqwayland-generic.so" \
     || { echo "ERROR: Qt wayland platform plugin was not deployed" >&2; exit 1; }
@@ -299,6 +328,8 @@ if find "$APPDIR/usr" -name 'libwayland-*' -print -quit | grep -q .; then
 fi
 test -s "$APPDIR/usr/share/tessdata/eng.traineddata" \
     || { echo "ERROR: tessdata went missing from the AppDir" >&2; exit 1; }
+test -s "$APPDIR/usr/lib/libonnxruntime.so.$ORT" \
+    || { echo "ERROR: ONNX Runtime went missing from the AppDir" >&2; exit 1; }
 test -f "$APPDIR/usr/qml/QtMultimedia/libquickmultimediaplugin.so" \
     || { echo "ERROR: QtMultimedia QML plugin was not deployed" >&2; exit 1; }
 test -f "$APPDIR/usr/plugins/multimedia/libffmpegmediaplugin.so" \
@@ -307,6 +338,9 @@ for tool in ffmpeg ffprobe wl-copy curl zip pw-record pw-dump pw-play grim; do
     test -x "$APPDIR/usr/bin/$tool" \
         || { echo "ERROR: $tool went missing from the AppDir" >&2; exit 1; }
 done
+gl="$(find "$APPDIR/usr" -type f \( -name '*.so*' -o -path "$APPDIR/usr/bin/*" \) \
+      -exec sh -c 'readelf -d "$1" 2>/dev/null | grep -q "\[libOpenGL\.so\.0\]" && echo "$1"' _ {} \;)"
+[ -z "$gl" ] || { echo "ERROR: these link libOpenGL.so.0 (#141): $gl" >&2; exit 1; }
 
 mkdir -p "$OUT"
 mv -f ./*.AppImage "$OUT"/

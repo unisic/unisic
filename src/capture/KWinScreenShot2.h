@@ -18,6 +18,8 @@ public:
     explicit KWinScreenShot2(QObject *parent = nullptr) : QObject(parent) {}
 
     static bool isAvailable();
+    // What isAvailable() reaches, for the Capture page's status line.
+    static QString backendName();
 
     void captureWorkspace(bool includeCursor, Callback cb);
     void captureScreen(const QString &screenName, bool includeCursor, Callback cb);

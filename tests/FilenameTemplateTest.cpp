@@ -20,6 +20,23 @@ private slots:
                  QStringLiteral("Unisic_2026-07-18_09-05-03"));
     }
 
+    void replayStampExpands()
+    {
+        const QDate d(2026, 7, 18);
+        QCOMPARE(FilenameTemplate::expandStamp(QStringLiteral("Unisic · %game% · %date%"),
+                                               QStringLiteral("Hades II"), d),
+                 QStringLiteral("Unisic · Hades II · 2026-07-18"));
+        QCOMPARE(FilenameTemplate::expandStamp(QStringLiteral("%date% - %game%"), QString(), d),
+                 QStringLiteral("2026-07-18"));
+        QCOMPARE(FilenameTemplate::expandStamp(QStringLiteral("Unisic · %game% · %date%"), QString(), d),
+                 QStringLiteral("Unisic · 2026-07-18"));
+        QCOMPARE(FilenameTemplate::expandStamp(QStringLiteral("%game%"), QString(), d), QString());
+        QCOMPARE(FilenameTemplate::expandStamp(QStringLiteral("Unisic"), QString(), d),
+                 QStringLiteral("Unisic"));
+        QCOMPARE(FilenameTemplate::expandStamp(QStringLiteral("https://twitch.tv/me - %game%"), QString(), d),
+                 QStringLiteral("https://twitch.tv/me"));
+    }
+
     void tokensExpand()
     {
         QCOMPARE(FilenameTemplate::expand(QStringLiteral("%date%"), 1, now),

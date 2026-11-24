@@ -8,6 +8,7 @@
 #include <QVector>
 #include <QFileDialog>
 #include <QDir>
+#include <QStandardPaths>
 
 EditorSession::EditorSession(AppContext *app, const QImage &image,
                              const QString &overwritePath, quint64 historyId, QObject *parent)
@@ -41,7 +42,28 @@ void EditorSession::bindCanvas(AnnotationCanvas *canvas)
                     canvas->setGlyphBoxes(words);
             });
         });
+        connect(m_canvas, &AnnotationCanvas::historyChanged, this, [this] { ++m_edits; });
     }
+}
+
+void EditorSession::removeBackground()
+{
+    if (!m_canvas)
+        return;
+    setStatus(tr("Removing the background…"), false);
+    QPointer<AnnotationCanvas> canvas(m_canvas);
+    const quint64 edits = m_edits;
+    m_app->backgroundRemover()->remove(m_canvas->rendered(), this,
+                                       [this, canvas, edits](const QImage &img, const QString &err) {
+        if (!err.isEmpty())
+            setStatus(err, false);
+        else if (!canvas || edits != m_edits)
+            setStatus(tr("The picture changed while the background was being removed - run it again"), false);
+        else {
+            canvas->replaceBaseFlattened(img);
+            setStatus(tr("Background removed"), false);
+        }
+    });
 }
 
 QImage EditorSession::composited() const
@@ -49,10 +71,22 @@ QImage EditorSession::composited() const
     return m_canvas ? m_canvas->rendered() : m_image;
 }
 
-void EditorSession::setStatus(const QString &s)
+void EditorSession::setStatus(const QString &s, bool exported)
 {
     m_status = s;
+    m_statusExported = exported;
     emit statusTextChanged();
+}
+
+QString EditorSession::fileName() const
+{
+    if (!m_overwritePath.isEmpty())
+        return QFileInfo(m_overwritePath).fileName();
+    if (m_historyId == 0)
+        return {};
+    const QString path = m_app->history()->entryById(m_historyId)
+                             .value(QStringLiteral("filePath")).toString();
+    return path.isEmpty() ? QString() : QFileInfo(path).fileName();
 }
 
 QString EditorSession::save()
@@ -79,7 +113,7 @@ QString EditorSession::save()
             }
             // Its own file, so its own tile - the original keeps the one it has.
             m_app->history()->addEntry(path, img, QStringLiteral("image"));
-            setStatus(tr("Saved as %1").arg(QFileInfo(path).fileName()));
+            setStatus(tr("Saved as %1").arg(QFileInfo(path).fileName()), true);
             return path;
         }
         // Encoded for the extension the file already has, so a .jpg keeps the
@@ -87,7 +121,7 @@ QString EditorSession::save()
         // ffmpeg instead of failing silently.
         if (m_app->overwriteImageFile(img, m_overwritePath)) {
             m_app->history()->refreshEntry(m_overwritePath, img);
-            setStatus(tr("Saved (overwrote %1)").arg(fi.fileName()));
+            setStatus(tr("Saved (overwrote %1)").arg(fi.fileName()), true);
             return m_overwritePath;
         }
         setStatus(tr("Save failed"));
@@ -107,7 +141,7 @@ QString EditorSession::save()
             m_app->history()->refreshEntry(path, img); // thumbnail of the EDITED image
         else
             m_app->history()->addEntry(path, img, QStringLiteral("image"));
-        setStatus(tr("Saved to %1").arg(path));
+        setStatus(tr("Saved to %1").arg(path), true);
     } else {
         setStatus(tr("Save failed"));
     }
@@ -135,7 +169,7 @@ QString EditorSession::saveAs(const QString &format)
         m_app->history()->refreshEntry(path, img);
     else
         m_app->history()->addEntry(path, img, QStringLiteral("image"));
-    setStatus(tr("Saved to %1").arg(path));
+    setStatus(tr("Saved to %1").arg(path), true);
     return path;
 }
 
@@ -181,14 +215,20 @@ QString EditorSession::saveAsDialog()
         m_app->history()->refreshEntry(path, img);
     else
         m_app->history()->addEntry(path, img, QStringLiteral("image"));
-    setStatus(tr("Saved to %1").arg(path));
+    setStatus(tr("Saved to %1").arg(path), true);
     return path;
 }
 
 void EditorSession::copyToClipboard()
 {
     m_app->copyImageToClipboard(composited());
-    setStatus(tr("Copied to clipboard"));
+    setStatus(tr("Copied to clipboard"), true);
+}
+
+void EditorSession::print()
+{
+    m_app->printImage(composited(), m_overwritePath.isEmpty() ? QStringLiteral("Unisic")
+                                                              : QFileInfo(m_overwritePath).fileName());
 }
 
 void EditorSession::upload()
@@ -200,7 +240,8 @@ void EditorSession::upload()
         if (!self)
             return;
         self->setStatus(error.isEmpty() ? tr("Uploaded, link copied: %1").arg(url)
-                                        : tr("Upload failed: %1").arg(error));
+                                        : tr("Upload failed: %1").arg(error),
+                        error.isEmpty());
     }, m_historyId); // one capture, one tile: the link lands on its own entry
 }
 
@@ -213,7 +254,15 @@ void EditorSession::startOcrPick()
 {
     if (!m_canvas)
         return;
+    m_scanPending = m_scanLeavesOcr = false;
+    // Words an auto-redact scan left for this same image are reused: running
+    // the model again costs seconds and gives the same boxes.
+    const bool reuse = !m_canvas->ocrMode() && m_canvas->hasOcrWords();
     m_canvas->setOcrMode(true);
+    if (reuse) {
+        setStatus(tr("Text recognized - click a line, double-click a word, or drag for letters · Ctrl+A all · Ctrl+C copy"));
+        return;
+    }
     m_canvas->setOcrBusy(true);
     setStatus(tr("Recognizing text…"));
     // OCR the clean base (annotations would interfere with recognition); word
@@ -230,6 +279,15 @@ void EditorSession::startOcrPick()
         if (!canvas || canvas->ocrSeq() != seq || !canvas->ocrMode())
             return;
         canvas->setOcrWords(words);
+        if (self && self->m_scanPending) {
+            self->m_scanPending = false;
+            if (self->m_scanLeavesOcr) {
+                self->m_scanLeavesOcr = false;
+                canvas->leaveOcrModeKeepingWords();
+            }
+            self->reportSensitive(err);
+            return;
+        }
         if (self) {
             if (!err.isEmpty())
                 self->setStatus(err);
@@ -251,7 +309,7 @@ void EditorSession::copyOcrSelection()
         return;
     }
     m_app->copyText(text);
-    setStatus(tr("Copied selected text"));
+    setStatus(tr("Copied selected text"), true);
 }
 
 void EditorSession::highlightOcrSelection()
@@ -272,22 +330,56 @@ void EditorSession::redactOcrSelection()
     setStatus(tr("Redacted selected text"));
 }
 
-void EditorSession::redactTextMatching(const QString &pattern)
+void EditorSession::scanSensitive()
 {
     if (!m_canvas)
         return;
-    const int n = m_canvas->redactTextMatching(pattern);
-    if (n < 0) {
-        setStatus(tr("Not a valid search pattern"));
+    if (m_canvas->ocrMode() ? !m_canvas->ocrBusy() : m_canvas->hasOcrWords()) {
+        reportSensitive(QString());
         return;
     }
-    if (n == 0) {
-        // Distinct from "nothing selected": the pattern ran and found nothing,
-        // which on a noisy recognition is the expected answer often enough that
-        // silence would read as a broken button.
-        setStatus(tr("Nothing matched"));
-        return;
-    }
-    setStatus(tr("Redacted %n match(es)", "", n));
+    const bool enter = !m_canvas->ocrMode();
+    if (enter)
+        startOcrPick();
+    m_scanPending = true;
+    m_scanLeavesOcr = enter;
 }
 
+void EditorSession::endSensitiveScan()
+{
+    m_scanPending = false;
+    if (m_scanLeavesOcr && m_canvas)
+        m_canvas->setOcrMode(false);
+    m_scanLeavesOcr = false;
+}
+
+void EditorSession::reportSensitive(const QString &ocrError)
+{
+    int n = 0;
+    const QVariantMap counts = m_canvas->sensitiveCounts();
+    for (const QVariant &c : counts)
+        n += c.toInt();
+    if (!ocrError.isEmpty())
+        setStatus(ocrError);
+    else if (n > 0)
+        setStatus(tr("Found %n item(s) to cover", "", n));
+    else
+        setStatus(tr("Nothing sensitive found"));
+}
+
+void EditorSession::insertImageFile(qreal imgX, qreal imgY)
+{
+    if (!m_canvas)
+        return;
+    // The dialog spins an event loop: the editor may close under it.
+    QPointer<EditorSession> self(this);
+    QPointer<AnnotationCanvas> canvas(m_canvas);
+    const QString start = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation);
+    const QString path = QFileDialog::getOpenFileName(
+        nullptr, tr("Insert a picture"), start.isEmpty() ? QDir::homePath() : start,
+        tr("Images (*.png *.jpg *.jpeg *.webp *.bmp *.gif *.svg)"));
+    if (path.isEmpty() || !self || !canvas)
+        return;
+    if (!canvas->insertImageFile(path, imgX, imgY))
+        m_app->showToast(tr("Could not open %1 as a picture").arg(QFileInfo(path).fileName()), true);
+}

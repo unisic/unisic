@@ -66,7 +66,7 @@ void CursorOverlayPainter::reset()
     // and re-decoding them costs a frame with no pointer on it.
 }
 
-void CursorOverlayPainter::drawVectorPointer(QPainter &p) const
+void CursorOverlayPainter::drawVectorPointer(QPainter &p)
 {
     // Unisic's own pointer: chosen deliberately for a big cursor (a scaled
     // bitmap shows its pixels), and used as the fallback when the compositor

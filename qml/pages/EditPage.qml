@@ -248,25 +248,19 @@ Item {
                 }
             }
 
-            // Stacked like the frame rate on the Record page: two segments
-            // beside the label would cut the German "Bedienfelder" short.
-            Column {
-                width: parent.width
-                spacing: 8
-                Text {
-                    id: layoutLabel
-                    text: qsTranslate("SettingsPage", "Layout")
-                    color: Theme.textPrimary
-                    font.pixelSize: 13
-                    font.weight: Font.Medium
-                    Accessible.ignored: true
-                }
-                SegmentedControl {
-                    width: parent.width
-                    accessibleName: layoutLabel.text
-                    labels: [qsTranslate("SettingsPage", "Panels"), qsTranslate("SettingsPage", "Floating")]
-                    currentIndex: App.settings.editorLayout === "floating" ? 1 : 0
-                    onPicked: (i) => App.settings.editorLayout = (i === 1 ? "floating" : "panels")
+            // A list, not segments: four segments in this column cut every
+            // label but English short.
+            InspectorRow {
+                id: layoutRow
+                label: qsTranslate("SettingsPage", "Layout")
+                UComboBox {
+                    readonly property var ids: ["panels", "top", "bottom", "floating"]
+                    width: 150
+                    accessibleName: layoutRow.label
+                    model: [qsTranslate("SettingsPage", "Panels"), qsTranslate("SettingsPage", "Top bar"),
+                            qsTranslate("SettingsPage", "Bottom bar"), qsTranslate("SettingsPage", "Floating")]
+                    currentIndex: Math.max(0, ids.indexOf(App.settings.editorLayout))
+                    onActivated: (i) => App.settings.editorLayout = ids[i]
                 }
             }
 

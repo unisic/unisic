@@ -171,7 +171,7 @@ Item {
                 ld.touched = true
         }
     }
-    // ---- "On this page": the open pane's groups, and the one in view ----
+    // ---- the open category's groups in the rail, and the one in view ----
     // [{ title, item }] in pane order, rebuilt when the pane changes. Only the
     // titles visible at that moment: a group that appears later (a gate that
     // flips while the pane is open) shows up on the next visit.
@@ -841,7 +841,7 @@ Item {
     // A group heading in the Capture page's language (SectionLabel). Kept as
     // its own name so the 34 headings below did not each need an edit.
     component SectionTitle: SectionLabel {
-        readonly property bool isSectionTitle: true   // marker for the "On this page" list
+        readonly property bool isSectionTitle: true   // marker for the rail's group list
         Accessible.role: Accessible.Heading
         Accessible.name: text
         // Capture keeps 12 px between a label and its tiles; the section
@@ -923,7 +923,7 @@ Item {
         property string iconName: ""
         property string label: ""
         property bool active: false
-        // A group of the open category ("On this page"): no icon, its label
+        // A group of the open category, listed under it: no icon, its label
         // under the category labels, the active one marked by an accent bar.
         property bool section: false
         signal clicked()
@@ -1141,38 +1141,35 @@ Item {
             spacing: 2
             Repeater {
                 model: page.tabNames
-                delegate: NavItem {
+                // A category and, while it is open, its groups right under
+                // it (the user's call: they unfold from the tile). Picking a
+                // category below an open one moves it up by that list's
+                // height; the list is short and the move is the click's result.
+                delegate: Column {
+                    id: navEntry
                     required property int index
                     required property string modelData
-                    label: modelData
-                    iconName: page.tabIcons[index]
-                    active: page.tab === index && !page.searchActive
-                    // Picking a category is a navigation intent — leave search.
-                    onClicked: { page.searchQuery = ""; page.tab = index }
-                }
-            }
-            // The open category's groups, BELOW every category so a category
-            // never moves when another one is picked: a list expanding under
-            // the active category would slide the ones beneath it away from
-            // the pointer mid-click.
-            Item { width: 1; height: page.sections.length > 0 ? Theme.spacingM : 0 }
-            SectionLabel {
-                visible: page.sections.length > 0
-                leftPadding: 12
-                bottomPadding: 4
-                text: qsTr("On this page")
-                Accessible.role: Accessible.Heading
-                Accessible.name: text
-            }
-            Repeater {
-                model: page.sections
-                delegate: NavItem {
-                    required property int index
-                    required property var modelData
-                    section: true
-                    label: modelData.title
-                    active: page.currentSection === index && !page.searchActive
-                    onClicked: page.scrollToSection(index)
+                    readonly property bool open: page.tab === index && !page.searchActive
+                    width: parent.width
+                    spacing: 2
+                    NavItem {
+                        label: navEntry.modelData
+                        iconName: page.tabIcons[navEntry.index]
+                        active: navEntry.open
+                        // Picking a category is a navigation intent — leave search.
+                        onClicked: { page.searchQuery = ""; page.tab = navEntry.index }
+                    }
+                    Repeater {
+                        model: navEntry.open ? page.sections : []
+                        delegate: NavItem {
+                            required property int index
+                            required property var modelData
+                            section: true
+                            label: modelData.title
+                            active: page.currentSection === index
+                            onClicked: page.scrollToSection(index)
+                        }
+                    }
                 }
             }
         }
@@ -2236,7 +2233,7 @@ Item {
                         label: qsTr("MP4 encoder")
                         icon: "line-cpu"
                         help: qsTr("Automatic picks a working hardware encoder; it is much faster than software.")
-                        helpDetail: qsTr("Automatic uses VAAPI or NVENC when they actually encode on this machine, and falls back to software otherwise - a hardware encoder that is merely listed but broken is skipped. Hardware encoding accelerates MP4 (H.264); WebM uses AV1 on NVIDIA GPUs with an AV1 encoder (RTX 40 series and newer) and software VP9 everywhere else.")
+                        helpDetail: qsTr("Automatic uses VAAPI or NVENC when they actually encode on this machine, and falls back to software otherwise - a hardware encoder that is merely listed but broken is skipped. Hardware encoding accelerates MP4 (H.264); WebM uses AV1 on NVIDIA GPUs with an AV1 encoder (RTX 40 series and newer) and software VP9 everywhere else. Instant replay clips are encoded the same way and, when neither works, also try AMD AMF and Intel Quick Sync.")
                         UComboBox {
                             width: 240
                             property var ids: ["auto", "software", "vaapi", "nvenc"]
@@ -2726,6 +2723,63 @@ Item {
                         USwitch { checked: App.settings.clipMicrophone; onToggled: (c) => App.settings.clipMicrophone = c }
                     }
                     SettingRow {
+                        id: clipSystemVolumeRow
+                        label: qsTr("System audio volume: %1 %").arg(App.settings.clipSystemVolume)
+                        icon: "line-volume"
+                        help: qsTr("How loud the game's sound is in a clip. Applies when instant replay next starts.")
+                        available: App.settings.clipSystemAudio
+                        hint: qsTr("Turn on Record system audio first.")
+                        USlider {
+                            width: 200
+                            from: 0; to: 200; stepSize: 5
+                            enabled: clipSystemVolumeRow.available
+                            accessibleName: clipSystemVolumeRow.label
+                            value: App.settings.clipSystemVolume
+                            onMoved: (v) => App.settings.clipSystemVolume = Math.round(v)
+                        }
+                    }
+                    SettingRow {
+                        id: clipMicVolumeRow
+                        label: qsTr("Microphone volume: %1 %").arg(App.settings.clipMicrophoneVolume)
+                        icon: "line-mic"
+                        help: qsTr("How loud your voice is in a clip. Applies when instant replay next starts.")
+                        available: App.settings.clipMicrophone
+                        hint: qsTr("Turn on Record microphone first.")
+                        USlider {
+                            width: 200
+                            from: 0; to: 200; stepSize: 5
+                            enabled: clipMicVolumeRow.available
+                            accessibleName: clipMicVolumeRow.label
+                            value: App.settings.clipMicrophoneVolume
+                            onMoved: (v) => App.settings.clipMicrophoneVolume = Math.round(v)
+                        }
+                    }
+                    // Owned by the page, and stopped when the pane is left.
+                    MicMonitor {
+                        id: micMonitor
+                        device: App.settings.microphoneSource
+                        volume: App.settings.clipMicrophoneVolume
+                    }
+                    SettingRow {
+                        id: micMonitorRow
+                        label: qsTr("Listen to yourself")
+                        icon: "line-mic"
+                        help: micMonitor.error !== "" ? qsTr("Could not play the microphone: %1").arg(micMonitor.error)
+                              : qsTr("Plays your microphone back at the volume above, so you hear what a clip will record. Use headphones.")
+                        helpDetail: qsTr("Through speakers the microphone picks itself up and whistles. Stops when you leave this page.")
+                        available: micMonitor.available
+                        hint: qsTr("Not available on this system.")
+                        onVisibleChanged: if (!visible) micMonitor.stop()
+                        UButton {
+                            compact: true
+                            variant: micMonitor.running ? "filled" : "tonal"
+                            iconName: micMonitor.running ? "stop" : "play"
+                            text: micMonitor.running ? qsTr("Stop") : qsTr("Listen")
+                            enabled: micMonitorRow.available
+                            onClicked: micMonitor.running ? micMonitor.stop() : micMonitor.start()
+                        }
+                    }
+                    SettingRow {
                         id: clipKeysRow
                         label: qsTr("Show pressed keys")
                         icon: "line-keyboard"
@@ -2958,12 +3012,13 @@ Item {
                         label: qsTr("Layout")
                         icon: "line-layout"
                         help: qsTr("How the editor arranges its tools around the image.")
-                        helpDetail: qsTr("“Panels” puts the tools in a rail on the left and the active tool's options in a column on the right. “Floating” gives the image the whole window, with the same controls in pills over its edges. Open editors switch at once.")
+                        helpDetail: qsTr("“Panels” puts the tools in a rail on the left and the active tool's options in a column on the right. “Top bar” keeps the rail and puts the options in a bar across the top, like Photoshop. “Bottom bar” keeps the options column and floats the tools in a bar over the bottom of the image. “Floating” gives the image the whole window, with the same controls in pills over its edges. Open editors switch at once.")
                         UComboBox {
+                            readonly property var ids: ["panels", "top", "bottom", "floating"]
                             width: 220
-                            model: [qsTr("Panels"), qsTr("Floating")]
-                            currentIndex: App.settings.editorLayout === "floating" ? 1 : 0
-                            onActivated: (i) => App.settings.editorLayout = (i === 1 ? "floating" : "panels")
+                            model: [qsTr("Panels"), qsTr("Top bar"), qsTr("Bottom bar"), qsTr("Floating")]
+                            currentIndex: Math.max(0, ids.indexOf(App.settings.editorLayout))
+                            onActivated: (i) => App.settings.editorLayout = ids[i]
                         }
                     }
                     SettingRow {

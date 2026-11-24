@@ -576,6 +576,49 @@ Window {
                 }
             }
 
+            // Instant replay pill. The ring has its own recorder, so the
+            // recording pill above no longer covers it. Last of the three, so
+            // a recording or a save appearing never moves it; its dot is
+            // steady, because an automatic ring runs for as long as the app
+            // does and a blink would animate all that time.
+            Rectangle {
+                visible: App.instantReplayActive
+                width: clipRow.width + Theme.spacingS + 4
+                height: 30
+                radius: Theme.radiusS
+                anchors.verticalCenter: parent.verticalCenter
+                color: Theme.alpha(Theme.danger, 0.12)
+                border.width: 1
+                border.color: Theme.alpha(Theme.danger, 0.28)
+
+                Row {
+                    id: clipRow
+                    x: Theme.spacingS + 2
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: Theme.spacingS
+                    Rectangle {
+                        width: 8; height: 8; radius: 4
+                        color: Theme.danger
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    Text {
+                        text: qsTr("Clips")
+                        color: Theme.textPrimary
+                        font.pixelSize: Theme.fontS
+                        font.weight: Font.DemiBold
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    UIconButton {
+                        iconName: "stop"
+                        iconSize: 13
+                        width: 26; height: 24
+                        anchors.verticalCenter: parent.verticalCenter
+                        accessibleName: qsTr("Stop replay")
+                        onClicked: App.stopInstantReplay()
+                    }
+                }
+            }
+
             Item { width: Theme.spacingS; height: 1; visible: !App.settings.useSystemDecoration }
 
             UIconButton {

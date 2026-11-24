@@ -53,6 +53,11 @@ public:
     // stream itself.
     static QList<AppTarget> applicationTargets(const QStringList &apps);
 
+    // ffmpeg arguments that play the microphone `device` (as for open()) back
+    // through the default output at `gain`, for MicMonitor. Empty where this
+    // ffmpeg has no audio output (Windows).
+    static QStringList monitorArgs(const QString &device, double gain);
+
     // The audio stack, so the UI can word its hints for it: "pipewire" or
     // "wasapi".
     static QString backend();

@@ -390,8 +390,6 @@ AppContext::AppContext(QObject *parent)
     });
     connect(m_replay, &GifRecorder::failed, this, [this, dropHold](const QString &e) {
         m_replayStopping = false;
-        if (m_countdownTarget == m_replay && !recording())
-            hideRecordBorder(); // its countdown disc
         dropHold(m_replay);
         emit recordingChanged();
         if (e != QLatin1String("cancelled"))
@@ -1923,8 +1921,8 @@ void AppContext::startInstantReplay()
 {
     if (instantReplayActive() || m_replayStarting) return;
     m_replayAuto = false;
-    // Beside a running recording: no countdown or start cue, which would
-    // take over that recording's frame and play into its sound.
+    // Beside a running recording: no start cue, which would play into that
+    // recording's sound.
     if (recording()) {
         startReplayRing(false);
         return;
@@ -2120,7 +2118,9 @@ void AppContext::startRecorderCountdown(std::function<void(bool)> begin, GifReco
         target = m_recorder;
     // The replay ring rolls open-ended: no do-not-disturb for all of it.
     const bool isolate = target == m_recorder;
-    const int secs = qBound(0, m_settings->recordCountdownSec(), 10);
+    // No countdown for the ring either: it keeps what already happened, so
+    // there is no first frame to get ready for. Its start cue stays.
+    const int secs = isolate ? qBound(0, m_settings->recordCountdownSec(), 10) : 0;
     const bool hasStartCue = m_settings->recordStartSound() != QLatin1String("off")
                              && m_settings->soundVolume() > 0;
     // No countdown AND no start cue: nothing to sequence - record immediately.

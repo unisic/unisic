@@ -166,6 +166,7 @@ qt_add_executable(unisic
     src/record/GameDetector.h src/record/GameDetector.cpp src/record/GameDetectorSteam.cpp src/record/SteamLaunch.h src/record/GameMatch.h
     src/record/PwDump.h src/record/PwDump.cpp
     src/record/AudioCapture.h src/record/AudioCapture.cpp
+    src/record/MicMonitor.h src/record/MicMonitor.cpp
     src/record/VideoQuality.h
     src/record/MatroskaRawStream.h
     src/record/CursorOverlayPainter.h src/record/CursorOverlayPainter.cpp

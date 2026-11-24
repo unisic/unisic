@@ -19,8 +19,8 @@ Window {
     minimumWidth: 820
     // Panels: tall enough for one column of tools under the header, short of
     // the screen: on a low one the rail takes a second column instead.
-    // Floating: the tools are a row, so any sensible height holds them.
-    minimumHeight: Math.min(floatingLayout ? 480 : topBar.rowHeight + toolRail.oneColumn,
+    // Floating and bottom: the tools are a row, so any sensible height holds them.
+    minimumHeight: Math.min(floatingLayout || bottomTools ? 480 : belowHeader + toolRail.oneColumn,
                             Math.floor(Screen.height * 0.9))
     // AppContext::openEditor centres and shows the window once it exists. Shown from here,
     // it would map before Component.onCompleted hands the canvas its image, at
@@ -50,14 +50,25 @@ Window {
 
     // Settings > Editor > Layout. "panels": the tools in a rail on the left,
     // the active tool's options in an inspector column on the right.
-    // "floating": the image fills the window and the same controls float over
-    // it in pills. Every control is the same item in both, only placed
-    // differently, so shortcuts, focus order and the smoke test do not care.
-    readonly property bool floatingLayout: (layoutOverride !== "" ? layoutOverride
-                                                                  : App.settings.editorLayout) === "floating"
-    // The smoke test lays an open editor out both ways without touching the
+    // "top": the same, with the options in a bar across the top instead, like
+    // Photoshop's. "bottom": the same, with the tools in a floating pill over
+    // the bottom of the image instead of the rail. "floating": the image fills
+    // the window and the same controls float over it in pills. Every control
+    // is the same item in all four, only placed differently, so shortcuts,
+    // focus order and the smoke test do not care.
+    readonly property string layoutName: layoutOverride !== "" ? layoutOverride : App.settings.editorLayout
+    readonly property bool floatingLayout: layoutName === "floating"
+    readonly property bool topOptions: layoutName === "top"
+    readonly property bool bottomTools: layoutName === "bottom"
+    // The smoke test lays an open editor out every way without touching the
     // saved setting.
     property string layoutOverride: ""
+    // Top: the options bar under the header is one row (44 px with the
+    // labelled stroke combo) for the layout, so picking a tool never moves the
+    // rail or the image; rows a narrow window wraps the options into grow the
+    // bar over the canvas.
+    readonly property int optionsRowHeight: 52
+    readonly property int belowHeader: topBar.rowHeight + (topOptions ? optionsRowHeight : 0)
     readonly property int inspectorWidth: 320
     // Floating: a pill holds one row of 44 px chips, keeps pillEdge from the
     // window's edges and pillGap from the next pill.
@@ -72,9 +83,9 @@ Window {
     // (see railWidth): in floating, a row of pills above and below plus the
     // tools on a row of their own, as on a narrow window.
     readonly property int chromeWidth: floatingLayout ? 2 * fitPad
-                                                      : 2 * fitPad + railWidth + inspectorWidth + 1
+                                                      : 2 * fitPad + (bottomTools ? 0 : railWidth) + inspectorWidth + 1
     readonly property int chromeHeight: floatingLayout ? 2 * pillEdge + 3 * pillH + 3 * pillGap
-                                                       : 2 * fitPad + topBar.rowHeight + statusBar.height
+                                                       : fitPad + canvasFlick.padBottom + belowHeader + statusBar.height
     // The image size, or the last export's or OCR's result (OCR also names
     // the selection gestures here): the status line in panels, the line under
     // the title in floating.
@@ -102,7 +113,7 @@ Window {
         const t = ToolCatalog.toolByEnum(canvas.tool)
         if (t && canvas.tool !== AnnotationCanvas.None)
             return { name: t.label, sub: qsTr("Active tool"), icon: shapeIcon(canvas.tool) }
-        return { name: qsTr("No tool"), sub: qsTr("Pick a tool on the left"), icon: "line-image" }
+        return { name: qsTr("No tool"), sub: bottomTools ? qsTr("Pick a tool below the image") : qsTr("Pick a tool on the left"), icon: "line-image" }
     }
 
     // The save formats: the split button's menu in panels, the top of
@@ -902,6 +913,12 @@ Window {
             id: toolRail
             objectName: "editorToolRail"
             panelColor: Theme.background
+            // Bottom: every tool in a pill centred over the bottom of the
+            // stage, wrapping into a second row only when the stage is too
+            // narrow for one.
+            floating: editorWindow.floatingLayout || editorWindow.bottomTools
+            readonly property real maxRowW: editorWindow.bottomTools ? inspector.x - 2 * editorWindow.pillEdge
+                                                                     : parent.width - 2 * editorWindow.pillEdge
             // Floating: one row with the title and the exports when it fits
             // between them, centred on a row of its own under them when not.
             readonly property real naturalW: editorWindow.flowWidth(toolFlow, 100000) + 2 * editorWindow.pillPad
@@ -909,12 +926,14 @@ Window {
             readonly property real rowRight: actionsPill.x - editorWindow.pillGap
             readonly property bool inTopRow: floating && rowRight - rowLeft >= naturalW
             x: !floating ? 0
+               : editorWindow.bottomTools ? Math.round((inspector.x - width) / 2)
                : inTopRow ? Math.round(rowLeft + (rowRight - rowLeft - width) / 2)
                : Math.round((parent.width - width) / 2)
-            y: !floating ? topBar.height
+            y: !floating ? editorWindow.belowHeader
+               : editorWindow.bottomTools ? statusBar.y - editorWindow.pillEdge - height
                : inTopRow ? editorWindow.pillEdge
                : editorWindow.pillEdge + editorWindow.pillH + editorWindow.pillGap
-            width: floating ? Math.min(naturalW, parent.width - 2 * editorWindow.pillEdge)
+            width: floating ? Math.min(naturalW, maxRowW)
                             : Math.max(editorWindow.railWidth, toolFlow.width + 2 * editorWindow.railPad)
             height: floating ? toolFlow.implicitHeight + 2 * editorWindow.pillPad : parent.height - y
             // Over the stage, which fills the window in floating.
@@ -949,7 +968,7 @@ Window {
                 y: toolRail.floating ? editorWindow.pillPad : 8
                 width: toolRail.floating
                        ? Math.min(editorWindow.flowWidth(toolFlow, 100000),
-                                  editorWindow.width - 2 * editorWindow.pillEdge - 2 * editorWindow.pillPad)
+                                  toolRail.maxRowW - 2 * editorWindow.pillPad)
                        : implicitWidth
                 // Never undefined: resetting a size mid-flip left the old
                 // column's height on the row (a binding loop on the rail).
@@ -1190,13 +1209,14 @@ Window {
             Pill {
                 id: ctxPanel
                 objectName: "editorToolOptions"
-                parent: floating ? shortcutScope : inspectorBody
+                parent: floating ? shortcutScope : editorWindow.topOptions ? optionsSlot : inspectorBody
                 // Props follow the active tool, or the SELECTED shape when
                 // the Edit tool is active.
                 readonly property var ctxProps: ToolCatalog.contextProps(canvas.tool, canvas.selectedAnnotTool)
                 readonly property real minX: wholePill.x + wholePill.width + editorWindow.pillGap
                 readonly property real maxX: statusBar.x - editorWindow.pillGap
                 readonly property real maxW: floating ? maxX - minX - 2 * editorWindow.pillPad
+                                                      : editorWindow.topOptions ? optionsSlot.width
                                                       : inspectorBody.width
                 // Auto-redact where people go to hide text by hand: the options
                 // of Blur and Pixelate.
@@ -1211,7 +1231,8 @@ Window {
                 // reachable).
                 x: floating ? Math.max(minX, Math.min(Math.round((parent.width - width) / 2), maxX - width)) : 0
                 y: floating ? parent.height - editorWindow.pillEdge - height : 0
-                width: floating ? ctxFlow.width + 2 * editorWindow.pillPad : parent.width
+                width: floating ? ctxFlow.width + 2 * editorWindow.pillPad
+                       : editorWindow.topOptions ? ctxFlow.width : parent.width
                 height: floating ? Math.max(editorWindow.pillH, ctxFlow.height + 2 * editorWindow.pillPad)
                                  : ctxFlow.height
                 z: 20
@@ -1232,8 +1253,10 @@ Window {
                     // Floating: the widest line it lays out once wrapped
                     // evenly into the room it has, never the whole room.
                     // Panels: the inspector's width, filled line by line.
+                    // Top: what one line needs, up to the bar's width.
                     width: ctxPanel.floating
                            ? editorWindow.flowWidth(ctxFlow, editorWindow.flowBalanced(ctxFlow, ctxPanel.maxW))
+                           : editorWindow.topOptions ? editorWindow.flowWidth(ctxFlow, ctxPanel.maxW)
                            : ctxPanel.maxW
                     spacing: 6
 
@@ -1279,7 +1302,7 @@ Window {
                         id: propsBar
                         objectName: "editorPropsBar"
                         visible: !canvas.ocrMode && ctxPanel.ctxProps.length > 0
-                        variant: ctxPanel.floating ? "pill" : "inspector"
+                        variant: ctxPanel.floating ? "pill" : editorWindow.topOptions ? "bar" : "inspector"
                         canvas: canvas
                         props: ctxPanel.ctxProps
                         recentColors: editorWindow.recentList()
@@ -1684,6 +1707,44 @@ Window {
             }
         }
 
+        // Top: the options bar under the header, the whole window wide. The
+        // layout counts it as one row (optionsRowHeight); wrapped rows grow
+        // its background over the canvas.
+        Rectangle {
+            id: optionsBar
+            objectName: "editorOptionsBar"
+            visible: editorWindow.topOptions
+            y: topBar.height
+            width: parent.width
+            height: Math.max(editorWindow.optionsRowHeight, ctxPanel.height + 8)
+            color: Theme.surface
+            z: 30
+            DragArea { anchors.fill: parent }
+            Rectangle {
+                y: parent.height - 1
+                width: parent.width; height: 1
+                color: editorWindow.hairline
+            }
+            Item {
+                id: optionsSlot
+                x: 12
+                y: Math.max(4, Math.round((editorWindow.optionsRowHeight - ctxPanel.height) / 2))
+                width: parent.width - 2 * 12
+                height: ctxPanel.height
+            }
+            Text {
+                visible: !ctxPanel.shown
+                x: 16
+                width: parent.width - 2 * 16
+                height: editorWindow.optionsRowHeight
+                verticalAlignment: Text.AlignVCenter
+                elide: Text.ElideRight
+                text: qsTr("Pick a tool to see its options here.")
+                color: Theme.textTertiary
+                font.pixelSize: Theme.fontS
+            }
+        }
+
         // Panels: what is picked and its options, the shapes on the image,
         // the whole-image actions.
         Rectangle {
@@ -1691,7 +1752,7 @@ Window {
             objectName: "editorInspector"
             visible: !editorWindow.floatingLayout
             x: parent.width - width
-            y: topBar.height
+            y: editorWindow.belowHeader
             width: editorWindow.inspectorWidth
             height: parent.height - y
             color: Theme.surface
@@ -1762,8 +1823,9 @@ Window {
                     }
 
                     Item {
+                        visible: !editorWindow.topOptions
                         width: parent.width
-                        height: propsColumn.height + 2 * 16 + 1
+                        height: visible ? propsColumn.height + 2 * 16 + 1 : 0
                         Column {
                             id: propsColumn
                             x: 20; y: 16
@@ -1903,7 +1965,7 @@ Window {
                                         }
                                         Rectangle {
                                             id: shapeChip
-                                            x: parent.width - 8 - width
+                                            x: shapeTrash.x - 8 - width
                                             anchors.verticalCenter: parent.verticalCenter
                                             width: 10; height: 10; radius: 3
                                             visible: shapeRow.modelData.color.a > 0
@@ -1915,6 +1977,23 @@ Window {
                                             hoverEnabled: true
                                             cursorShape: Qt.PointingHandCursor
                                             onClicked: (m) => shapeRow._activate((m.modifiers & (Qt.ControlModifier | Qt.ShiftModifier)) !== 0)
+                                        }
+                                        // Always shown, not on hover: deleting a shape from the
+                                        // list is one click, without selecting it first.
+                                        UIconButton {
+                                            id: shapeTrash
+                                            x: parent.width - 4 - width
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            width: 26; height: 26
+                                            radius: 6
+                                            iconName: "line-trash"
+                                            iconSize: 14
+                                            //: Tooltip and spoken name of a shape's delete button in the editor's list. %1 is the shape's name.
+                                            tooltip: qsTr("Delete %1").arg(shapeRow.modelData.name)
+                                            onClicked: {
+                                                canvas.selectAnnotIndex(shapeRow.modelData.index, false)
+                                                canvas.removeSelectedAnnot()
+                                            }
                                         }
                                         activeFocusOnTab: true
                                         Keys.onSpacePressed: (e) => UKeys.activate(e, function () { shapeRow._activate(false) })
@@ -1943,8 +2022,8 @@ Window {
         Rectangle {
             id: stage
             readonly property bool floating: editorWindow.floatingLayout
-            x: floating ? 0 : toolRail.width
-            y: floating ? 0 : topBar.height
+            x: floating || editorWindow.bottomTools ? 0 : toolRail.width
+            y: floating ? 0 : editorWindow.belowHeader
             width: floating ? parent.width : inspector.x - x
             height: floating ? parent.height : statusBar.y - y
             color: Theme.backgroundDeep
@@ -1993,8 +2072,11 @@ Window {
                 readonly property real padSide: editorWindow.fitPad
                 readonly property real padTop: stage.floating
                     ? toolRail.y + toolRail.height + editorWindow.pillGap : padSide
+                // Bottom: above the tools, whose height follows the
+                // window's width alone, never the tool.
                 readonly property real padBottom: stage.floating
-                    ? editorWindow.pillEdge + editorWindow.pillH + editorWindow.pillGap : padSide
+                    ? editorWindow.pillEdge + editorWindow.pillH + editorWindow.pillGap
+                    : editorWindow.bottomTools ? editorWindow.pillEdge + toolRail.height + editorWindow.pillGap : padSide
                 readonly property real availW: Math.max(1, width - 2 * padSide)
                 readonly property real availH: Math.max(1, height - padTop - padBottom)
                 // Floating: how far wrapped tool options reach above the
@@ -2483,9 +2565,10 @@ Window {
             id: statusBar
             objectName: "editorStatusBar"
             panelColor: Theme.background
-            x: floating ? parent.width - width - editorWindow.pillEdge : toolRail.width
+            readonly property real startX: editorWindow.bottomTools ? 0 : toolRail.width
+            x: floating ? parent.width - width - editorWindow.pillEdge : startX
             y: floating ? parent.height - height - editorWindow.pillEdge : parent.height - height
-            width: floating ? zoomRow.width + 2 * editorWindow.pillPad : inspector.x - toolRail.width
+            width: floating ? zoomRow.width + 2 * editorWindow.pillPad : inspector.x - startX
             height: floating ? editorWindow.pillH : 40
             z: 20
 

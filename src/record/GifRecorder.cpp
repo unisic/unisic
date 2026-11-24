@@ -64,6 +64,26 @@ QString GifRecorder::resolvedVideoEncoder() const
     return QStringLiteral("software");
 }
 
+// The replay ring's hardware H.264 encoder ("nvenc", "vaapi", "amf", "qsv"),
+// or empty for software. The ring encodes for as long as it runs, so "auto"
+// takes the first that really encodes here: NVIDIA, then VAAPI (AMD and Intel
+// on Linux), then AMF (AMD on Windows), then Quick Sync (Intel on Windows).
+// An explicit NVENC/VAAPI choice is used only when it encodes too: a listed
+// but broken encoder would stop the ring, where x264 keeps it running.
+static constexpr const char *kReplayEncoders[] = {"nvenc", "vaapi", "amf", "qsv"};
+static QString replayHardwareEncoder(const QString &choice)
+{
+    if (choice == QLatin1String("nvenc") || choice == QLatin1String("vaapi"))
+        return FfmpegUtil::hardwareEncoderWorks(choice) ? choice : QString();
+    if (choice != QLatin1String("auto"))
+        return {};
+    for (const char *id : kReplayEncoders) {
+        if (FfmpegUtil::hardwareEncoderWorks(QLatin1String(id)))
+            return QLatin1String(id);
+    }
+    return {};
+}
+
 GifRecorder::GifRecorder(Settings *settings, QObject *parent)
     : QObject(parent), m_settings(settings)
 {
@@ -222,13 +242,17 @@ void GifRecorder::start(Output output, SourceType source, const QRect &cropPhysi
     // start(), so the global pool never holds process exit for the probe.
     if (!m_probeWarmed) {
         m_probeWarmed = true;
-        m_probeWatcher.setFuture(QtConcurrent::run([] {
+        m_probeWatcher.setFuture(QtConcurrent::run([output] {
             (void)FfmpegUtil::encoders();
             (void)FfmpegUtil::supportsShortestBufDuration();
             (void)FfmpegUtil::inputThreadQueueSize(2);
-            // The replay ring asks this on the GUI thread (beginEncoding); a
-            // cold probe there would block it for up to 8 s.
-            (void)FfmpegUtil::hardwareEncoderWorks(QStringLiteral("nvenc"));
+            // The replay ring asks these on the GUI thread (beginEncoding); a
+            // cold probe there would block it for up to 8 s each. All of
+            // them, so a later encoder setting finds its answer cached.
+            if (output == Replay) {
+                for (const char *id : kReplayEncoders)
+                    (void)FfmpegUtil::hardwareEncoderWorks(QLatin1String(id));
+            }
         }));
     }
     m_state = Starting;
@@ -1057,33 +1081,59 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
     // Applied to the video input before the encoder, through filter_complex.
     QString videoFilter;
     if (m_output == Replay) {
-        // The ring encodes all the time it runs, so it goes to NVENC whenever
-        // the encoder setting allows it ("auto" only once the probe warmed in
-        // start() says it encodes). NVENC takes the BGRx frames as they are and
-        // converts them on the GPU: measured on 10 s of 2560x1440 at 45 fps,
-        // 3.1 s of CPU against libx264 ultrafast's 21.4 s, at the same size.
-        // Its conversion is BT.601 limited range (the same pixels swscale
-        // gives libx264), but the stream would be tagged full-range GBR from
-        // the input, so setparams tags what it really is. VAAPI is not wired:
-        // untested on real hardware here.
-        const QString choice = m_settings->videoEncoder();
-        const bool nvenc = choice == QLatin1String("nvenc")
-                ? FfmpegUtil::hardwareEncoderAvailable(QStringLiteral("nvenc"))
-                : choice == QLatin1String("auto") && FfmpegUtil::hardwareEncoderWorks(QStringLiteral("nvenc"));
-        if (nvenc) {
-            videoFilter = QStringLiteral("setparams=range=tv:colorspace=smpte170m");
+        // Hardware encoding (replayHardwareEncoder picks which). Measured on
+        // 10 s of 2560x1440 at 45 fps: NVENC 3.1 s of CPU against libx264
+        // ultrafast's 21.4 s, at the same size. NVENC and AMF take the BGRx
+        // frames as they are and convert on the GPU; VAAPI and Quick Sync get
+        // NV12 from swscale (~1 core at 1440p45 here), still far under x264.
+        // shortcut: VAAPI could upload BGRx and convert with scale_vaapi, once
+        //  someone can test it on AMD and Intel hardware.
+        // All of them produce BT.601 limited range, the pixels swscale gives
+        // libx264; setparams tags it so (NVENC would tag full-range GBR from
+        // the input, AMF picks its conversion matrix from the tag).
+        // Every one runs without frame reordering or a deep queue, for the
+        // same -shortest start deadlock -tune zerolatency avoids for x264
+        // below, and turns the forced keyframes into IDR frames: the segment
+        // muxer cuts on those and each segment must decode alone.
+        const QString hw = replayHardwareEncoder(m_settings->videoEncoder());
+        const QString quality = QString::number(UnisicVideo::crfFromPercent(m_settings->videoQualityPercent()));
+        const QString tags = QStringLiteral("setparams=range=tv:colorspace=smpte170m");
+        if (hw == QLatin1String("nvenc")) {
+            videoFilter = tags;
             args << QStringLiteral("-c:v") << QStringLiteral("h264_nvenc")
                  << QStringLiteral("-preset") << QStringLiteral("p1")
                  << QStringLiteral("-tune") << QStringLiteral("ll")
-                 // No reordering delay, for the same -shortest start deadlock
-                 // -tune zerolatency avoids for x264 below.
                  << QStringLiteral("-zerolatency") << QStringLiteral("1")
                  << QStringLiteral("-rc") << QStringLiteral("vbr")
-                 << QStringLiteral("-cq")
-                 << QString::number(UnisicVideo::crfFromPercent(m_settings->videoQualityPercent()))
+                 << QStringLiteral("-cq") << quality
                  << QStringLiteral("-b:v") << QStringLiteral("0")
-                 // The segment muxer cuts on these; each segment must decode alone.
                  << QStringLiteral("-forced-idr") << QStringLiteral("1");
+        } else if (hw == QLatin1String("amf")) {
+            videoFilter = tags;
+            args << QStringLiteral("-c:v") << QStringLiteral("h264_amf")
+                 << QStringLiteral("-usage") << QStringLiteral("lowlatency")
+                 << QStringLiteral("-quality") << QStringLiteral("speed")
+                 << QStringLiteral("-rc") << QStringLiteral("cqp")
+                 << QStringLiteral("-qp_i") << quality << QStringLiteral("-qp_p") << quality
+                 << QStringLiteral("-bf") << QStringLiteral("0")
+                 << QStringLiteral("-async_depth") << QStringLiteral("1")
+                 << QStringLiteral("-forced_idr") << QStringLiteral("1");
+        } else if (hw == QLatin1String("vaapi")) {
+            videoFilter = QStringLiteral("format=nv12,") + tags + QStringLiteral(",hwupload");
+            args << QStringLiteral("-vaapi_device") << QStringLiteral("/dev/dri/renderD128")
+                 << QStringLiteral("-c:v") << QStringLiteral("h264_vaapi")
+                 << QStringLiteral("-qp") << QString::number(qBound(1, quality.toInt(), 40))
+                 << QStringLiteral("-bf") << QStringLiteral("0")
+                 << QStringLiteral("-async_depth") << QStringLiteral("1");
+        } else if (hw == QLatin1String("qsv")) {
+            videoFilter = QStringLiteral("format=nv12,") + tags;
+            // -q:v selects constant QP in h264_qsv.
+            args << QStringLiteral("-c:v") << QStringLiteral("h264_qsv")
+                 << QStringLiteral("-preset") << QStringLiteral("veryfast")
+                 << QStringLiteral("-q:v") << quality
+                 << QStringLiteral("-bf") << QStringLiteral("0")
+                 << QStringLiteral("-async_depth") << QStringLiteral("1")
+                 << QStringLiteral("-forced_idr") << QStringLiteral("1");
         } else if (encoders.contains(QStringLiteral("libx264")) || encoders.isEmpty()) {
             args << QStringLiteral("-c:v") << QStringLiteral("libx264")
                  << QStringLiteral("-preset") << QStringLiteral("ultrafast")
@@ -1097,7 +1147,7 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
             args << QStringLiteral("-c:v") << QStringLiteral("mpeg4")
                  << QStringLiteral("-q:v") << QStringLiteral("3");
         }
-        if (!nvenc)
+        if (hw.isEmpty())
             args << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p");
     } else if (encoders.contains(QStringLiteral("libx264rgb")) || encoders.isEmpty()) {
         args << QStringLiteral("-c:v") << QStringLiteral("libx264rgb")

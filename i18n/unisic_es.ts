@@ -4359,63 +4359,63 @@
 <context>
     <name>GifRecorder</name>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="577"/>
-        <location filename="../src/record/GifRecorder.cpp" line="630"/>
+        <location filename="../src/record/GifRecorder.cpp" line="604"/>
+        <location filename="../src/record/GifRecorder.cpp" line="657"/>
         <source>Screen sharing was stopped</source>
         <translation>Se detuvo la compartición de pantalla</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="602"/>
+        <location filename="../src/record/GifRecorder.cpp" line="629"/>
         <source>No window was picked</source>
         <translation>No se eligió ninguna ventana</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="608"/>
+        <location filename="../src/record/GifRecorder.cpp" line="635"/>
         <source>Failed to start the window recording</source>
         <translation>No se pudo iniciar la grabación de la ventana</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="696"/>
+        <location filename="../src/record/GifRecorder.cpp" line="723"/>
         <source>The shared screen doesn&apos;t match the one the region was selected on - pick &quot;%1&quot; in the sharing dialog</source>
         <translation>La pantalla compartida no coincide con aquella en la que se seleccionó la región - elige &quot;%1&quot; en el diálogo de compartición</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="741"/>
+        <location filename="../src/record/GifRecorder.cpp" line="768"/>
         <source>Failed to connect to the PipeWire stream</source>
         <translation>No se pudo conectar al flujo de PipeWire</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="754"/>
+        <location filename="../src/record/GifRecorder.cpp" line="781"/>
         <source>No screen is available to record</source>
         <translation>No hay ninguna pantalla disponible para grabar</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="773"/>
+        <location filename="../src/record/GifRecorder.cpp" line="800"/>
         <source>Failed to start X11 screen capture</source>
         <translation>No se pudo iniciar la captura de pantalla X11</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="802"/>
+        <location filename="../src/record/GifRecorder.cpp" line="829"/>
         <source>PipeWire returned an invalid stream size</source>
         <translation>PipeWire devolvió un tamaño de flujo no válido</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="840"/>
+        <location filename="../src/record/GifRecorder.cpp" line="867"/>
         <source>Selected recording region is outside the chosen screen stream</source>
         <translation>La región de grabación seleccionada está fuera del flujo de pantalla elegido</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="841"/>
+        <location filename="../src/record/GifRecorder.cpp" line="868"/>
         <source>Recording stream is too small</source>
         <translation>El flujo de grabación es demasiado pequeño</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="961"/>
+        <location filename="../src/record/GifRecorder.cpp" line="988"/>
         <source>System audio</source>
         <translation>Audio del sistema</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="964"/>
+        <location filename="../src/record/GifRecorder.cpp" line="991"/>
         <source>Microphone</source>
         <translation>Micrófono</translation>
     </message>
@@ -4424,84 +4424,84 @@
         <translation type="vanished">Audio de la aplicación</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="1124"/>
+        <location filename="../src/record/GifRecorder.cpp" line="1211"/>
         <source>Mix</source>
         <translation>Mezcla</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="1232"/>
-        <location filename="../src/record/GifRecorder.cpp" line="2154"/>
-        <location filename="../src/record/GifRecorder.cpp" line="2205"/>
-        <location filename="../src/record/GifRecorder.cpp" line="2247"/>
-        <location filename="../src/record/GifRecorder.cpp" line="2402"/>
+        <location filename="../src/record/GifRecorder.cpp" line="1319"/>
+        <location filename="../src/record/GifRecorder.cpp" line="2241"/>
+        <location filename="../src/record/GifRecorder.cpp" line="2292"/>
+        <location filename="../src/record/GifRecorder.cpp" line="2334"/>
+        <location filename="../src/record/GifRecorder.cpp" line="2489"/>
         <source>ffmpeg could not be started. Is it installed?</source>
         <translation>No se pudo iniciar ffmpeg. ¿Está instalado?</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="1249"/>
+        <location filename="../src/record/GifRecorder.cpp" line="1336"/>
         <source>Recording encoder crashed</source>
         <translation>El codificador de grabación se bloqueó</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="1250"/>
+        <location filename="../src/record/GifRecorder.cpp" line="1337"/>
         <source>Recording encoder stopped unexpectedly (code %1)</source>
         <translation>El codificador de grabación se detuvo de forma inesperada (código %1)</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="1267"/>
+        <location filename="../src/record/GifRecorder.cpp" line="1354"/>
         <source>Recording encoder failed (code %1)</source>
         <translation>El codificador de grabación falló (código %1)</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="1334"/>
+        <location filename="../src/record/GifRecorder.cpp" line="1421"/>
         <source>pw-record could not capture the selected application audio</source>
         <translation>pw-record no pudo capturar el audio de la aplicación seleccionada</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="1531"/>
+        <location filename="../src/record/GifRecorder.cpp" line="1618"/>
         <source>Recording encoder is not running</source>
         <translation>El codificador de grabación no está en ejecución</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="1608"/>
+        <location filename="../src/record/GifRecorder.cpp" line="1695"/>
         <source>Recording encoder hung and nothing could be salvaged</source>
         <translation>El codificador de grabación se colgó y no se pudo rescatar nada</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="1661"/>
+        <location filename="../src/record/GifRecorder.cpp" line="1748"/>
         <source>Instant replay needs at least one completed segment</source>
         <translation>La repetición instantánea necesita al menos un segmento completado</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="1840"/>
+        <location filename="../src/record/GifRecorder.cpp" line="1927"/>
         <source>Could not snapshot the replay segments</source>
         <translation>No se pudo crear una instantánea de los segmentos de repetición</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="1846"/>
-        <location filename="../src/record/GifRecorder.cpp" line="1856"/>
+        <location filename="../src/record/GifRecorder.cpp" line="1933"/>
+        <location filename="../src/record/GifRecorder.cpp" line="1943"/>
         <source>Could not prepare the replay export</source>
         <translation>No se pudo preparar la exportación de la repetición</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="1894"/>
-        <location filename="../src/record/GifRecorder.cpp" line="1914"/>
+        <location filename="../src/record/GifRecorder.cpp" line="1981"/>
+        <location filename="../src/record/GifRecorder.cpp" line="2001"/>
         <source>Instant replay export failed</source>
         <translation>Falló la exportación de la repetición instantánea</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="2138"/>
+        <location filename="../src/record/GifRecorder.cpp" line="2225"/>
         <source>Removing the paused sections failed</source>
         <translation>No se pudieron eliminar las secciones en pausa</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="2194"/>
-        <location filename="../src/record/GifRecorder.cpp" line="2233"/>
+        <location filename="../src/record/GifRecorder.cpp" line="2281"/>
+        <location filename="../src/record/GifRecorder.cpp" line="2320"/>
         <source>GIF conversion failed</source>
         <translation>Falló la conversión a GIF</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="2389"/>
+        <location filename="../src/record/GifRecorder.cpp" line="2476"/>
         <source>Video conversion failed</source>
         <translation>Falló la conversión de vídeo</translation>
     </message>
@@ -5146,47 +5146,53 @@ Las capturas destacadas (favoritas) de la selección se conservan: quítales la 
         <translation>Subiendo…</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="638"/>
+        <location filename="../qml/Main.qml" line="605"/>
+        <location filename="../qml/Main.qml" line="681"/>
         <source>Clips</source>
         <translation>Clips</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="758"/>
+        <location filename="../qml/Main.qml" line="616"/>
+        <source>Stop replay</source>
+        <translation>Detener repetición</translation>
+    </message>
+    <message>
+        <location filename="../qml/Main.qml" line="801"/>
         <source>Unisic did not shut down properly last time. Settings › General › Activity log has the report.</source>
         <translation>Unisic no se cerró correctamente la última vez. El informe está en Ajustes › General › Registro de actividad.</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="994"/>
+        <location filename="../qml/Main.qml" line="1037"/>
         <source>Unisic cannot open what you dropped</source>
         <translation>Unisic no puede abrir lo que has soltado</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="1039"/>
+        <location filename="../qml/Main.qml" line="1082"/>
         <source>Drop to open in the editor</source>
         <translation>Suelta para abrir en el editor</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="1040"/>
+        <location filename="../qml/Main.qml" line="1083"/>
         <source>Drop to open in the trim window</source>
         <translation>Suelta para abrir en la ventana de recorte</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="1041"/>
+        <location filename="../qml/Main.qml" line="1084"/>
         <source>Unisic cannot open this</source>
         <translation>Unisic no puede abrir esto</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="1042"/>
+        <location filename="../qml/Main.qml" line="1085"/>
         <source>Drop to try opening it</source>
         <translation>Suelta para intentar abrirlo</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="1051"/>
+        <location filename="../qml/Main.qml" line="1094"/>
         <source>Images open in the editor, recordings in the trim window.</source>
         <translation>Las imágenes se abren en el editor y las grabaciones en la ventana de recorte.</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="585"/>
+        <location filename="../qml/Main.qml" line="628"/>
         <source>Minimize</source>
         <translation>Minimizar</translation>
     </message>
@@ -5196,27 +5202,27 @@ Las capturas destacadas (favoritas) de la selección se conservan: quítales la 
         <translation>Ir a una página (Ctrl+1 … Ctrl+7)</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="592"/>
+        <location filename="../qml/Main.qml" line="635"/>
         <source>Maximize</source>
         <translation>Maximizar</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="600"/>
+        <location filename="../qml/Main.qml" line="643"/>
         <source>Close</source>
         <translation>Cerrar</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="636"/>
+        <location filename="../qml/Main.qml" line="679"/>
         <source>Capture</source>
         <translation>Capturar</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="637"/>
+        <location filename="../qml/Main.qml" line="680"/>
         <source>Record</source>
         <translation>Grabar</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="639"/>
+        <location filename="../qml/Main.qml" line="682"/>
         <source>Edit</source>
         <translation>Editar</translation>
     </message>
@@ -5267,17 +5273,17 @@ Las capturas destacadas (favoritas) de la selección se conservan: quítales la 
         <translation>Ver novedades</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="652"/>
+        <location filename="../qml/Main.qml" line="695"/>
         <source>History</source>
         <translation>Historial</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="653"/>
+        <location filename="../qml/Main.qml" line="696"/>
         <source>Servers</source>
         <translation>Servidores</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="661"/>
+        <location filename="../qml/Main.qml" line="704"/>
         <source>Settings</source>
         <translation>Ajustes</translation>
     </message>
@@ -7204,9 +7210,8 @@ Desactivado o no compatible: en su lugar se muestra una notificación nativa del
         <translation type="vanished">Para editar: el micrófono queda separado del audio del sistema, así que después puedes bajar uno respecto al otro. Necesita al menos dos fuentes - con una no hay nada que separar y la grabación conserva su única pista. Algunos reproductores muestran solo la primera pista, así que déjalo desactivado para un clip pensado para verse tal cual.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2236"/>
         <source>Automatic uses VAAPI or NVENC when they actually encode on this machine, and falls back to software otherwise - a hardware encoder that is merely listed but broken is skipped. Hardware encoding accelerates MP4 (H.264); WebM uses AV1 on NVIDIA GPUs with an AV1 encoder (RTX 40 series and newer) and software VP9 everywhere else.</source>
-        <translation>Automático usa VAAPI o NVENC cuando realmente codifican en esta máquina, y recurre al software en caso contrario - un codificador por hardware que solo aparece listado pero no funciona se omite. La codificación por hardware acelera MP4 (H.264); WebM usa AV1 en GPU NVIDIA con codificador AV1 (RTX serie 40 y posteriores) y VP9 por software en el resto.</translation>
+        <translation type="vanished">Automático usa VAAPI o NVENC cuando realmente codifican en esta máquina, y recurre al software en caso contrario - un codificador por hardware que solo aparece listado pero no funciona se omite. La codificación por hardware acelera MP4 (H.264); WebM usa AV1 en GPU NVIDIA con codificador AV1 (RTX serie 40 y posteriores) y VP9 por software en el resto.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="2046"/>
@@ -10083,6 +10088,11 @@ Se aplica a la próxima captura.</translation>
         <location filename="../qml/pages/SettingsPage.qml" line="5196"/>
         <source>Watermark</source>
         <translation>Marca de agua</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="2236"/>
+        <source>Automatic uses VAAPI or NVENC when they actually encode on this machine, and falls back to software otherwise - a hardware encoder that is merely listed but broken is skipped. Hardware encoding accelerates MP4 (H.264); WebM uses AV1 on NVIDIA GPUs with an AV1 encoder (RTX 40 series and newer) and software VP9 everywhere else. Instant replay clips are encoded the same way and, when neither works, also try AMD AMF and Intel Quick Sync.</source>
+        <translation>Automático usa VAAPI o NVENC cuando realmente codifican en esta máquina, y recurre al software en caso contrario - un codificador por hardware que solo aparece listado pero no funciona se omite. La codificación por hardware acelera MP4 (H.264); WebM usa AV1 en GPU NVIDIA con codificador AV1 (RTX serie 40 y posteriores) y VP9 por software en el resto. Los clips de repetición instantánea se codifican igual y, si ninguno funciona, también prueban AMD AMF e Intel Quick Sync.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="2727"/>

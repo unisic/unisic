@@ -4141,7 +4141,7 @@
 <context>
     <name>GifRecorder</name>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="+577"/>
+        <location filename="../src/record/GifRecorder.cpp" line="+604"/>
         <location line="+53"/>
         <source>Screen sharing was stopped</source>
         <translation>屏幕共享已停止</translation>
@@ -4202,7 +4202,7 @@
         <translation>麦克风</translation>
     </message>
     <message>
-        <location line="+160"/>
+        <location line="+220"/>
         <source>Mix</source>
         <translation>混合</translation>
     </message>
@@ -4916,12 +4916,18 @@ Starred (favorite) captures in the selection are kept - un-star them first.</sou
         <translation>正在上传…</translation>
     </message>
     <message>
-        <location line="+68"/>
+        <location line="+35"/>
+        <location line="+76"/>
         <source>Clips</source>
         <translation>剪辑</translation>
     </message>
     <message>
-        <location line="+120"/>
+        <location line="-65"/>
+        <source>Stop replay</source>
+        <translation>停止回放</translation>
+    </message>
+    <message>
+        <location line="+185"/>
         <source>Unisic did not shut down properly last time. Settings › General › Activity log has the report.</source>
         <translation>Unisic 上次没有正常退出。报告见设置 › 通用 › 活动日志。</translation>
     </message>
@@ -4961,12 +4967,12 @@ Starred (favorite) captures in the selection are kept - un-star them first.</sou
         <translation>最小化</translation>
     </message>
     <message>
-        <location line="-398"/>
+        <location line="-441"/>
         <source>Jump to a page (Ctrl+1 … Ctrl+7)</source>
         <translation>跳转到页面 (Ctrl+1 … Ctrl+7)</translation>
     </message>
     <message>
-        <location line="+405"/>
+        <location line="+448"/>
         <source>Maximize</source>
         <translation>最大化</translation>
     </message>
@@ -4995,7 +5001,7 @@ Starred (favorite) captures in the selection are kept - un-star them first.</sou
         <translation type="vanished">素材库</translation>
     </message>
     <message>
-        <location line="-277"/>
+        <location line="-320"/>
         <source>Unisic %1</source>
         <extracomment>Spoken name of the version chip in the header: %1 is the version.</extracomment>
         <translation>Unisic %1</translation>
@@ -5037,7 +5043,7 @@ Starred (favorite) captures in the selection are kept - un-star them first.</sou
         <translation>查看更新日志</translation>
     </message>
     <message>
-        <location line="+223"/>
+        <location line="+266"/>
         <source>History</source>
         <translation>历史记录</translation>
     </message>
@@ -6739,12 +6745,11 @@ Off or unsupported: a native desktop notification is shown instead - the capture
         <translation>通知样式</translation>
     </message>
     <message>
-        <location line="-1609"/>
         <source>Automatic uses VAAPI or NVENC when they actually encode on this machine, and falls back to software otherwise - a hardware encoder that is merely listed but broken is skipped. Hardware encoding accelerates MP4 (H.264); WebM uses AV1 on NVIDIA GPUs with an AV1 encoder (RTX 40 series and newer) and software VP9 everywhere else.</source>
-        <translation>自动模式下，VAAPI 或 NVENC 只有在当前机器上真正能编码时才会使用，否则回退到软件编码；仅在列表中但实际损坏的硬件编码器会被跳过。硬件编码可加速 MP4（H.264）；WebM 在带 AV1 编码器的 NVIDIA GPU（RTX 40 系列及更新型号）上使用 AV1，其他情况使用软件 VP9。</translation>
+        <translation type="vanished">自动模式下，VAAPI 或 NVENC 只有在当前机器上真正能编码时才会使用，否则回退到软件编码；仅在列表中但实际损坏的硬件编码器会被跳过。硬件编码可加速 MP4（H.264）；WebM 在带 AV1 编码器的 NVIDIA GPU（RTX 40 系列及更新型号）上使用 AV1，其他情况使用软件 VP9。</translation>
     </message>
     <message>
-        <location line="+1611"/>
+        <location line="+2"/>
         <source>How the capture card looks, from full card to tiny pill.</source>
         <translation>截图卡片的外观，从完整卡片到小型胶囊。</translation>
     </message>
@@ -7517,7 +7522,12 @@ Off or unsupported: a native desktop notification is shown instead - the capture
         <translation>所有显示器</translation>
     </message>
     <message>
-        <location line="+695"/>
+        <location line="+434"/>
+        <source>Automatic uses VAAPI or NVENC when they actually encode on this machine, and falls back to software otherwise - a hardware encoder that is merely listed but broken is skipped. Hardware encoding accelerates MP4 (H.264); WebM uses AV1 on NVIDIA GPUs with an AV1 encoder (RTX 40 series and newer) and software VP9 everywhere else. Instant replay clips are encoded the same way and, when neither works, also try AMD AMF and Intel Quick Sync.</source>
+        <translation>自动模式下，VAAPI 或 NVENC 只有在当前机器上真正能编码时才会使用，否则回退到软件编码；仅在列表中但实际损坏的硬件编码器会被跳过。硬件编码可加速 MP4（H.264）；WebM 在带 AV1 编码器的 NVIDIA GPU（RTX 40 系列及更新型号）上使用 AV1，其他情况使用软件 VP9。即时回放片段使用相同的编码方式；两者都不可用时，还会尝试 AMD AMF 和 Intel Quick Sync。</translation>
+    </message>
+    <message>
+        <location line="+261"/>
         <source>Stamp recordings</source>
         <translation>为录制添加水印</translation>
     </message>
